@@ -1,0 +1,52 @@
+{
+  "app": {
+    "name": "ChessAdvisor",
+    "tagline": "Impara gli scacchi giocando contro i modelli OpenAI"
+  },
+  "rail": {
+    "play": "Gioca",
+    "training": "Allenamento",
+    "progress": "Progressi",
+    "settings": "Impostazioni"
+  },
+  "play": {
+    "title": "Gioca una partita",
+    "body": "La scacchiera, l'avversario e la barra di valutazione compaiono qui non appena la partita è pronta.",
+    "action": "Nuova partita"
+  },
+  "empty": {
+    "note": "disponibile dopo la prima partita analizzata",
+    "training": {
+      "title": "Allenamento su misura",
+      "body": "Esercizi tattici, aperture e finali scelti sui temi in cui perdi più punti.",
+      "action": "Genera il piano di studio"
+    },
+    "progress": {
+      "title": "I tuoi progressi",
+      "body": "Livello stimato, accuratezza e temi in miglioramento, calcolati dalle partite che hai giocato.",
+      "action": "Apri il cruscotto"
+    }
+  },
+  "settings": {
+    "title": "Impostazioni",
+    "subtitle": "Aspetto, lingua e collegamento a Codex.",
+    "appearance": "Aspetto",
+    "theme": "Tema",
+    "themeHint": "Il tema di sistema segue le preferenze di Windows.",
+    "themeNight": "Notturno",
+    "themeEditorial": "Editoriale",
+    "themeSystem": "Sistema",
+    "language": "Lingua",
+    "languageHint": "Le etichette dell'interfaccia cambiano subito.",
+    "languageIt": "Italiano",
+    "languageEn": "Inglese",
+    "comingSoon": "Modelli, Codex, motore e aggiornamenti arrivano nelle sezioni successive."
+  },
+  "common": {
+    "close": "Chiudi",
+    "cancel": "Annulla",
+    "confirm": "Conferma",
+    "retry": "Riprova",
+    "select": "Seleziona"
+  }
+}

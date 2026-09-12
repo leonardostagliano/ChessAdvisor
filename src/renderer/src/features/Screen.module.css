@@ -1,0 +1,72 @@
+.screen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+  max-width: 960px;
+  min-height: 100%;
+  padding: var(--s-6) var(--s-6) var(--s-8);
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.title {
+  font-size: var(--fs-xl);
+  color: var(--text);
+}
+
+.subtitle {
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+  max-width: 62ch;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  padding: var(--s-5);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+}
+
+.cardTitle {
+  font-family: var(--font-ui);
+  font-size: var(--fs-md);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-4);
+}
+
+.fieldTexts {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.fieldLabel {
+  font-size: var(--fs-sm);
+  color: var(--text);
+}
+
+.fieldHint {
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+
+.note {
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}

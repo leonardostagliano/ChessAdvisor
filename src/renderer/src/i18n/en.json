@@ -1,0 +1,52 @@
+{
+  "app": {
+    "name": "ChessAdvisor",
+    "tagline": "Learn chess by playing OpenAI models"
+  },
+  "rail": {
+    "play": "Play",
+    "training": "Training",
+    "progress": "Progress",
+    "settings": "Settings"
+  },
+  "play": {
+    "title": "Play a game",
+    "body": "The board, the opponent card and the eval bar appear here as soon as the game is ready.",
+    "action": "New game"
+  },
+  "empty": {
+    "note": "available after your first analysed game",
+    "training": {
+      "title": "Training built on your games",
+      "body": "Tactics, openings and endgames picked from the themes where you lose the most points.",
+      "action": "Generate the study plan"
+    },
+    "progress": {
+      "title": "Your progress",
+      "body": "Estimated level, accuracy and improving themes, computed from the games you played.",
+      "action": "Open the dashboard"
+    }
+  },
+  "settings": {
+    "title": "Settings",
+    "subtitle": "Appearance, language and Codex connection.",
+    "appearance": "Appearance",
+    "theme": "Theme",
+    "themeHint": "The system theme follows your Windows preference.",
+    "themeNight": "Night",
+    "themeEditorial": "Editorial",
+    "themeSystem": "System",
+    "language": "Language",
+    "languageHint": "Interface labels change immediately.",
+    "languageIt": "Italian",
+    "languageEn": "English",
+    "comingSoon": "Models, Codex, engine and updates arrive in the next sections."
+  },
+  "common": {
+    "close": "Close",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "retry": "Retry",
+    "select": "Select"
+  }
+}

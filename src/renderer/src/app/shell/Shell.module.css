@@ -1,0 +1,92 @@
+.shell {
+  display: flex;
+  height: 100%;
+  background: var(--bg);
+}
+
+/* Left rail */
+.rail {
+  flex: none;
+  width: var(--rail-width);
+  padding: var(--s-3) 0;
+  background: var(--bg-2);
+  border-right: 1px solid var(--border);
+}
+
+.railList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+}
+
+.railItem {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  width: 100%;
+  padding: var(--s-2) 2px;
+  border: 0;
+  background: transparent;
+  color: var(--text-3);
+  transition:
+    color var(--dur-2) var(--ease),
+    background var(--dur-2) var(--ease);
+}
+
+.railItem:hover {
+  color: var(--text-2);
+  background: var(--accent-soft);
+}
+
+.railItem:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius-control);
+}
+
+.railItemActive {
+  color: var(--accent);
+}
+
+.railItemActive:hover {
+  color: var(--accent);
+}
+
+.railIndicator {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 3px;
+  height: 28px;
+  margin-top: -14px;
+  border-radius: 0 var(--radius-pill) var(--radius-pill) 0;
+  background: var(--accent);
+  transform: scaleY(0);
+  transform-origin: center;
+  opacity: 0;
+  transition:
+    transform var(--dur-3) var(--ease-spring),
+    opacity var(--dur-2) var(--ease);
+}
+
+.railItemActive .railIndicator {
+  transform: scaleY(1);
+  opacity: 1;
+}
+
+.railLabel {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  text-align: center;
+}
+
+/* Content area */
+.content {
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+}
