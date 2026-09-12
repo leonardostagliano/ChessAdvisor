@@ -2,8 +2,9 @@ import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 import type { Api, StreamEnvelope } from '@shared/types/api'
 import type { Settings } from '@shared/types/settings'
+import type { Analysis, AnalysisProfile, EngineState } from '@shared/types/engine'
 
-type Channel = 'stream' | 'settings:changed'
+type Channel = 'stream' | 'settings:changed' | 'engine:state'
 
 function subscribe(channel: Channel, cb: (payload: never) => void): () => void {
   const listener = (_event: IpcRendererEvent, payload: unknown): void => cb(payload as never)
@@ -24,7 +25,13 @@ const api: Api = {
     openExternal: (url: string) => ipcRenderer.invoke('app:openExternal', url) as Promise<void>,
     showWindow: () => ipcRenderer.invoke('app:showWindow') as Promise<void>
   },
-  on: ((channel: Channel, cb: (payload: StreamEnvelope & Settings) => void) => subscribe(channel, cb as (payload: never) => void)) as Api['on']
+  // --- Task 7: Stockfish engine ---
+  engine: {
+    state: () => ipcRenderer.invoke('engine:state') as Promise<EngineState>,
+    analyze: (fen: string, profile: AnalysisProfile) => ipcRenderer.invoke('engine:analyze', fen, profile) as Promise<Analysis>
+  },
+  // --- end Task 7 ---
+  on: ((channel: Channel, cb: (payload: StreamEnvelope & Settings & EngineState) => void) => subscribe(channel, cb as (payload: never) => void)) as Api['on']
 }
 
 if (process.contextIsolated) {
