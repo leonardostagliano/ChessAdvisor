@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="ChessAdvisor">
+  <title>ChessAdvisor</title>
+  <circle cx="256" cy="256" r="256" fill="#1c1e21"/>
+  <path fill="#f0d9b5" d="M142 416C142 354 167 304 216 271C242 253 260 237 270 217C251 223 233 233 219 247L190 220C207 187 233 161 266 145L258 92L298 124L330 100C358 130 379 180 379 248L379 416Z"/>
+  <path fill="#f0d9b5" d="M136 412h250a10 10 0 0 1 10 10v30a10 10 0 0 1-10 10H136a10 10 0 0 1-10-10v-30a10 10 0 0 1 10-10z"/>
+  <circle cx="294" cy="176" r="14" fill="#e0a458"/>
+</svg>

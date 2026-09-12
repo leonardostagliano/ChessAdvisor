@@ -1,12 +1,13 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
-import type { Api, StreamEnvelope } from '@shared/types/api'
+import type { Api, AppVersionInfo, StreamEnvelope } from '@shared/types/api'
 import type { Game, GameFilter, GameSummary } from '@shared/types/game'
 import type { CodexState, ModelInfo, QuotaSnapshot } from '@shared/types/codex'
 import type { Settings } from '@shared/types/settings'
 import type { Analysis, AnalysisProfile, EngineState } from '@shared/types/engine'
+import { UPDATES_IPC, type UpdatePreferences, type UpdateStatus } from '@shared/updates'
 
-type Channel = 'stream' | 'settings:changed' | 'engine:state' | 'codex:state'
+type Channel = 'stream' | 'settings:changed' | 'engine:state' | 'codex:state' | 'updates:changed'
 
 function subscribe(channel: Channel, cb: (payload: never) => void): () => void {
   const listener = (_event: IpcRendererEvent, payload: unknown): void => cb(payload as never)
@@ -25,7 +26,10 @@ const api: Api = {
   app: {
     version: () => ipcRenderer.invoke('app:version') as Promise<string>,
     openExternal: (url: string) => ipcRenderer.invoke('app:openExternal', url) as Promise<void>,
-    showWindow: () => ipcRenderer.invoke('app:showWindow') as Promise<void>
+    showWindow: () => ipcRenderer.invoke('app:showWindow') as Promise<void>,
+    // --- Task 5: updater and licences ---
+    versionInfo: () => ipcRenderer.invoke('app:versionInfo') as Promise<AppVersionInfo>,
+    readNotices: () => ipcRenderer.invoke('app:readNotices') as Promise<string>
   },
   // --- Task 7: Stockfish engine ---
   engine: {
@@ -46,7 +50,18 @@ const api: Api = {
     models: () => ipcRenderer.invoke('codex:models') as Promise<ModelInfo[]>,
     quota: () => ipcRenderer.invoke('codex:quota') as Promise<QuotaSnapshot | null>
   },
-  on: ((channel: Channel, cb: (payload: StreamEnvelope & Settings & EngineState & CodexState) => void) => subscribe(channel, cb as (payload: never) => void)) as Api['on']
+  // --- Task 5: in-app updater ---
+  updates: {
+    status: () => ipcRenderer.invoke(UPDATES_IPC.status) as Promise<UpdateStatus>,
+    savePreferences: (preferences: UpdatePreferences) => ipcRenderer.invoke(UPDATES_IPC.preferences, preferences) as Promise<UpdateStatus>,
+    check: () => ipcRenderer.invoke(UPDATES_IPC.check) as Promise<UpdateStatus>,
+    authenticate: () => ipcRenderer.invoke(UPDATES_IPC.authenticate) as Promise<UpdateStatus>,
+    cancelAuthentication: () => ipcRenderer.invoke(UPDATES_IPC.cancelAuthentication) as Promise<UpdateStatus>,
+    download: () => ipcRenderer.invoke(UPDATES_IPC.download) as Promise<UpdateStatus>,
+    install: () => ipcRenderer.invoke(UPDATES_IPC.install) as Promise<UpdateStatus>,
+    openRelease: () => ipcRenderer.invoke(UPDATES_IPC.openRelease) as Promise<void>
+  },
+  on: ((channel: Channel, cb: (payload: StreamEnvelope & Settings & EngineState & CodexState & UpdateStatus) => void) => subscribe(channel, cb as (payload: never) => void)) as Api['on']
 }
 
 if (process.contextIsolated) {

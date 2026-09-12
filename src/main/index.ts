@@ -5,12 +5,13 @@ import icon from '../../resources/icon.png?asset'
 import { CodexService } from './codex/codexService'
 import { userCodexHome } from './codex/codexHome'
 import { EngineService } from './engine/engineService'
-import { emit, registerIpc } from './ipc/register'
+import { emit, handle, registerIpc } from './ipc/register'
 import { codexHomeDir, dataDir, pinUserDataPath, resourcePath } from './paths'
 import { killStalePids } from './process/runtimeState'
 import { cleanupTmp } from './store/atomicWrite'
 import { SettingsStore } from './store/settingsStore'
 import { createTray, type TrayHandle } from './tray'
+import { registerUpdates } from './updates/register'
 import { shutdown } from './util/shutdown'
 import { WINDOWS_APP_ID, repairPinnedShortcuts } from './util/windowsIdentity'
 
@@ -125,6 +126,14 @@ if (!gotLock) {
       return undefined
     })
     registerIpc({ settings, showWindow: showMainWindow, engine, codex })
+    // In-app updater: never installs while a game turn is in flight (Task 9 supplies isBusy).
+    registerUpdates({
+      handle,
+      settings,
+      getWindow: () => mainWindow,
+      setQuitting,
+      isBusy: () => false
+    })
     // A previous crash may have left a codex/stockfish child running: never talk to a zombie.
     await killStalePids().catch(() => [])
     await cleanupTmp(dataDir()).catch(() => 0)

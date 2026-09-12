@@ -1,0 +1,10 @@
+cburnett chess piece set — GNU General Public License
+
+The SVG chess pieces used by ChessAdvisor are the "cburnett" set, created by
+Colin M.L. Burnett and first published on Wikimedia Commons. The set is
+licensed under the GNU General Public License (and, at Wikimedia Commons, also
+under the BSD licence and CC BY-SA 3.0); ChessAdvisor uses it under the GPL,
+whose full text is in `gpl-3.0.txt` next to this file.
+
+Author: Colin M.L. Burnett (User:Cburnett on Wikimedia Commons)
+Source: https://commons.wikimedia.org/wiki/Category:SVG_chess_pieces

@@ -1,0 +1,74 @@
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.lead {
+  font-size: var(--fs-sm);
+  line-height: var(--lh-prose);
+  color: var(--text);
+}
+
+.note {
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+  line-height: var(--lh-prose);
+}
+
+.progress {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+}
+
+.progressLabel {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--s-2);
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+}
+
+.track {
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--bg-3);
+  overflow: hidden;
+}
+
+.fill {
+  height: 100%;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  transition: width var(--dur-2) var(--ease);
+}
+
+.fill[data-indeterminate='true'] {
+  width: 40%;
+  animation: slide var(--dur-4) var(--ease) infinite alternate;
+}
+
+@keyframes slide {
+  from {
+    transform: translateX(-40%);
+  }
+  to {
+    transform: translateX(180%);
+  }
+}
+
+.error {
+  padding: var(--s-2) var(--s-3);
+  border: 1px solid var(--danger);
+  border-radius: var(--radius-control);
+  font-size: var(--fs-xs);
+  color: var(--danger);
+  line-height: var(--lh-prose);
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--s-2);
+}
