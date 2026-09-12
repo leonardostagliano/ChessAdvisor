@@ -1,0 +1,41 @@
+appId: it.stagliano.chessadvisor
+productName: ChessAdvisor
+# Release-stable identity: taskbar pins and the updater depend on this executable name.
+executableName: ChessAdvisor
+directories:
+  buildResources: build
+  output: release
+npmRebuild: false
+files:
+  - out/main/**/*
+  - out/preload/**/*
+  - out/renderer/**/*
+  - resources/icon.png
+  - resources/tray.ico
+  - package.json
+extraResources:
+  - from: resources/engine
+    to: engine
+  - from: resources/data
+    to: data
+  - from: resources/licenses
+    to: licenses
+asar: true
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+    - target: portable
+      arch: [x64]
+  icon: build/icon.ico
+  artifactName: ${productName}-${version}-${arch}.${ext}
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: ChessAdvisor
+  deleteAppDataOnUninstall: false
+portable:
+  artifactName: ${productName}-${version}-portable.exe
