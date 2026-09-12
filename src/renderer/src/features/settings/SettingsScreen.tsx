@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { Select, type SelectOption } from '../../components/ui/Select'
 import { useUiStore, type Language, type ThemeChoice } from '../../stores/uiStore'
 import styles from '../Screen.module.css'
+import { UpdatesSection } from './UpdatesSection'
 
 /** Placeholder Settings: Task 10 adds models, Codex, engine and updates. */
 export function SettingsScreen(): React.JSX.Element {
@@ -58,6 +59,9 @@ export function SettingsScreen(): React.JSX.Element {
           />
         </div>
       </section>
+
+      {/* Task 5: updates, version identity and licences. */}
+      <UpdatesSection />
 
       <p className={styles.note}>{t('settings.comingSoon')}</p>
     </div>

@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { AppUpdatePrompt } from '../../components/AppUpdatePrompt'
 import { PlayScreen } from '../../features/play/PlayScreen'
 import { ProgressScreen } from '../../features/progress/ProgressScreen'
 import { SettingsScreen } from '../../features/settings/SettingsScreen'
@@ -26,6 +27,8 @@ export function Shell(): React.JSX.Element {
       <main className={styles.content}>
         <Screen />
       </main>
+      {/* Task 5: offered only when the main process reports an installable release. */}
+      <AppUpdatePrompt />
     </div>
   )
 }

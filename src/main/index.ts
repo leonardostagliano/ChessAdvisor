@@ -2,12 +2,13 @@ import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { BrowserWindow, app, nativeTheme, shell } from 'electron'
 import icon from '../../resources/icon.png?asset'
-import { registerIpc } from './ipc/register'
+import { handle, registerIpc } from './ipc/register'
 import { dataDir, pinUserDataPath } from './paths'
 import { killStalePids } from './process/runtimeState'
 import { cleanupTmp } from './store/atomicWrite'
 import { SettingsStore } from './store/settingsStore'
 import { createTray, type TrayHandle } from './tray'
+import { registerUpdates } from './updates/register'
 import { shutdown } from './util/shutdown'
 import { WINDOWS_APP_ID, repairPinnedShortcuts } from './util/windowsIdentity'
 
@@ -99,6 +100,14 @@ if (!gotLock) {
       return undefined
     })
     registerIpc({ settings, showWindow: showMainWindow })
+    // In-app updater: never installs while a game turn is in flight (Task 9 supplies isBusy).
+    registerUpdates({
+      handle,
+      settings,
+      getWindow: () => mainWindow,
+      setQuitting,
+      isBusy: () => false
+    })
     // A previous crash may have left a codex/stockfish child running: never talk to a zombie.
     await killStalePids().catch(() => [])
     await cleanupTmp(dataDir()).catch(() => 0)

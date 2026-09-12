@@ -7,7 +7,9 @@ const shared = { '@shared': resolve('src/shared') }
 export default defineConfig({
   main: {
     plugins: [externalizeDepsPlugin()],
-    resolve: { alias: { ...shared, '@main': resolve('src/main') } }
+    resolve: { alias: { ...shared, '@main': resolve('src/main') } },
+    // Lets a development build claim an exact version while testing the update flow.
+    define: { __CHESSADVISOR_DEV_VERSION__: JSON.stringify(process.env.CHESSADVISOR_DEV_VERSION ?? '') }
   },
   preload: {
     plugins: [externalizeDepsPlugin()],

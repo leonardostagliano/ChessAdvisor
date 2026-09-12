@@ -13,6 +13,8 @@ files:
   - resources/icon.png
   - resources/tray.ico
   - package.json
+  # Shown in Settings through app.readNotices(); resolved from app.getAppPath().
+  - THIRD-PARTY-NOTICES.md
 extraResources:
   - from: resources/engine
     to: engine

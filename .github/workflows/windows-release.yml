@@ -1,0 +1,84 @@
+name: Windows release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# Keep rapid pushes queued instead of replacing an older pending release.
+concurrency:
+  group: windows-release-main
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.ref == 'refs/heads/main'
+    runs-on: windows-2022
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      CI: 'true'
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Checkout push with full history and tags
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Calculate release version
+        id: version
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_PLAN: ${{ runner.temp }}/windows-release.json
+        run: node scripts/windows-release.mjs prepare
+
+      - name: Install locked dependencies
+        if: steps.version.outputs.skip != 'true'
+        run: npm ci
+
+      - name: Typecheck
+        if: steps.version.outputs.skip != 'true'
+        run: npm run typecheck
+
+      - name: Test
+        if: steps.version.outputs.skip != 'true'
+        run: npm.cmd test
+
+      - name: Download Stockfish binaries
+        if: steps.version.outputs.skip != 'true'
+        run: npm run fetch:stockfish
+
+      - name: Build Windows installer and portable
+        if: steps.version.outputs.skip != 'true'
+        run: npm run build:win
+
+      - name: Smoke test the packaged application
+        if: steps.version.outputs.skip != 'true'
+        env:
+          ELECTRON_RUN_AS_NODE: '1'
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          $smokeProcess = Start-Process -FilePath 'release/win-unpacked/ChessAdvisor.exe' -ArgumentList @('scripts/smoke-windows.cjs', 'release/win-unpacked') -WindowStyle Hidden -Wait -PassThru -RedirectStandardOutput "$env:RUNNER_TEMP/smoke.stdout.log" -RedirectStandardError "$env:RUNNER_TEMP/smoke.stderr.log"
+          Get-Content "$env:RUNNER_TEMP/smoke.stdout.log"
+          Get-Content "$env:RUNNER_TEMP/smoke.stderr.log"
+          if ($smokeProcess.ExitCode -ne 0) { exit $smokeProcess.ExitCode }
+
+      - name: Publish complete GitHub Release
+        if: steps.version.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_PLAN: ${{ runner.temp }}/windows-release.json
+        run: node scripts/windows-release.mjs publish

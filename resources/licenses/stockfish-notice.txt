@@ -1,0 +1,35 @@
+Stockfish — GNU General Public License, version 3
+
+ChessAdvisor ships unmodified Stockfish binaries for Windows x64 in
+`resources/engine` (`stockfish-avx2.exe` and `stockfish-popcnt.exe`). They are
+downloaded by `scripts/fetch-stockfish.mjs` from the official Stockfish release
+assets and are used as a separate process over the UCI protocol; ChessAdvisor
+does not link against Stockfish code.
+
+Copyright (C) 2004-2026 The Stockfish developers (see AUTHORS file in the
+Stockfish source distribution).
+
+Stockfish is free software: you can redistribute it and/or modify it under the
+terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version. Stockfish is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
+details. The full licence text is in `gpl-3.0.txt` next to this file.
+
+Corresponding source
+--------------------
+Project page and full source: https://github.com/official-stockfish/Stockfish
+Release used by this build: see `resources/engine/STOCKFISH-BUILD.txt`, written
+by `npm run fetch:stockfish`, which records the release tag, the build commit
+URL and the SHA-256 of each downloaded binary.
+
+Written offer
+-------------
+For at least three years from the date ChessAdvisor distributed these binaries,
+the author will provide, on request and for no more than the physical cost of
+distribution, a complete machine-readable copy of the corresponding source code
+of the Stockfish version shipped here, under the terms of the GNU General
+Public License version 3. Requests: Leonardo Stagliano, via the repository
+https://github.com/leonardostagliano/ChessAdvisor (open an issue titled
+"Stockfish corresponding source").

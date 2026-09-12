@@ -1,6 +1,9 @@
+import { readFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import { BrowserWindow, app, ipcMain, shell } from 'electron'
 import type { Settings } from '@shared/types/settings'
 import type { SettingsStore } from '../store/settingsStore'
+import { getAppVersionInfo } from '../util/appVersion'
 
 /** Error shape the renderer receives: the message alone would lose the machine-readable code. */
 export interface SerializedError {
@@ -69,5 +72,21 @@ export function registerIpc(ctx: IpcContext): void {
     ctx.showWindow()
   })
 
+  // --- Task 5: version identity and third-party notices ---
+  handle('app:versionInfo', async () => getAppVersionInfo())
+  handle('app:readNotices', async () => readNotices())
+
   ctx.settings.onChange((settings) => emit('settings:changed', settings))
+}
+
+/**
+ * THIRD-PARTY-NOTICES.md ships inside the asar (see `files` in electron-builder.yml),
+ * so the same path resolves in development and in the packaged app.
+ */
+async function readNotices(): Promise<string> {
+  try {
+    return await readFile(join(app.getAppPath(), 'THIRD-PARTY-NOTICES.md'), 'utf8')
+  } catch (error) {
+    throw new IpcError('E_NOTICES', `third-party notices unavailable: ${String((error as Error).message)}`)
+  }
 }

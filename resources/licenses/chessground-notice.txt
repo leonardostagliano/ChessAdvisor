@@ -1,0 +1,13 @@
+chessground (@lichess-org/chessground) — GNU General Public License,
+version 3 or later
+
+Copyright (C) 2015-2026 Thibault Duplessis and the Lichess contributors.
+
+ChessAdvisor links the chessground board library into its renderer bundle.
+chessground is free software licensed under the GNU General Public License as
+published by the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version; the full text is in `gpl-3.0.txt` next to
+this file. ChessAdvisor itself is distributed under GPL-3.0-only, which is
+compatible with that licence.
+
+Source: https://github.com/lichess-org/chessground
