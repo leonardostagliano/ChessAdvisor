@@ -1,3 +1,4 @@
+import type { Game, GameFilter, GameSummary } from './game'
 import type { Settings } from './settings'
 
 /** Delta envelope pushed on the `stream` channel while a turn is running. */
@@ -21,4 +22,19 @@ declare global {
   interface Window {
     api: Api
   }
+}
+
+// ─── Task 8: games archive ────────────────────────────────────────────────────
+// Declaration merging keeps this namespace additive: sibling tasks append their own
+// `Api` block below without touching the ones already here.
+
+export interface GamesApi {
+  /** Archive rows, newest first. */
+  list(filter?: GameFilter): Promise<GameSummary[]>
+  get(id: string): Promise<Game | null>
+  delete(id: string): Promise<void>
+}
+
+export interface Api {
+  games: GamesApi
 }

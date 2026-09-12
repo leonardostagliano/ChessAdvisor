@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 import type { Api, StreamEnvelope } from '@shared/types/api'
+import type { Game, GameFilter, GameSummary } from '@shared/types/game'
 import type { Settings } from '@shared/types/settings'
 
 type Channel = 'stream' | 'settings:changed'
@@ -24,7 +25,13 @@ const api: Api = {
     openExternal: (url: string) => ipcRenderer.invoke('app:openExternal', url) as Promise<void>,
     showWindow: () => ipcRenderer.invoke('app:showWindow') as Promise<void>
   },
-  on: ((channel: Channel, cb: (payload: StreamEnvelope & Settings) => void) => subscribe(channel, cb as (payload: never) => void)) as Api['on']
+  on: ((channel: Channel, cb: (payload: StreamEnvelope & Settings) => void) => subscribe(channel, cb as (payload: never) => void)) as Api['on'],
+  // ── Task 8: games archive ──
+  games: {
+    list: (filter?: GameFilter) => ipcRenderer.invoke('games:list', filter) as Promise<GameSummary[]>,
+    get: (id: string) => ipcRenderer.invoke('games:get', id) as Promise<Game | null>,
+    delete: (id: string) => ipcRenderer.invoke('games:delete', id) as Promise<void>
+  }
 }
 
 if (process.contextIsolated) {

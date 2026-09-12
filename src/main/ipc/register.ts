@@ -1,5 +1,9 @@
+import { join } from 'node:path'
 import { BrowserWindow, app, ipcMain, shell } from 'electron'
+import type { GameFilter } from '@shared/types/game'
 import type { Settings } from '@shared/types/settings'
+import { dataDir } from '../paths'
+import { GameStore } from '../store/gameStore'
 import type { SettingsStore } from '../store/settingsStore'
 
 /** Error shape the renderer receives: the message alone would lose the machine-readable code. */
@@ -70,4 +74,39 @@ export function registerIpc(ctx: IpcContext): void {
   })
 
   ctx.settings.onChange((settings) => emit('settings:changed', settings))
+
+  // ── Task 8: games archive ──
+  registerGamesIpc(ctx)
+}
+
+// ─── Task 8: games archive ────────────────────────────────────────────────────
+// `IpcContext` is extended by declaration merging so sibling tasks can append their own
+// block without touching the one above.
+
+export interface IpcContext {
+  /** Provided by the game layer (Task 9); missing means "open the archive on demand". */
+  games?: GameStore
+}
+
+let lazyGames: Promise<GameStore> | null = null
+
+/**
+ * The archive is readable even before a game session exists: when no store is injected
+ * we open the one on disk once and keep it, so the index is built a single time.
+ */
+function resolveGames(ctx: IpcContext): Promise<GameStore> {
+  if (ctx.games) return Promise.resolve(ctx.games)
+  if (!lazyGames) {
+    const store = new GameStore(join(dataDir(), 'games'))
+    lazyGames = store.load().then(() => store)
+  }
+  return lazyGames
+}
+
+export function registerGamesIpc(ctx: IpcContext): void {
+  handle('games:list', async (filter?: GameFilter) => (await resolveGames(ctx)).list(filter ?? undefined))
+  handle('games:get', async (id: string) => (await resolveGames(ctx)).get(String(id)))
+  handle('games:delete', async (id: string) => {
+    await (await resolveGames(ctx)).delete(String(id))
+  })
 }
