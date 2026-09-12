@@ -1,74 +1,144 @@
-import { app, shell, BrowserWindow, ipcMain } from 'electron'
-import { join } from 'path'
-import { electronApp, optimizer, is } from '@electron-toolkit/utils'
+import { existsSync } from 'node:fs'
+import { join } from 'node:path'
+import { BrowserWindow, app, nativeTheme, shell } from 'electron'
 import icon from '../../resources/icon.png?asset'
+import { registerIpc } from './ipc/register'
+import { dataDir, pinUserDataPath } from './paths'
+import { killStalePids } from './process/runtimeState'
+import { cleanupTmp } from './store/atomicWrite'
+import { SettingsStore } from './store/settingsStore'
+import { createTray, type TrayHandle } from './tray'
+import { shutdown } from './util/shutdown'
+import { WINDOWS_APP_ID, repairPinnedShortcuts } from './util/windowsIdentity'
+
+// FIRST of all: fixed data folder (the single-instance lock and every store live there).
+pinUserDataPath()
+
+let mainWindow: BrowserWindow | null = null
+let tray: TrayHandle | null = null
+let isQuitting = false
+
+const settings = new SettingsStore(join(dataDir(), 'settings.json'))
+
+/** The updater (Task 5) and the tray menu quit through here so `close` stops hiding the window. */
+export function setQuitting(value: boolean): void {
+  isQuitting = value
+}
+
+/** electron-vite emits the preload as ESM (`.mjs`) or CJS (`.js`) depending on the build. */
+function resolvePreload(): string {
+  const esm = join(__dirname, '../preload/index.mjs')
+  return existsSync(esm) ? esm : join(__dirname, '../preload/index.js')
+}
+
+function showMainWindow(): void {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    if (mainWindow.isMinimized()) mainWindow.restore()
+    mainWindow.show()
+    mainWindow.focus()
+    return
+  }
+  createWindow()
+}
 
 function createWindow(): void {
-  // Create the browser window.
-  const mainWindow = new BrowserWindow({
-    width: 900,
-    height: 670,
+  mainWindow = new BrowserWindow({
+    width: 1320,
+    height: 880,
+    minWidth: 1024,
+    minHeight: 680,
     show: false,
+    backgroundColor: nativeTheme.shouldUseDarkColors ? '#141517' : '#f6f2ea',
+    title: 'ChessAdvisor',
+    icon,
     autoHideMenuBar: true,
-    ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
-      preload: join(__dirname, '../preload/index.js'),
+      preload: resolvePreload(),
+      contextIsolation: true,
+      nodeIntegration: false,
+      // the preload is an ESM bundle: the Chromium sandbox cannot load it
       sandbox: false
     }
   })
 
-  mainWindow.on('ready-to-show', () => {
-    mainWindow.show()
+  mainWindow.on('ready-to-show', () => mainWindow?.show())
+  mainWindow.on('closed', () => {
+    mainWindow = null
+  })
+  // The X button keeps the app running in the notification area; only an explicit quit exits.
+  mainWindow.on('close', (event) => {
+    if (isQuitting) return
+    event.preventDefault()
+    mainWindow?.hide()
   })
 
-  mainWindow.webContents.setWindowOpenHandler((details) => {
-    shell.openExternal(details.url)
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    void shell.openExternal(url)
     return { action: 'deny' }
   })
 
-  // HMR for renderer base on electron-vite cli.
-  // Load the remote URL for development or the local html file for production.
-  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-    mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
+  if (process.env.ELECTRON_RENDERER_URL) {
+    void mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL)
   } else {
-    mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
+    void mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
   }
 }
 
-// This method will be called when Electron has finished
-// initialization and is ready to create browser windows.
-// Some APIs can only be used after this event occurs.
-app.whenReady().then(() => {
-  // Set app user model id for windows
-  electronApp.setAppUserModelId('com.electron')
+// Must match the installer shortcut identity, before Windows sees any window.
+if (process.platform === 'win32' && app.isPackaged) app.setAppUserModelId(WINDOWS_APP_ID)
 
-  // Default open or close DevTools by F12 in development
-  // and ignore CommandOrControl + R in production.
-  // see https://github.com/alex8088/electron-toolkit/tree/master/packages/utils
-  app.on('browser-window-created', (_, window) => {
-    optimizer.watchWindowShortcuts(window)
+const gotLock = app.requestSingleInstanceLock()
+if (!gotLock) {
+  app.quit()
+} else {
+  app.on('second-instance', () => showMainWindow())
+
+  app.whenReady().then(async () => {
+    await settings.load().catch((error) => {
+      console.error('[main] settings could not be loaded, using the defaults:', error)
+      return undefined
+    })
+    registerIpc({ settings, showWindow: showMainWindow })
+    // A previous crash may have left a codex/stockfish child running: never talk to a zombie.
+    await killStalePids().catch(() => [])
+    await cleanupTmp(dataDir()).catch(() => 0)
+
+    createWindow()
+    // Repair this app's existing pins after an NSIS replacement, without delaying first paint.
+    mainWindow?.once('ready-to-show', () => {
+      void repairPinnedShortcuts().catch(() => undefined)
+    })
+    tray = createTray({
+      onShow: showMainWindow,
+      onQuit: () => {
+        isQuitting = true
+        app.quit()
+      },
+      language: settings.get().language
+    })
+    tray.update('ChessAdvisor — inattivo')
+    app.on('activate', () => showMainWindow())
   })
 
-  // IPC test
-  ipcMain.on('ping', () => console.log('pong'))
-
-  createWindow()
-
-  app.on('activate', function () {
-    // On macOS it's common to re-create a window in the app when the
-    // dock icon is clicked and there are no other windows open.
-    if (BrowserWindow.getAllWindows().length === 0) createWindow()
-  })
-})
-
-// Quit when all windows are closed, except on macOS. There, it's common
-// for applications and their menu bar to stay active until the user quits
-// explicitly with Cmd + Q.
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
+  // On Windows the app lives in the tray after the last window is closed.
+  app.on('window-all-closed', () => {
+    if (process.platform === 'win32' || process.platform === 'darwin') return
     app.quit()
-  }
-})
+  })
 
-// In this file you can include the rest of your app's specific main process
-// code. You can also put them in separate files and require them here.
+  let cleanupComplete = false
+  let cleanupStarted = false
+  app.on('before-quit', (event) => {
+    isQuitting = true
+    tray?.destroy()
+    tray = null
+    if (cleanupComplete) return
+    event.preventDefault()
+    if (cleanupStarted) return
+    cleanupStarted = true
+    void shutdown.run().then(() => {
+      cleanupComplete = true
+      app.quit()
+    })
+  })
+}
