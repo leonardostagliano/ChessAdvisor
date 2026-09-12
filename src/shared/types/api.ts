@@ -1,4 +1,5 @@
 import type { Game, GameFilter, GameSummary } from './game'
+import type { CodexState, ModelInfo, QuotaSnapshot } from './codex'
 import type { Settings } from './settings'
 import type { Analysis, AnalysisProfile, EngineState } from './engine'
 
@@ -29,6 +30,14 @@ export interface Api {
   }
   on(channel: 'engine:state', cb: (s: EngineState) => void): () => void
   // --- end Task 7 ---
+  // --- Task 6: Codex session ---------------------------------------------------------------
+  codex: {
+    state(): Promise<CodexState>
+    retry(): Promise<void>
+    models(): Promise<ModelInfo[]>
+    quota(): Promise<QuotaSnapshot | null>
+  }
+  on(channel: 'codex:state', cb: (s: CodexState) => void): () => void
 }
 
 declare global {

@@ -10,6 +10,8 @@ export interface ManagedProcessOptions {
   env?: NodeJS.ProcessEnv
   cwd?: string
   restart?: { maxAttempts: number; backoffMs: number[] }
+  /** Windows only: pass the argv through unquoted (needed to run a `.cmd` shim via `cmd.exe /c`). */
+  windowsVerbatimArguments?: boolean
   onLine?(line: string): void
   onStderr?(chunk: string): void
   onExit?(code: number | null, restarting: boolean): void
@@ -55,7 +57,8 @@ export class ManagedProcess {
           windowsHide: true,
           stdio: ['pipe', 'pipe', 'pipe'],
           env: this.opts.env ?? process.env,
-          cwd: this.opts.cwd
+          cwd: this.opts.cwd,
+          windowsVerbatimArguments: this.opts.windowsVerbatimArguments ?? false
         })
       } catch (error) {
         reject(error instanceof Error ? error : new Error(String(error)))

@@ -2,10 +2,11 @@ import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 import type { Api, StreamEnvelope } from '@shared/types/api'
 import type { Game, GameFilter, GameSummary } from '@shared/types/game'
+import type { CodexState, ModelInfo, QuotaSnapshot } from '@shared/types/codex'
 import type { Settings } from '@shared/types/settings'
 import type { Analysis, AnalysisProfile, EngineState } from '@shared/types/engine'
 
-type Channel = 'stream' | 'settings:changed' | 'engine:state'
+type Channel = 'stream' | 'settings:changed' | 'engine:state' | 'codex:state'
 
 function subscribe(channel: Channel, cb: (payload: never) => void): () => void {
   const listener = (_event: IpcRendererEvent, payload: unknown): void => cb(payload as never)
@@ -38,7 +39,14 @@ const api: Api = {
     get: (id: string) => ipcRenderer.invoke('games:get', id) as Promise<Game | null>,
     delete: (id: string) => ipcRenderer.invoke('games:delete', id) as Promise<void>
   },
-  on: ((channel: Channel, cb: (payload: StreamEnvelope & Settings & EngineState) => void) => subscribe(channel, cb as (payload: never) => void)) as Api['on']
+  // --- Task 6: Codex session ---------------------------------------------------------------
+  codex: {
+    state: () => ipcRenderer.invoke('codex:state') as Promise<CodexState>,
+    retry: () => ipcRenderer.invoke('codex:retry') as Promise<void>,
+    models: () => ipcRenderer.invoke('codex:models') as Promise<ModelInfo[]>,
+    quota: () => ipcRenderer.invoke('codex:quota') as Promise<QuotaSnapshot | null>
+  },
+  on: ((channel: Channel, cb: (payload: StreamEnvelope & Settings & EngineState & CodexState) => void) => subscribe(channel, cb as (payload: never) => void)) as Api['on']
 }
 
 if (process.contextIsolated) {
