@@ -27,8 +27,8 @@
     "@fontsource-variable/fraunces": "^5.3.0",
     "@fontsource/inter": "^5.3.0",
     "@fontsource/jetbrains-mono": "^5.3.0",
+    "@lichess-org/chessground": "^10.1.1",
     "chess.js": "^1.4.0",
-    "chessground": "^9.2.1",
     "i18next": "^25.10.10",
     "react-i18next": "^15.7.4",
     "zustand": "^5.0.15"
