@@ -1,5 +1,6 @@
 import { BrowserWindow, app, ipcMain, shell } from 'electron'
 import type { Settings } from '@shared/types/settings'
+import type { CodexService } from '../codex/codexService'
 import type { SettingsStore } from '../store/settingsStore'
 
 /** Error shape the renderer receives: the message alone would lose the machine-readable code. */
@@ -51,6 +52,8 @@ export function emit(channel: string, payload: unknown): void {
 export interface IpcContext {
   settings: SettingsStore
   showWindow(): void
+  /** Task 6: the Codex session behind the `codex` namespace. */
+  codex: CodexService
 }
 
 /** Binds the `window.api` surface of Task 3; later tasks add their own namespaces. */
@@ -70,4 +73,13 @@ export function registerIpc(ctx: IpcContext): void {
   })
 
   ctx.settings.onChange((settings) => emit('settings:changed', settings))
+
+  // --- Task 6: Codex session ---------------------------------------------------------------
+  // The service pushes `codex:state` on every change; these are the pull counterparts.
+  handle('codex:state', async () => ctx.codex.state())
+  handle('codex:retry', async () => {
+    await ctx.codex.retry()
+  })
+  handle('codex:models', async () => ctx.codex.models())
+  handle('codex:quota', async () => ctx.codex.quota())
 }

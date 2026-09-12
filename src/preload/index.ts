@@ -1,9 +1,10 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 import type { Api, StreamEnvelope } from '@shared/types/api'
+import type { CodexState, ModelInfo, QuotaSnapshot } from '@shared/types/codex'
 import type { Settings } from '@shared/types/settings'
 
-type Channel = 'stream' | 'settings:changed'
+type Channel = 'stream' | 'settings:changed' | 'codex:state'
 
 function subscribe(channel: Channel, cb: (payload: never) => void): () => void {
   const listener = (_event: IpcRendererEvent, payload: unknown): void => cb(payload as never)
@@ -24,7 +25,14 @@ const api: Api = {
     openExternal: (url: string) => ipcRenderer.invoke('app:openExternal', url) as Promise<void>,
     showWindow: () => ipcRenderer.invoke('app:showWindow') as Promise<void>
   },
-  on: ((channel: Channel, cb: (payload: StreamEnvelope & Settings) => void) => subscribe(channel, cb as (payload: never) => void)) as Api['on']
+  // --- Task 6: Codex session ---------------------------------------------------------------
+  codex: {
+    state: () => ipcRenderer.invoke('codex:state') as Promise<CodexState>,
+    retry: () => ipcRenderer.invoke('codex:retry') as Promise<void>,
+    models: () => ipcRenderer.invoke('codex:models') as Promise<ModelInfo[]>,
+    quota: () => ipcRenderer.invoke('codex:quota') as Promise<QuotaSnapshot | null>
+  },
+  on: ((channel: Channel, cb: (payload: StreamEnvelope & Settings & CodexState) => void) => subscribe(channel, cb as (payload: never) => void)) as Api['on']
 }
 
 if (process.contextIsolated) {

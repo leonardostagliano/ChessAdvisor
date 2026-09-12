@@ -1,9 +1,11 @@
 import { existsSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import { BrowserWindow, app, nativeTheme, shell } from 'electron'
 import icon from '../../resources/icon.png?asset'
-import { registerIpc } from './ipc/register'
-import { dataDir, pinUserDataPath } from './paths'
+import { CodexService } from './codex/codexService'
+import { userCodexHome } from './codex/codexHome'
+import { emit, registerIpc } from './ipc/register'
+import { codexHomeDir, dataDir, pinUserDataPath } from './paths'
 import { killStalePids } from './process/runtimeState'
 import { cleanupTmp } from './store/atomicWrite'
 import { SettingsStore } from './store/settingsStore'
@@ -19,6 +21,25 @@ let tray: TrayHandle | null = null
 let isQuitting = false
 
 const settings = new SettingsStore(join(dataDir(), 'settings.json'))
+
+// Task 6: the Codex session. `CHESSADVISOR_FAKE_CODEX=1` swaps the real CLI for the fake
+// app-server, so a development run never consumes OpenAI quota.
+const fakeCodex =
+  process.env.CHESSADVISOR_FAKE_CODEX === '1'
+    ? { exe: process.execPath, args: [resolve(app.getAppPath(), 'test/fake-app-server.mjs')] }
+    : undefined
+const codex = new CodexService({
+  settings,
+  codexHomeDir: codexHomeDir(),
+  userHome: userCodexHome(),
+  dataDir: dataDir(),
+  emit: (channel, payload) => emit(channel, payload),
+  fake: fakeCodex,
+  // In development `process.execPath` is the Electron binary: it only runs a script as Node
+  // with this flag, which must never leak into the environment of the real CLI.
+  env: fakeCodex ? { ...process.env, ELECTRON_RUN_AS_NODE: '1' } : undefined
+})
+shutdown.register(() => codex.shutdown())
 
 /** The updater (Task 5) and the tray menu quit through here so `close` stops hiding the window. */
 export function setQuitting(value: boolean): void {
@@ -98,7 +119,7 @@ if (!gotLock) {
       console.error('[main] settings could not be loaded, using the defaults:', error)
       return undefined
     })
-    registerIpc({ settings, showWindow: showMainWindow })
+    registerIpc({ settings, showWindow: showMainWindow, codex })
     // A previous crash may have left a codex/stockfish child running: never talk to a zombie.
     await killStalePids().catch(() => [])
     await cleanupTmp(dataDir()).catch(() => 0)
@@ -118,6 +139,9 @@ if (!gotLock) {
     })
     tray.update('ChessAdvisor — inattivo')
     app.on('activate', () => showMainWindow())
+
+    // The renderer follows `codex:state`; a boot failure is a screen, never a crash.
+    void codex.start().catch((error) => console.error('[main] Codex service failed to start:', error))
   })
 
   // On Windows the app lives in the tray after the last window is closed.
