@@ -4,6 +4,8 @@ import { BrowserWindow, app, ipcMain, shell } from 'electron'
 import type { GameFilter } from '@shared/types/game'
 import type { Settings } from '@shared/types/settings'
 import { dataDir } from '../paths'
+import { registerGameIpc } from '../game/gameManager'
+import type { GameManager } from '../game/gameManager'
 import { GameStore } from '../store/gameStore'
 import type { Analysis, AnalysisProfile, EngineState } from '@shared/types/engine'
 import type { CodexService } from '../codex/codexService'
@@ -119,6 +121,8 @@ export function registerIpc(ctx: IpcContext): void {
   // --- end Task 7 ---
   // ── Task 8: games archive ──
   registerGamesIpc(ctx)
+  // ── Task 9: the active game ──
+  if (ctx.game) registerGameIpc({ handle, manager: ctx.game })
 }
 
 // ─── Task 8: games archive ────────────────────────────────────────────────────
@@ -163,4 +167,13 @@ async function readNotices(): Promise<string> {
   } catch (error) {
     throw new IpcError('E_NOTICES', `third-party notices unavailable: ${String((error as Error).message)}`)
   }
+}
+
+// ─── Task 9: the active game ──────────────────────────────────────────────────
+// The bindings themselves live in `game/gameManager.ts` (it owns the single session);
+// only the context slot is declared here, again by declaration merging.
+
+export interface IpcContext {
+  /** The one live game session. Absent in tests that only need settings or the archive. */
+  game?: GameManager
 }

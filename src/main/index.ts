@@ -5,10 +5,13 @@ import icon from '../../resources/icon.png?asset'
 import { CodexService } from './codex/codexService'
 import { userCodexHome } from './codex/codexHome'
 import { EngineService } from './engine/engineService'
+import { GameManager } from './game/gameManager'
 import { emit, handle, registerIpc } from './ipc/register'
 import { codexHomeDir, dataDir, pinUserDataPath, resourcePath } from './paths'
 import { killStalePids } from './process/runtimeState'
 import { cleanupTmp } from './store/atomicWrite'
+import { GameStore } from './store/gameStore'
+import { ProfileStore } from './store/profileStore'
 import { SettingsStore } from './store/settingsStore'
 import { createTray, type TrayHandle } from './tray'
 import { registerUpdates } from './updates/register'
@@ -46,6 +49,15 @@ const codex = new CodexService({
   env: fakeCodex ? { ...process.env, ELECTRON_RUN_AS_NODE: '1' } : undefined
 })
 shutdown.register(() => codex.shutdown())
+
+// --- Task 9: the active game ---
+// One session for the whole process: it owns the board, the opponent thread and the autosave.
+const games = new GameStore(join(dataDir(), 'games'))
+const profile = new ProfileStore(join(dataDir(), 'profile.json'))
+const game = new GameManager({ codex, engine, store: games, settings, profile, emit })
+// The turn is interrupted and the game stays `in_progress` on disk (spec §4.3).
+shutdown.register(() => game.shutdown())
+// --- end Task 9 ---
 
 /** The updater (Task 5) and the tray menu quit through here so `close` stops hiding the window. */
 export function setQuitting(value: boolean): void {
@@ -125,14 +137,17 @@ if (!gotLock) {
       console.error('[main] settings could not be loaded, using the defaults:', error)
       return undefined
     })
-    registerIpc({ settings, showWindow: showMainWindow, engine, codex })
-    // In-app updater: never installs while a game turn is in flight (Task 9 supplies isBusy).
+    // Task 9: the archive index and the profile are read once, before the first IPC call.
+    await games.load().catch((error) => console.error('[main] the games archive could not be read:', error))
+    await profile.load().catch((error) => console.error('[main] the profile could not be read:', error))
+    registerIpc({ settings, showWindow: showMainWindow, engine, codex, games, game })
+    // In-app updater: never installs while a game turn is in flight.
     registerUpdates({
       handle,
       settings,
       getWindow: () => mainWindow,
       setQuitting,
-      isBusy: () => false
+      isBusy: () => game.isBusy()
     })
     // A previous crash may have left a codex/stockfish child running: never talk to a zombie.
     await killStalePids().catch(() => [])

@@ -8,7 +8,7 @@ import { GameStore, type GameInit } from './gameStore'
 const init = (patch: Partial<GameInit> = {}): GameInit => ({
   kind: 'match',
   userColor: 'w',
-  opponent: { model: 'gpt-6-astra', effort: 'medium', style: 'competitive' },
+  opponent: { model: 'gpt-6-astra', effort: 'medium', difficulty: { mode: 'fixed', level: 3, targetElo: 1200 } },
   coach: { model: 'gpt-6-astra', effort: 'medium' },
   clock: null,
   language: 'it',

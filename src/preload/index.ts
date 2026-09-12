@@ -1,13 +1,14 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
-import type { Api, AppVersionInfo, StreamEnvelope } from '@shared/types/api'
+import type { Api, AppVersionInfo, GameFinished, StreamEnvelope } from '@shared/types/api'
+import type { NewGameOptions, SessionState } from '@shared/types/session'
 import type { Game, GameFilter, GameSummary } from '@shared/types/game'
 import type { CodexState, ModelInfo, QuotaSnapshot } from '@shared/types/codex'
 import type { Settings } from '@shared/types/settings'
 import type { Analysis, AnalysisProfile, EngineState } from '@shared/types/engine'
 import { UPDATES_IPC, type UpdatePreferences, type UpdateStatus } from '@shared/updates'
 
-type Channel = 'stream' | 'settings:changed' | 'engine:state' | 'codex:state' | 'updates:changed'
+type Channel = 'stream' | 'settings:changed' | 'engine:state' | 'codex:state' | 'updates:changed' | 'game:state' | 'game:finished'
 
 function subscribe(channel: Channel, cb: (payload: never) => void): () => void {
   const listener = (_event: IpcRendererEvent, payload: unknown): void => cb(payload as never)
@@ -43,6 +44,19 @@ const api: Api = {
     get: (id: string) => ipcRenderer.invoke('games:get', id) as Promise<Game | null>,
     delete: (id: string) => ipcRenderer.invoke('games:delete', id) as Promise<void>
   },
+  // ── Task 9: the active game ──
+  game: {
+    new: (opts: NewGameOptions) => ipcRenderer.invoke('game:new', opts) as Promise<SessionState>,
+    resume: (id: string, opts?: { substituteModel?: string }) => ipcRenderer.invoke('game:resume', id, opts) as Promise<SessionState>,
+    userMove: (uci: string) => ipcRenderer.invoke('game:userMove', uci) as Promise<SessionState>,
+    takeback: () => ipcRenderer.invoke('game:takeback') as Promise<SessionState>,
+    resign: () => ipcRenderer.invoke('game:resign') as Promise<SessionState>,
+    offerDraw: () => ipcRenderer.invoke('game:offerDraw') as Promise<{ accepted: boolean; reason: string }>,
+    navigateEval: (fen: string) => ipcRenderer.invoke('game:navigateEval', fen) as Promise<void>,
+    state: () => ipcRenderer.invoke('game:state') as Promise<SessionState>,
+    close: () => ipcRenderer.invoke('game:close') as Promise<SessionState>,
+    adaptiveElo: () => ipcRenderer.invoke('game:adaptiveElo') as Promise<{ elo: number; games: number } | null>
+  },
   // --- Task 6: Codex session ---------------------------------------------------------------
   codex: {
     state: () => ipcRenderer.invoke('codex:state') as Promise<CodexState>,
@@ -61,7 +75,8 @@ const api: Api = {
     install: () => ipcRenderer.invoke(UPDATES_IPC.install) as Promise<UpdateStatus>,
     openRelease: () => ipcRenderer.invoke(UPDATES_IPC.openRelease) as Promise<void>
   },
-  on: ((channel: Channel, cb: (payload: StreamEnvelope & Settings & EngineState & CodexState & UpdateStatus) => void) => subscribe(channel, cb as (payload: never) => void)) as Api['on']
+  on: ((channel: Channel, cb: (payload: StreamEnvelope & Settings & EngineState & CodexState & UpdateStatus & SessionState & GameFinished) => void) =>
+    subscribe(channel, cb as (payload: never) => void)) as Api['on']
 }
 
 if (process.contextIsolated) {
