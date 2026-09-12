@@ -1,0 +1,5 @@
+Stockfish release: sf_17.1
+Source of the binaries (GPL-3.0, corresponding source available at the same release):
+  stockfish-avx2.exe  <-  https://github.com/official-stockfish/Stockfish/releases/download/sf_17.1/stockfish-windows-x86-64-avx2.zip
+  stockfish-popcnt.exe  <-  https://github.com/official-stockfish/Stockfish/releases/download/sf_17.1/stockfish-windows-x86-64-sse41-popcnt.zip
+Project: https://github.com/official-stockfish/Stockfish

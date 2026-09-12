@@ -4,6 +4,7 @@ import type { GameFilter } from '@shared/types/game'
 import type { Settings } from '@shared/types/settings'
 import { dataDir } from '../paths'
 import { GameStore } from '../store/gameStore'
+import type { Analysis, AnalysisProfile, EngineState } from '@shared/types/engine'
 import type { SettingsStore } from '../store/settingsStore'
 
 /** Error shape the renderer receives: the message alone would lose the machine-readable code. */
@@ -52,9 +53,22 @@ export function emit(channel: string, payload: unknown): void {
   }
 }
 
+// --- Task 7: Stockfish engine ---
+/** The slice of EngineService the IPC layer needs; keeps `register.ts` free of engine internals. */
+export interface EngineBridge {
+  state(): EngineState
+  analyze(fen: string, profile: AnalysisProfile): Promise<Analysis>
+}
+
+const ANALYSIS_PROFILES: readonly AnalysisProfile[] = ['live', 'coach', 'review']
+// --- end Task 7 ---
+
 export interface IpcContext {
   settings: SettingsStore
   showWindow(): void
+  // --- Task 7: Stockfish engine (optional: the app runs without an engine) ---
+  engine?: EngineBridge
+  // --- end Task 7 ---
 }
 
 /** Binds the `window.api` surface of Task 3; later tasks add their own namespaces. */
@@ -75,6 +89,17 @@ export function registerIpc(ctx: IpcContext): void {
 
   ctx.settings.onChange((settings) => emit('settings:changed', settings))
 
+  // --- Task 7: Stockfish engine ---
+  const engine = ctx.engine
+  if (engine) {
+    handle('engine:state', async () => engine.state())
+    handle('engine:analyze', async (fen: string, profile: AnalysisProfile) => {
+      if (typeof fen !== 'string' || fen.trim().length === 0) throw new IpcError('E_BAD_FEN', 'a FEN string is required')
+      if (!ANALYSIS_PROFILES.includes(profile)) throw new IpcError('E_BAD_PROFILE', `unknown analysis profile ${String(profile)}`)
+      return engine.analyze(fen, profile)
+    })
+  }
+  // --- end Task 7 ---
   // ── Task 8: games archive ──
   registerGamesIpc(ctx)
 }

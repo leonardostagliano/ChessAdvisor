@@ -2,8 +2,9 @@ import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { BrowserWindow, app, nativeTheme, shell } from 'electron'
 import icon from '../../resources/icon.png?asset'
-import { registerIpc } from './ipc/register'
-import { dataDir, pinUserDataPath } from './paths'
+import { EngineService } from './engine/engineService'
+import { emit, registerIpc } from './ipc/register'
+import { dataDir, pinUserDataPath, resourcePath } from './paths'
 import { killStalePids } from './process/runtimeState'
 import { cleanupTmp } from './store/atomicWrite'
 import { SettingsStore } from './store/settingsStore'
@@ -19,6 +20,11 @@ let tray: TrayHandle | null = null
 let isQuitting = false
 
 const settings = new SettingsStore(join(dataDir(), 'settings.json'))
+
+// --- Task 7: Stockfish engine ---
+const engine = new EngineService({ settings, resourcePath, emit })
+shutdown.register(() => engine.shutdown())
+// --- end Task 7 ---
 
 /** The updater (Task 5) and the tray menu quit through here so `close` stops hiding the window. */
 export function setQuitting(value: boolean): void {
@@ -98,12 +104,14 @@ if (!gotLock) {
       console.error('[main] settings could not be loaded, using the defaults:', error)
       return undefined
     })
-    registerIpc({ settings, showWindow: showMainWindow })
+    registerIpc({ settings, showWindow: showMainWindow, engine })
     // A previous crash may have left a codex/stockfish child running: never talk to a zombie.
     await killStalePids().catch(() => [])
     await cleanupTmp(dataDir()).catch(() => 0)
 
     createWindow()
+    // The engine probe spawns a child process: never let it delay the first paint.
+    void engine.start().catch((error) => console.error('[main] the chess engine could not start:', error))
     // Repair this app's existing pins after an NSIS replacement, without delaying first paint.
     mainWindow?.once('ready-to-show', () => {
       void repairPinnedShortcuts().catch(() => undefined)

@@ -10,3 +10,4 @@ resources/engine/*.exe
 codex-home/
 release/
 *.tsbuildinfo
+resources/engine/.download/
