@@ -45,6 +45,20 @@ describe('findCodexExe', () => {
     expect(found).toEqual({ exe: override, viaCmd: false })
   })
 
+  it('honours an explicit override even when it is a .cmd shim and a real executable exists elsewhere', async () => {
+    const overrideDir = await tmp()
+    const localAppData = await tmp()
+    const override = await touch(overrideDir, 'codex.cmd')
+    await fakeInstall(localAppData, 'codex.exe')
+
+    const found = findCodexExe({
+      CODEX_APP_PATH: override,
+      LOCALAPPDATA: localAppData,
+      PATH: ''
+    })
+    expect(found).toEqual({ exe: override, viaCmd: true })
+  })
+
   it('falls back to the official installation before scanning PATH', async () => {
     const localAppData = await tmp()
     const pathDir = await tmp()

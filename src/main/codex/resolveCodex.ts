@@ -44,10 +44,9 @@ export function findCodexExe(env: NodeJS.ProcessEnv = process.env): CodexLocatio
 
   const override = env.CODEX_APP_PATH?.trim()
   if (override) {
-    // An explicit override is honoured as given, shim or not.
-    if (isShim(override)) shims.unshift(override)
-    else executables.push(override)
+    // An explicit override wins over every other candidate, shim or not.
     searched.push(override)
+    if (existsSync(override)) return { exe: override, viaCmd: isShim(override) }
   }
 
   for (const candidate of localAppDataCandidates(env)) {
