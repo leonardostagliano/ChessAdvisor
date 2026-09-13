@@ -4,6 +4,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Chess } from 'chess.js'
 import { NdjsonParser } from '@main/codex/ndjson'
 import { RpcClient, type RpcTransport } from '@main/codex/rpcClient'
+import { planSchema, planText, THEME_PICK_SCHEMA } from '@main/training/trainingPrompts'
+import { EMPTY_PROFILE } from '@shared/types/profile'
 
 const SERVER = resolve('test/fake-app-server.mjs')
 
@@ -493,6 +495,34 @@ FEN: ${OPENING_FEN}`, HINT_SCHEMA)
     ) as { strengths: string[]; weaknesses: string[] }
     expect(assessment.strengths).toHaveLength(2)
     expect(assessment.weaknesses).toHaveLength(2)
+  })
+
+  it('chooses a theme, writes a study plan from the catalogue and explains an exercise (spec §6.5, §6.8)', async () => {
+    const harness = startServer()
+    await harness.client.request('initialize', {
+      clientInfo: { name: 'chessadvisor', title: 'ChessAdvisor', version: '0.1.0' },
+      capabilities: null
+    })
+    const threadId = await startThread(harness)
+
+    const pick = JSON.parse(await runTextTurn(harness, threadId, 'Scegli il tema.', THEME_PICK_SCHEMA as object)) as {
+      theme: string
+      ratingMin: number
+      ratingMax: number
+      motivation: string
+    }
+    expect(pick).toEqual({ theme: 'fork', ratingMin: 800, ratingMax: 1200, motivation: 'fake' })
+
+    const catalogue = { themes: ['fork', 'pin', 'back_rank'], exercises: ['og-g1-7'], openings: ['C60'], endgames: ['queen_mate'] }
+    const plan = JSON.parse(
+      await runTextTurn(harness, threadId, planText({ catalogue, profile: EMPTY_PROFILE, language: 'it' }), planSchema(catalogue))
+    ) as { items: { activity: { type: string; ref: string | null } }[] }
+    expect(plan.items.length).toBeGreaterThanOrEqual(5)
+    expect(plan.items.map((item) => item.activity.ref)).toContain('og-g1-7')
+    expect(plan.items.map((item) => item.activity.ref)).toContain('queen_mate')
+    expect(plan.items.at(-1)?.activity).toEqual({ type: 'play', ref: null })
+
+    expect(await runTextTurn(harness, threadId, 'Spiega la soluzione di questo esercizio.')).toBe('Spiegazione finta.')
   })
 
   it('reports a logged-out account when FAKE_CODEX_LOGGED_OUT=1', async () => {

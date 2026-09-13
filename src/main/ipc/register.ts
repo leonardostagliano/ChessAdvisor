@@ -11,6 +11,8 @@ import { registerAnalysisIpc } from '../analysis/register'
 import type { AnalysisManager } from '../analysis/register'
 import { registerProfileIpc } from '../profile/profileService'
 import type { ProfileService } from '../profile/profileService'
+import { registerTrainingIpc } from '../training/register'
+import type { TrainingService } from '../training/trainingService'
 import { GameStore } from '../store/gameStore'
 import type { Analysis, AnalysisProfile, EngineState } from '@shared/types/engine'
 import type { CodexService } from '../codex/codexService'
@@ -140,6 +142,8 @@ export function registerIpc(ctx: IpcContext): void {
   if (ctx.analysis) registerAnalysisIpc({ handle, manager: ctx.analysis })
   // ── Task 17: the player profile ──
   if (ctx.profile) registerProfileIpc({ handle, service: ctx.profile })
+  // ── Task 20: the training section ──
+  if (ctx.training) registerTrainingIpc({ handle, service: ctx.training })
 }
 
 // ─── Task 8: games archive ────────────────────────────────────────────────────
@@ -210,4 +214,12 @@ export interface IpcContext {
 export interface IpcContext {
   /** Owner of `profile.json` beyond the adaptive rating; absent in tests that do not need it. */
   profile?: ProfileService
+}
+
+// ─── Task 20: the training section ────────────────────────────────────────────
+// Same shape again: the bindings live with the service, only the context slot is declared here.
+
+export interface IpcContext {
+  /** Owner of the exercises, the thematic sets and the study plan; absent in tests that do not need it. */
+  training?: TrainingService
 }

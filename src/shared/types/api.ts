@@ -3,6 +3,16 @@ import type { CodexState, ModelInfo, QuotaSnapshot } from './codex'
 import type { NewGameOptions, SessionState } from './session'
 import type { Settings } from './settings'
 import type { Profile } from './profile'
+import type {
+  AttemptResult,
+  EndgameListEntry,
+  Exercise,
+  ExerciseKind,
+  OpeningOverviewEntry,
+  StudyPlanView,
+  ThematicSet,
+  TrainingChanged
+} from './training'
 import type { Analysis, AnalysisProfile, EngineState } from './engine'
 import type { UpdateStatus, UpdatesApi } from '../updates'
 
@@ -201,4 +211,48 @@ export interface ProfileApi {
 export interface Api {
   profile: ProfileApi
   on(channel: 'profile:changed', cb: (p: Profile) => void): () => void
+}
+
+// ─── Task 20: the training section (spec §6.4–§6.8) ───────────────────────────
+// One namespace with five groups, one per way of training, and a single event: the main process
+// owns every file behind them, so the renderer reads, plays and follows `training:changed`.
+
+export interface ExercisesApi {
+  /** Every exercise, newest first; optionally of one kind only. */
+  list(kind?: ExerciseKind): Promise<Exercise[]>
+  get(id: string): Promise<Exercise | null>
+  /** One move played through the board; the answer says what the board must show next. */
+  attempt(id: string, uci: string): Promise<AttemptResult>
+  /** Puts the exercise back to its starting position and forgets the attempts made at it. */
+  reset(id: string): Promise<Exercise>
+  /** Coach explanation of the solution; the text also streams on the `stream` channel. */
+  explain(id: string): Promise<string>
+}
+
+export interface TrainingApi {
+  exercises: ExercisesApi
+  thematic: {
+    /** A new set of ten puzzles, chosen by the coach from the profile (spec §6.5). */
+    next(): Promise<ThematicSet>
+  }
+  openings: {
+    overview(): Promise<OpeningOverviewEntry[]>
+    /** Mini-lesson of one opening; it streams like every other plain-text turn. */
+    lesson(eco: string): Promise<string>
+  }
+  endgames: {
+    list(): Promise<EndgameListEntry[]>
+    /** Starts the drill: the answer is the state of the game that has just begun. */
+    start(id: string): Promise<SessionState>
+  }
+  plan: {
+    get(): Promise<StudyPlanView>
+    generate(): Promise<StudyPlanView>
+    markDone(itemId: string, done?: boolean): Promise<StudyPlanView>
+  }
+}
+
+export interface Api {
+  training: TrainingApi
+  on(channel: 'training:changed', cb: (e: TrainingChanged) => void): () => void
 }

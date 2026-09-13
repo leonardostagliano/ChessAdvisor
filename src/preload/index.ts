@@ -6,6 +6,16 @@ import type { Game, GameFilter, GameSummary } from '@shared/types/game'
 import type { CodexState, ModelInfo, QuotaSnapshot } from '@shared/types/codex'
 import type { Settings } from '@shared/types/settings'
 import type { Profile } from '@shared/types/profile'
+import type {
+  AttemptResult,
+  EndgameListEntry,
+  Exercise,
+  ExerciseKind,
+  OpeningOverviewEntry,
+  StudyPlanView,
+  ThematicSet,
+  TrainingChanged
+} from '@shared/types/training'
 import type { Analysis, AnalysisProfile, EngineState } from '@shared/types/engine'
 import { UPDATES_IPC, type UpdatePreferences, type UpdateStatus } from '@shared/updates'
 
@@ -20,6 +30,7 @@ type Channel =
   | 'analysis:progress'
   | 'review:activity'
   | 'profile:changed'
+  | 'training:changed'
 
 function subscribe(channel: Channel, cb: (payload: never) => void): () => void {
   const listener = (_event: IpcRendererEvent, payload: unknown): void => cb(payload as never)
@@ -90,6 +101,32 @@ const api: Api = {
     get: () => ipcRenderer.invoke('profile:get') as Promise<Profile>,
     refreshQualitative: () => ipcRenderer.invoke('profile:refreshQualitative') as Promise<Profile>
   },
+  // ── Task 20: the training section ──
+  training: {
+    exercises: {
+      list: (kind?: ExerciseKind) => ipcRenderer.invoke('training:exercises:list', kind) as Promise<Exercise[]>,
+      get: (id: string) => ipcRenderer.invoke('training:exercises:get', id) as Promise<Exercise | null>,
+      attempt: (id: string, uci: string) => ipcRenderer.invoke('training:exercises:attempt', id, uci) as Promise<AttemptResult>,
+      reset: (id: string) => ipcRenderer.invoke('training:exercises:reset', id) as Promise<Exercise>,
+      explain: (id: string) => ipcRenderer.invoke('training:exercises:explain', id) as Promise<string>
+    },
+    thematic: {
+      next: () => ipcRenderer.invoke('training:thematic:next') as Promise<ThematicSet>
+    },
+    openings: {
+      overview: () => ipcRenderer.invoke('training:openings:overview') as Promise<OpeningOverviewEntry[]>,
+      lesson: (eco: string) => ipcRenderer.invoke('training:openings:lesson', eco) as Promise<string>
+    },
+    endgames: {
+      list: () => ipcRenderer.invoke('training:endgames:list') as Promise<EndgameListEntry[]>,
+      start: (id: string) => ipcRenderer.invoke('training:endgames:start', id) as Promise<SessionState>
+    },
+    plan: {
+      get: () => ipcRenderer.invoke('training:plan:get') as Promise<StudyPlanView>,
+      generate: () => ipcRenderer.invoke('training:plan:generate') as Promise<StudyPlanView>,
+      markDone: (itemId: string, done?: boolean) => ipcRenderer.invoke('training:plan:markDone', itemId, done) as Promise<StudyPlanView>
+    }
+  },
   // --- Task 6: Codex session ---------------------------------------------------------------
   codex: {
     state: () => ipcRenderer.invoke('codex:state') as Promise<CodexState>,
@@ -108,7 +145,7 @@ const api: Api = {
     install: () => ipcRenderer.invoke(UPDATES_IPC.install) as Promise<UpdateStatus>,
     openRelease: () => ipcRenderer.invoke(UPDATES_IPC.openRelease) as Promise<void>
   },
-  on: ((channel: Channel, cb: (payload: StreamEnvelope & Settings & EngineState & CodexState & UpdateStatus & SessionState & GameFinished & AnalysisProgress & ReviewActivity & Profile) => void) =>
+  on: ((channel: Channel, cb: (payload: StreamEnvelope & Settings & EngineState & CodexState & UpdateStatus & SessionState & GameFinished & AnalysisProgress & ReviewActivity & Profile & TrainingChanged) => void) =>
     subscribe(channel, cb as (payload: never) => void)) as Api['on']
 }
 

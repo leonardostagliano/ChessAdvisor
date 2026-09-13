@@ -4,6 +4,7 @@ import { BrowserWindow, app, nativeTheme, powerMonitor, shell } from 'electron'
 import icon from '../../resources/icon.png?asset'
 import { AnalysisManager } from './analysis/register'
 import { CodexService } from './codex/codexService'
+import { PuzzleLibrary } from './data/puzzleLibrary'
 import { userCodexHome } from './codex/codexHome'
 import { EngineService } from './engine/engineService'
 import { GameManager } from './game/gameManager'
@@ -12,9 +13,12 @@ import { ProfileService } from './profile/profileService'
 import { codexHomeDir, dataDir, pinUserDataPath, resourcePath } from './paths'
 import { killStalePids } from './process/runtimeState'
 import { cleanupTmp } from './store/atomicWrite'
+import { ExerciseStore } from './store/exerciseStore'
 import { GameStore } from './store/gameStore'
 import { ProfileStore } from './store/profileStore'
 import { SettingsStore } from './store/settingsStore'
+import { StudyPlanStore } from './store/studyPlanStore'
+import { TrainingService } from './training/trainingService'
 import { createTray, type TrayHandle } from './tray'
 import { registerUpdates } from './updates/register'
 import { shutdown } from './util/shutdown'
@@ -75,10 +79,46 @@ const analysis = new AnalysisManager({
   emit: (channel, payload) => emit(channel, payload),
   openingsPath: () => resourcePath('data', 'openings.json'),
   // An analysed match updates the profile; a failure there never touches the analysis (spec §6.1).
-  onAnalyzed: (analysed) => void profileService.onGameAnalyzed(analysed).catch((error) => console.error('[main] the profile update failed:', error))
+  // Task 20: the exercises of spec §6.4 are built right after it, never before (they need the
+  // themes the profile has just written) and never in the way of the UI.
+  onAnalyzed: (analysed) =>
+    void profileService
+      .onGameAnalyzed(analysed)
+      .catch((error) => console.error('[main] the profile update failed:', error))
+      .then(() => training.onGameAnalyzed(analysed))
+      .catch((error) => console.error('[main] the exercises could not be built:', error))
 })
 shutdown.register(() => analysis.close())
-const game = new GameManager({ codex, engine, store: games, settings, profile, emit, onFinished: (finished) => analysis.onGameFinished(finished) })
+const game = new GameManager({
+  codex,
+  engine,
+  store: games,
+  settings,
+  profile,
+  emit,
+  onFinished: (finished) => {
+    analysis.onGameFinished(finished)
+    // Task 20: an endgame drill writes its own result (spec §6.7); a match is analysed instead.
+    void training.onGameFinished(finished).catch((error) => console.error('[main] the endgame result could not be saved:', error))
+  }
+})
+// --- Task 20: the training section ---
+// Exercises, thematic sets, openings, endgames and study plan (spec §6.4–§6.8).
+const library = new PuzzleLibrary(resourcePath)
+const exercises = new ExerciseStore(join(dataDir(), 'exercises.json'))
+const plans = new StudyPlanStore(join(dataDir(), 'study-plan.json'))
+const training = new TrainingService({
+  codex,
+  engine,
+  settings,
+  profile,
+  games,
+  exercises,
+  plans,
+  library,
+  startGame: (opts) => game.session().newGame(opts),
+  emit: (channel, payload) => emit(channel, payload)
+})
 // The turn is interrupted and the game stays `in_progress` on disk (spec §4.3).
 shutdown.register(() => game.shutdown())
 // --- end Task 9 ---
@@ -165,7 +205,11 @@ if (!gotLock) {
     // Task 9: the archive index and the profile are read once, before the first IPC call.
     await games.load().catch((error) => console.error('[main] the games archive could not be read:', error))
     await profile.load().catch((error) => console.error('[main] the profile could not be read:', error))
-    registerIpc({ settings, showWindow: showMainWindow, engine, codex, games, game, analysis, profile: profileService })
+    // Task 20: the training material — two small files and the bundled datasets.
+    await exercises.load().catch((error) => console.error('[main] the exercises could not be read:', error))
+    await plans.load().catch((error) => console.error('[main] the study plan could not be read:', error))
+    await library.load().catch((error) => console.error('[main] the training datasets could not be read:', error))
+    registerIpc({ settings, showWindow: showMainWindow, engine, codex, games, game, analysis, profile: profileService, training })
     // In-app updater: never installs while a game turn is in flight.
     registerUpdates({
       handle,

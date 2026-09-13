@@ -151,6 +151,42 @@ function pliesFrom(text) {
   return plies
 }
 
+/**
+ * References of a study-plan catalogue (spec §6.8): the prompt writes one line per activity type,
+ * with the ids separated by " | ". The fake answers with real references so the validation on the
+ * app side keeps every item it produced.
+ */
+function catalogueRefs(text) {
+  const refs = { thematic: [], own_game: [], opening: [], endgame: [] }
+  const pattern = /^-\s*(thematic|own_game|opening|endgame):\s*(.+)$/gm
+  let match = pattern.exec(text)
+  while (match) {
+    const ids = match[2]
+      .split('|')
+      .map((part) => part.trim())
+      .filter((part) => part.length > 0 && !/nessuno disponibile|none available/.test(part))
+    refs[match[1]] = ids
+    match = pattern.exec(text)
+  }
+  return refs
+}
+
+/** Five plan items: the first reference of every type, padded with more themes and with "play". */
+function fakePlanItems(text) {
+  const refs = catalogueRefs(text)
+  const items = []
+  for (const type of ['own_game', 'opening', 'endgame', 'thematic']) {
+    const ref = refs[type][0]
+    if (ref) items.push({ title: `Attività finta ${type}`, why: 'fake', activity: { type, ref } })
+  }
+  for (const theme of refs.thematic.slice(1)) {
+    if (items.length >= 4) break
+    items.push({ title: `Tattica finta ${theme}`, why: 'fake', activity: { type: 'thematic', ref: theme } })
+  }
+  items.push({ title: 'Gioca una partita', why: 'fake', activity: { type: 'play', ref: null } })
+  return items
+}
+
 function schemaProperties(params) {
   const schema = params?.outputSchema
   if (!schema || typeof schema !== 'object') return null
@@ -261,6 +297,14 @@ export function createFakeServer(io, options = {}) {
     if (properties && 'labels' in properties) {
       return JSON.stringify({ labels: pliesFrom(text).map((ply, index) => ({ ply, theme: THEMES[index % THEMES.length], note: 'fake label' })) })
     }
+    // Theme and rating window of a thematic set (spec §6.5).
+    if (properties && 'theme' in properties && 'ratingMin' in properties) {
+      return JSON.stringify({ theme: 'fork', ratingMin: 800, ratingMax: 1200, motivation: 'fake' })
+    }
+    // Study plan (spec §6.8): the items point at the catalogue written into the prompt.
+    if (properties && 'items' in properties) {
+      return JSON.stringify({ items: fakePlanItems(text) })
+    }
     // Qualitative assessment of the profile (spec §6.1).
     if (properties && 'strengths' in properties) {
       return JSON.stringify({
@@ -268,6 +312,8 @@ export function createFakeServer(io, options = {}) {
         weaknesses: ['fake weakness one', 'fake weakness two']
       })
     }
+    // Plain-text training turns (spec §6.4, §6.6): an explanation or an opening mini-lesson.
+    if (text.includes('Spiega')) return 'Spiegazione finta.'
     // Plain-text review turns (spec §4.4): a past ply, or one of the key moments.
     if (text.includes('Rivedi la mossa')) return 'Commento finto in revisione.'
     // Plain-text coach turns: a comment on a move, or an answer to a question (spec §4.2).
