@@ -657,7 +657,7 @@
     "intro": "Valgono ovunque, tranne mentre stai scrivendo in un campo di testo.",
     "moves": "Mossa precedente e successiva, in partita e in revisione",
     "ends": "Vai alla posizione iniziale o torna all’ultima",
-    "promotion": "Scegli il pezzo di promozione: donna, torre, alfiere, cavallo",
+    "promotion": "Scegli il pezzo di promozione: donna, cavallo, torre, alfiere",
     "escape": "Chiudi la finestra aperta o annulla la promozione",
     "tab": "Passa al gruppo successivo; con le frecce ti muovi fra le schede",
     "sheet": "Apri questo elenco"

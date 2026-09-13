@@ -657,7 +657,7 @@
     "intro": "They work everywhere, except while you are typing in a text field.",
     "moves": "Previous and next move, in the game and in the review",
     "ends": "Jump to the starting position or back to the last one",
-    "promotion": "Pick the promotion piece: queen, rook, bishop, knight",
+    "promotion": "Pick the promotion piece: queen, knight, rook, bishop",
     "escape": "Close the open dialog, or cancel the promotion",
     "tab": "Move to the next group; the arrows move between the tabs",
     "sheet": "Open this list"
