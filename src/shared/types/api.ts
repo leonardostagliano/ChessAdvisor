@@ -114,3 +114,21 @@ export interface Api {
   on(channel: 'game:state', cb: (s: SessionState) => void): () => void
   on(channel: 'game:finished', cb: (e: GameFinished) => void): () => void
 }
+
+// ─── Task 12: the coach in game ───────────────────────────────────────────────
+// The coach lives in the same session as the game: every call answers with the whole
+// `SessionState`, and the text of comments, answers and hints streams on the `stream`
+// channel under `SessionState.coach.streamId`.
+
+export interface GameApi {
+  /** Shows or hides the comments; hiding never comments backwards afterwards (spec §4.2). */
+  setCommentsVisible(visible: boolean): Promise<SessionState>
+  /** Free question of the Coach tab. Resolves when the whole answer has arrived. */
+  askCoach(question: string): Promise<SessionState>
+  /** One hint: the move lands in `coach.hint` and is drawn as an arrow on the board. */
+  requestHint(): Promise<SessionState>
+  /** Removes the hint arrow without playing the move. */
+  clearHint(): Promise<SessionState>
+  /** Comments the last uncommented moves, at most six (spec §4.2). */
+  commentSkipped(): Promise<SessionState>
+}

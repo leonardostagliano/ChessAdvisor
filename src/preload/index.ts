@@ -55,7 +55,13 @@ const api: Api = {
     navigateEval: (fen: string) => ipcRenderer.invoke('game:navigateEval', fen) as Promise<void>,
     state: () => ipcRenderer.invoke('game:state') as Promise<SessionState>,
     close: () => ipcRenderer.invoke('game:close') as Promise<SessionState>,
-    adaptiveElo: () => ipcRenderer.invoke('game:adaptiveElo') as Promise<{ elo: number; games: number } | null>
+    adaptiveElo: () => ipcRenderer.invoke('game:adaptiveElo') as Promise<{ elo: number; games: number } | null>,
+    // ── Task 12: the coach in game ──
+    setCommentsVisible: (visible: boolean) => ipcRenderer.invoke('game:setCommentsVisible', visible) as Promise<SessionState>,
+    askCoach: (question: string) => ipcRenderer.invoke('game:askCoach', question) as Promise<SessionState>,
+    requestHint: () => ipcRenderer.invoke('game:requestHint') as Promise<SessionState>,
+    clearHint: () => ipcRenderer.invoke('game:clearHint') as Promise<SessionState>,
+    commentSkipped: () => ipcRenderer.invoke('game:commentSkipped') as Promise<SessionState>
   },
   // --- Task 6: Codex session ---------------------------------------------------------------
   codex: {

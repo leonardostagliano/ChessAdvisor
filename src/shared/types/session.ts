@@ -92,4 +92,20 @@ export interface SessionState {
   liveEval: { cp?: number; mate?: number; depth: number } | null
   status: 'idle' | 'playing' | 'finished' | 'error'
   error: string | null
+  /** Everything the Commenti and Coach tabs need (spec §4.2), pushed with the rest of the state. */
+  coach: CoachState
+}
+
+/** Live state of the coach thread of the running game. */
+export interface CoachState {
+  /** Whether new moves are commented; turning it on never comments backwards (spec §4.2). */
+  commentsVisible: boolean
+  /** True while a coach turn (comment, answer or hint) is running. */
+  busy: boolean
+  /** Correlates the `stream` deltas of the running coach turn; `null` when idle. */
+  streamId: string | null
+  /** Last hint, drawn as an arrow on the board; cleared by the next user move. */
+  hint: { move: string; uci: string; reason: string } | null
+  /** Last answer of the Coach tab; `question` is `null` for an answer with no question. */
+  lastAnswer: { question: string | null; text: string; ply: number } | null
 }

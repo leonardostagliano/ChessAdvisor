@@ -1,13 +1,16 @@
 import { randomUUID } from 'node:crypto'
 import { applyMove, epdOf, gameStatus, legalMoves } from '@shared/chess/notation'
 import { pgnOf } from '@shared/chess/pgn'
-import type { Game, GameResult, Move } from '@shared/types/game'
-import { DIFFICULTY_LEVELS, nearestLevel, type DifficultyChoice, type NewGameOptions, type OpponentDifficulty, type SessionState } from '@shared/types/session'
+import type { StreamEnvelope } from '@shared/types/api'
+import type { CoachLogEntry, Game, GameResult, Move } from '@shared/types/game'
+import type { Language } from '@shared/types/settings'
+import { DIFFICULTY_LEVELS, nearestLevel, type CoachState, type DifficultyChoice, type NewGameOptions, type OpponentDifficulty, type SessionState } from '@shared/types/session'
 import type { CodexService } from '../codex/codexService'
 import type { EngineService } from '../engine/engineService'
 import type { GameStore } from '../store/gameStore'
 import type { ProfileStore } from '../store/profileStore'
 import type { SettingsStore } from '../store/settingsStore'
+import { CoachSession, type CoachActivity } from './coach'
 import { OpponentTurnError, playOpponentTurn } from './opponentTurn'
 import { DRAW_OFFER_SCHEMA, drawOfferText, opponentBaseInstructions } from './prompts'
 
@@ -46,7 +49,8 @@ export interface GameSessionDeps {
   settings: SettingsStore
   /** Adaptive difficulty reads and writes `profile.json` through this store. */
   profile: ProfileStore
-  emit(channel: 'game:state' | 'game:finished', payload: SessionState | GameFinishedEvent): void
+  /** `stream` carries the coach deltas straight to the renderer (spec §4.2). */
+  emit(channel: 'game:state' | 'game:finished' | 'stream', payload: SessionState | GameFinishedEvent | StreamEnvelope): void
   now(): number
 }
 
@@ -73,6 +77,13 @@ export class GameError extends Error {
 
 const idleAi = (): SessionState['ai'] => ({ thinking: false, startedAt: null, reasoning: '', retries: 0, streamId: null })
 
+/** Cap of the "Commenta le mosse saltate" button (spec §4.2). */
+export const MAX_SKIPPED_COMMENTS = 6
+/** Entries of the coach log the recreated coach thread receives on resume (spec §4.2). */
+const RESUME_RECAP_ENTRIES = 10
+/** How long `close()` waits for an interrupted comment before walking away from it. */
+const COMMENT_SETTLE_MS = 2000
+
 const clamp = (value: number, min: number, max: number): number => Math.min(max, Math.max(min, value))
 
 export class GameSession {
@@ -86,13 +97,35 @@ export class GameSession {
   private pendingTakebackNotice: number | null = null
   private showReasoning = false
   private commentsVisible = true
+  /** The coach thread of the running game; it never blocks a move (spec §4.2). */
+  private readonly coach: CoachSession
+  private coachActivity: CoachActivity = { busy: false, streamId: null }
+  private coachHint: CoachState['hint'] = null
+  private coachAnswer: CoachState['lastAnswer'] = null
+  /** Plies pushed while comments were visible and not commented yet, in order. */
+  private pendingComments: number[] = []
+  /** Comments run one at a time, behind the moves: the AI turn never waits for one. */
+  private commentChain: Promise<void> = Promise.resolve()
   /**
    * Bumped whenever a running AI turn stops being relevant (takeback, resign, new game, close).
    * The turn that comes back with a stale epoch is dropped instead of landing on the board.
    */
   private turnEpoch = 0
 
-  constructor(private readonly deps: GameSessionDeps) {}
+  constructor(private readonly deps: GameSessionDeps) {
+    this.coach = new CoachSession({
+      codex: deps.codex,
+      engine: deps.engine,
+      settings: deps.settings,
+      emit: (channel, payload) => deps.emit(channel, payload),
+      now: deps.now
+    })
+    // The renderer must know the stream id before the deltas of that turn arrive.
+    this.coach.onActivity = (activity) => {
+      this.coachActivity = activity
+      this.emitState()
+    }
+  }
 
   // ------------------------------------------------------------------ reading
 
@@ -120,7 +153,14 @@ export class GameSession {
       ai: { ...this.ai },
       liveEval: this.liveEvalValue ? { ...this.liveEvalValue } : null,
       status: this.status,
-      error: this.error
+      error: this.error,
+      coach: {
+        commentsVisible: this.commentsVisible,
+        busy: this.coachActivity.busy,
+        streamId: this.coachActivity.streamId,
+        hint: this.coachHint ? { ...this.coachHint } : null,
+        lastAnswer: this.coachAnswer ? { ...this.coachAnswer } : null
+      }
     }
   }
 
@@ -181,6 +221,7 @@ export class GameSession {
     this.error = null
     this.status = 'playing'
     await this.openThread()
+    await this.openCoach(opts.language)
     this.emitState()
 
     await this.runEval(this.fen())
@@ -264,15 +305,38 @@ export class GameSession {
 
     this.status = 'playing'
     await this.openThread()
+    // Codex threads are ephemeral: the coach comes back with a recap of what it already said.
+    await this.openCoach(this.deps.settings.get().language, game.coachLog.slice(-RESUME_RECAP_ENTRIES))
     this.emitState()
     await this.runEval(this.fen())
     if (!this.state().userToMove) await this.aiMove()
     return this.state()
   }
 
+  /**
+   * Opens the coach thread of the current game (spec §4.2). A coach that cannot start is a
+   * missing feature, never a failed game: the comments simply stay empty.
+   */
+  private async openCoach(language: Language, recap?: CoachLogEntry[]): Promise<void> {
+    const game = this.requireGame()
+    this.pendingComments = []
+    this.coachHint = null
+    this.coachAnswer = null
+    try {
+      await this.coach.start(game, { language, ...(recap && recap.length > 0 ? { recap } : {}) })
+    } catch (error) {
+      console.error('[game] the coach thread could not be opened:', error)
+    }
+  }
+
   /** Unsubscribes the thread and forgets the game; the game stays `in_progress` on disk. */
   async close(): Promise<void> {
     this.turnEpoch += 1
+    this.pendingComments = []
+    await this.coach.close().catch((error) => console.error('[game] closing the coach failed:', error))
+    // The interrupted comment must be given the chance to notice: a write landing after the game
+    // has been forgotten would hit the next game's file (or none at all).
+    await this.settleComments()
     const threadId = this.threadId
     this.threadId = null
     if (threadId) {
@@ -285,6 +349,8 @@ export class GameSession {
     this.ai = idleAi()
     this.liveEvalValue = null
     this.pendingTakebackNotice = null
+    this.coachHint = null
+    this.coachAnswer = null
     this.emitState()
   }
 
@@ -300,13 +366,19 @@ export class GameSession {
     const applied = applyMove(fen, uci)
     if (!applied) throw new GameError('ILLEGAL_MOVE', `${uci} is not legal in ${fen}`)
 
+    // The arrow belongs to the position the user has just left (spec §4.2).
+    this.coachHint = null
     this.pushMove(game, { san: applied.san, uci, fenAfter: applied.fen, by: 'user' })
     await this.autosave(game)
     this.emitState()
 
-    if (await this.checkEnd()) return this.state()
+    if (await this.checkEnd()) {
+      this.flushComments()
+      return this.state()
+    }
     await this.runEval(this.fen())
     await this.aiMove()
+    this.flushComments()
     return this.state()
   }
 
@@ -375,6 +447,8 @@ export class GameSession {
       this.ai = idleAi()
       await this.autosave(game)
       this.emitState()
+      // Comments start only now: an opponent turn must never wait for the coach (spec §4.2).
+      this.flushComments()
       if (await this.checkEnd()) return
       await this.runEval(this.fen())
     } catch (error) {
@@ -390,7 +464,11 @@ export class GameSession {
   }
 
   private pushMove(game: Game, move: Omit<Move, 'ply' | 'epdAfter'>): void {
-    game.moves.push({ ...move, ply: game.moves.length + 1, epdAfter: epdOf(move.fenAfter) })
+    const ply = game.moves.length + 1
+    game.moves.push({ ...move, ply, epdAfter: epdOf(move.fenAfter) })
+    // Reactivating the comments never comments backwards (spec §4.2): only what is pushed while
+    // they are visible is ever queued.
+    if (this.commentsVisible) this.pendingComments.push(ply)
   }
 
   private fail(message: string): void {
@@ -435,6 +513,8 @@ export class GameSession {
       removed += 1
     }
     game.takebacks += 1
+    this.pendingComments = this.pendingComments.filter((ply) => ply <= game.moves.length)
+    this.coachHint = null
     this.pendingTakebackNotice = removed
     this.status = 'playing'
     this.error = null
@@ -494,6 +574,148 @@ export class GameSession {
   async navigateEval(fen: string): Promise<void> {
     if (typeof fen !== 'string' || fen.trim().length === 0) throw new GameError('BAD_FEN', 'a FEN string is required')
     await this.runEval(fen)
+  }
+
+  // ------------------------------------------------------------------ coach (spec §4.2)
+
+  /** Position the ply was played from: the previous move, or the start of the game. */
+  private fenBefore(game: Game, ply: number): string {
+    const previous = game.moves[ply - 2]
+    return previous ? previous.fenAfter : (game.startFen ?? START_FEN)
+  }
+
+  private pgnUpTo(game: Game, plies?: number): string {
+    const moves = typeof plies === 'number' ? game.moves.slice(0, plies) : game.moves
+    return pgnOf(moves, game.startFen ? { startFen: game.startFen } : undefined)
+  }
+
+  private logCoach(game: Game, entry: Omit<CoachLogEntry, 'id' | 'createdAt'>): void {
+    game.coachLog.push({ ...entry, id: randomUUID(), createdAt: new Date(this.deps.now()).toISOString() })
+  }
+
+  /** Shows or hides the comments. Hiding drops what has not been commented yet. */
+  setCommentsVisible(visible: boolean): SessionState {
+    this.commentsVisible = visible === true
+    if (!this.commentsVisible) this.pendingComments = []
+    this.emitState()
+    return this.state()
+  }
+
+  /** Comments the last uncommented moves, at most {@link MAX_SKIPPED_COMMENTS} of them. */
+  commentSkipped(): SessionState {
+    const game = this.requireGame()
+    const skipped = game.moves.filter((move) => !move.coachComment).slice(-MAX_SKIPPED_COMMENTS)
+    for (const move of skipped) {
+      if (!this.pendingComments.includes(move.ply)) this.pendingComments.push(move.ply)
+    }
+    this.pendingComments.sort((a, b) => a - b)
+    this.flushComments()
+    return this.state()
+  }
+
+  /**
+   * Waits for the comment currently in flight, which `close()` has just interrupted.
+   * A coach that never answers must not keep the app from quitting: the wait is bounded.
+   */
+  private async settleComments(): Promise<void> {
+    const settled = this.commentChain.catch(() => undefined)
+    let timer: NodeJS.Timeout | null = null
+    const deadline = new Promise<void>((resolve) => {
+      timer = setTimeout(resolve, COMMENT_SETTLE_MS)
+      timer.unref?.()
+    })
+    await Promise.race([settled, deadline])
+    if (timer) clearTimeout(timer)
+  }
+
+  /** Hands the queued plies to the coach, one at a time, without ever awaiting the chain. */
+  private flushComments(): void {
+    if (this.pendingComments.length === 0) return
+    const game = this.game
+    if (!game) {
+      this.pendingComments = []
+      return
+    }
+    const plies = this.pendingComments.splice(0, this.pendingComments.length)
+    for (const ply of plies) {
+      const move = game.moves[ply - 1]
+      if (!move || move.coachComment) continue
+      const gameId = game.id
+      const uci = move.uci
+      this.commentChain = this.commentChain
+        .then(() => this.commentOne(gameId, ply, uci))
+        .catch((error) => console.error('[game] the comment failed:', error))
+    }
+  }
+
+  /** One comment. Everything that could have moved under it is checked again before saving. */
+  private async commentOne(gameId: string, ply: number, uci: string): Promise<void> {
+    const game = this.game
+    const move = game?.moves[ply - 1]
+    if (!game || game.id !== gameId || !move || move.uci !== uci || move.coachComment) return
+
+    const language = this.deps.settings.get().language
+    const comment = await this.coach.commentOn(game, ply, {
+      fenBefore: this.fenBefore(game, ply),
+      fenAfter: move.fenAfter,
+      pgn: this.pgnUpTo(game, ply)
+    })
+    if (!comment || comment.text.length === 0) return
+
+    // The game may have been taken back, closed or replaced while the coach was writing.
+    const current = this.game
+    const target = current?.moves[ply - 1]
+    if (!current || current.id !== gameId || !target || target.uci !== uci) return
+    target.coachComment = comment.text
+    target.coachCommentLanguage = language
+    this.logCoach(current, { ply, kind: 'comment', text: comment.text, move: target.san, language })
+    await this.autosave(current)
+    this.emitState()
+  }
+
+  /** Free question from the Coach tab; both the question and the answer enter the coach log. */
+  async askCoach(question: string): Promise<SessionState> {
+    const game = this.requireGame()
+    const asked = String(question ?? '').trim()
+    if (!asked) throw new GameError('BAD_QUESTION', 'a question is required')
+
+    const language = this.deps.settings.get().language
+    const ply = game.moves.length
+    this.logCoach(game, { ply, kind: 'question', text: asked, language })
+    await this.autosave(game)
+    this.emitState()
+
+    const answer = await this.coach.ask(game, asked, { fen: this.fen(), pgn: this.pgnUpTo(game) })
+    const current = this.game
+    if (!current || current.id !== game.id) return this.state()
+    this.logCoach(current, { ply, kind: 'answer', text: answer.text, language })
+    this.coachAnswer = { question: asked, text: answer.text, ply }
+    await this.autosave(current)
+    this.emitState()
+    return this.state()
+  }
+
+  /** "Suggerimento": one validated move, drawn as an arrow until the user moves. */
+  async requestHint(): Promise<SessionState> {
+    const game = this.requireGame()
+    if (this.status !== 'playing') throw new GameError('GAME_NOT_PLAYING', `the game is ${this.status}`)
+
+    const language = this.deps.settings.get().language
+    const hint = await this.coach.hint(game, { fen: this.fen(), pgn: this.pgnUpTo(game) })
+    const current = this.game
+    if (!current || current.id !== game.id) return this.state()
+    this.coachHint = hint
+    this.logCoach(current, { ply: current.moves.length, kind: 'hint', text: hint.reason, move: hint.move, language })
+    await this.autosave(current)
+    this.emitState()
+    return this.state()
+  }
+
+  /** Removes the arrow without playing the move. */
+  clearHint(): SessionState {
+    this.coachHint = null
+    this.emitState()
+    return this.state()
   }
 
   // ------------------------------------------------------------------ end of game

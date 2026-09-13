@@ -24,7 +24,8 @@ export const EMPTY_SESSION: SessionState = {
   ai: { thinking: false, startedAt: null, reasoning: '', retries: 0, streamId: null },
   liveEval: null,
   status: 'idle',
-  error: null
+  error: null,
+  coach: { commentsVisible: true, busy: false, streamId: null, hint: null, lastAnswer: null }
 }
 
 export interface GameStoreState {

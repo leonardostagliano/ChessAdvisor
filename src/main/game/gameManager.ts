@@ -99,4 +99,14 @@ export function registerGameIpc(deps: RegisterGameIpcDeps): void {
     return session().state()
   })
   deps.handle('game:adaptiveElo', async () => session().adaptiveElo())
+
+  // ── Task 12: the coach in game (spec §4.2) ──
+  deps.handle('game:setCommentsVisible', async (visible: unknown): Promise<SessionState> => session().setCommentsVisible(visible === true))
+  deps.handle('game:askCoach', async (question: unknown): Promise<SessionState> => {
+    if (typeof question !== 'string' || question.trim().length === 0) throw new GameError('BAD_QUESTION', 'a question is required')
+    return session().askCoach(question)
+  })
+  deps.handle('game:requestHint', async (): Promise<SessionState> => session().requestHint())
+  deps.handle('game:clearHint', async (): Promise<SessionState> => session().clearHint())
+  deps.handle('game:commentSkipped', async (): Promise<SessionState> => session().commentSkipped())
 }

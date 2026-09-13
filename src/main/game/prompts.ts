@@ -135,8 +135,9 @@ export function opponentBaseInstructions(p: { color: 'w' | 'b'; difficulty: Oppo
 /**
  * Movetext only, on one line: chess.js always writes the seven-tag roster and a `*` terminator,
  * and neither tells the model anything the FEN line does not already say.
+ * Exported because the coach prompts (spec §4.2) write the same PGN line.
  */
-function movetext(pgn: string): string {
+export function movetext(pgn: string): string {
   return String(pgn ?? '')
     .split(/\r?\n/)
     .filter((line) => !line.trim().startsWith('['))

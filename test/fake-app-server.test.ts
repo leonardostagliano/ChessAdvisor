@@ -178,6 +178,31 @@ async function runMoveTurn(
   return { turnId, turn: completed.turn, text: message?.text ?? '' }
 }
 
+/** The coach's hint schema (spec §4.2): the only one carrying both `move` and `reason`. */
+const HINT_SCHEMA = {
+  type: 'object',
+  properties: {
+    move: { type: 'string' },
+    reason: { type: 'string' }
+  },
+  required: ['move', 'reason'],
+  additionalProperties: false
+}
+
+/** One turn with an arbitrary text and an optional schema; returns the final message. */
+async function runTextTurn(harness: Harness, threadId: string, text: string, outputSchema?: object): Promise<string> {
+  const response = await harness.client.request<{ turn: { id: string } }>('turn/start', {
+    threadId,
+    input: [{ type: 'text', text, text_elements: [] }],
+    model: 'gpt-6-astra',
+    effort: 'low',
+    ...(outputSchema ? { outputSchema } : {})
+  })
+  const completed = await harness.waitFor('turn/completed', (p) => p.turn.id === response.turn.id)
+  const message = [...completed.turn.items].reverse().find((item: any) => item.type === 'agentMessage')
+  return message?.text ?? ''
+}
+
 afterEach(async () => {
   while (running.length > 0) await running.pop()!.stop()
 })
@@ -377,6 +402,33 @@ describe('fake app-server', () => {
     await harness.client.request('turn/interrupt', { threadId, turnId: response.turn.id })
     const completed = await harness.waitFor('turn/completed', (p) => p.turn.id === response.turn.id)
     expect(completed.turn.status).toBe('interrupted')
+  })
+
+  it('answers the coach hint schema with a legal move and a reason', async () => {
+    const harness = startServer()
+    await harness.client.request('initialize', {
+      clientInfo: { name: 'chessadvisor', title: 'ChessAdvisor', version: '0.1.0' },
+      capabilities: null
+    })
+    const threadId = await startThread(harness)
+    const text = await runTextTurn(harness, threadId, `Suggerisci una mossa.
+FEN: ${OPENING_FEN}`, HINT_SCHEMA)
+    const hint = JSON.parse(text) as { move: string; reason: string }
+    expect(hint.reason).toBe('fake hint')
+    expect(new Chess(OPENING_FEN).moves()).toContain(hint.move)
+    // The hint schema must not be mistaken for the opponent's move schema.
+    expect(text).not.toContain('shortComment')
+  })
+
+  it('recognises a comment turn and a question turn by their text', async () => {
+    const harness = startServer()
+    await harness.client.request('initialize', {
+      clientInfo: { name: 'chessadvisor', title: 'ChessAdvisor', version: '0.1.0' },
+      capabilities: null
+    })
+    const threadId = await startThread(harness)
+    expect(await runTextTurn(harness, threadId, 'Commenta la mossa appena giocata.')).toBe('Commento finto sulla mossa 1.')
+    expect(await runTextTurn(harness, threadId, 'Domanda: che piano ho?')).toBe('Risposta finta.')
   })
 
   it('reports a logged-out account when FAKE_CODEX_LOGGED_OUT=1', async () => {

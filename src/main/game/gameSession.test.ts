@@ -48,6 +48,8 @@ class FakeCodex implements SessionCodex {
   catalogue: ModelInfo[] = MODELS
   private holding = false
   private pending: ((result: TurnResult) => void) | null = null
+  private holdingCoach = false
+  private pendingCoach: ((result: TurnResult) => void) | null = null
   private threads = 0
 
   async startThread(role: 'opponent' | 'coach' | 'training', opts: { model: string; baseInstructions: string; gameId?: string }): Promise<string> {
@@ -62,6 +64,11 @@ class FakeCodex implements SessionCodex {
       this.holding = false
       return new Promise<TurnResult>((resolve) => {
         this.pending = resolve
+      })
+    }
+    if (this.holdingCoach && !req.outputSchema) {
+      return new Promise<TurnResult>((resolve) => {
+        this.pendingCoach = resolve
       })
     }
     const scripted = this.script.shift()
@@ -88,12 +95,30 @@ class FakeCodex implements SessionCodex {
     this.holding = true
   }
 
+  /** Every plain-text turn (i.e. every coach comment or answer) hangs until `releaseCoach`. */
+  holdCoach(): void {
+    this.holdingCoach = true
+  }
+
+  releaseCoach(text = 'Commento finto.'): void {
+    const pending = this.pendingCoach
+    this.pendingCoach = null
+    this.holdingCoach = false
+    pending?.({ ok: true, text, turnId: 't-coach', effectiveModel: null, durationMs: 5 })
+  }
+
   private answer(req: TurnRequest): TurnResult {
     const moves = legalMoves(fenOf(req.text))
-    const drawOffer = JSON.stringify(req.outputSchema ?? {}).includes('accept')
-    const text = drawOffer
+    const schema = JSON.stringify(req.outputSchema ?? {})
+    const text = schema.includes('accept')
       ? JSON.stringify({ accept: false, reason: 'gioco ancora' })
-      : JSON.stringify({ move: moves[0]?.san ?? 'resign', shortComment: 'ok' })
+      : schema.includes('reason')
+        ? JSON.stringify({ move: moves[0]?.san ?? 'resign', reason: 'occupa il centro' })
+        : schema.includes('move')
+          ? JSON.stringify({ move: moves[0]?.san ?? 'resign', shortComment: 'ok' })
+          : req.text.includes('Domanda:')
+            ? 'Risposta finta.'
+            : 'Commento finto.'
     return { ok: true, text, turnId: `t-${this.requests.length}`, effectiveModel: null, durationMs: 5 }
   }
 }
@@ -118,7 +143,8 @@ const options = (over: Partial<NewGameOptions> = {}): NewGameOptions => ({
   coach: { model: 'gpt-6-astra', effort: 'medium' },
   language: 'it',
   showReasoning: true,
-  commentsVisible: true,
+  // The coach has its own describe block: the game tests do not want a comment after every move.
+  commentsVisible: false,
   ...over
 })
 
@@ -160,6 +186,7 @@ describe('GameSession', () => {
   })
 
   afterEach(async () => {
+    await session.close()
     await removeTmpDir(root)
     vi.restoreAllMocks()
   })
@@ -172,8 +199,7 @@ describe('GameSession', () => {
     expect(state.legal).toHaveLength(20)
     expect(state.liveEval).toEqual({ cp: 30, depth: 14 })
 
-    expect(codex.started).toHaveLength(1)
-    expect(codex.started[0]!.role).toBe('opponent')
+    expect(codex.started.map((thread) => thread.role)).toEqual(['opponent', 'coach'])
     // The AI has Black, and the persona of the chosen level is in the base instructions.
     expect(codex.started[0]!.baseInstructions).toContain('il Nero')
     expect(codex.started[0]!.baseInstructions).toContain('1200')
@@ -350,7 +376,7 @@ describe('GameSession', () => {
       const game = await saved()
       const state = await session.resume(game.id)
 
-      expect(codex.started).toHaveLength(1)
+      expect(codex.started.map((thread) => thread.role)).toEqual(['opponent', 'coach'])
       expect(codex.started[0]!.gameId).toBe(game.id)
       expect(state.game!.moves).toHaveLength(2)
       expect(state.game!.moves[1]!.by).toBe('ai')
@@ -442,6 +468,168 @@ describe('GameSession', () => {
     })
   })
 
+  describe('coach', () => {
+    /** The coach describe block is the only one that wants a comment after every move. */
+    const seen = (over: Partial<NewGameOptions> = {}): NewGameOptions => options({ commentsVisible: true, ...over })
+
+    const commented = (ply: number): Promise<void> =>
+      vi.waitFor(() => expect(session.state().game!.moves[ply - 1]!.coachComment).toBeTruthy())
+
+    it('opens the coach thread with the tutor persona next to the opponent one', async () => {
+      await session.newGame(seen())
+      expect(codex.started.map((thread) => thread.role)).toEqual(['opponent', 'coach'])
+      expect(codex.started[1]!.model).toBe('gpt-6-astra')
+      expect(codex.started[1]!.gameId).toBe(session.state().game!.id)
+      expect(codex.started[1]!.baseInstructions).toMatch(/allenatore/)
+      expect(session.state().coach).toEqual({ commentsVisible: true, busy: false, streamId: null, hint: null, lastAnswer: null })
+    })
+
+    it('comments both moves and saves them on the move and in the log', async () => {
+      await session.newGame(seen())
+      const state = await session.userMove('e2e4')
+      await commented(1)
+      await commented(2)
+
+      const game = session.state().game!
+      expect(game.moves[0]!.coachComment).toBe('Commento finto.')
+      expect(game.moves[0]!.coachCommentLanguage).toBe('it')
+      const comments = game.coachLog.filter((entry) => entry.kind === 'comment')
+      expect(comments.map((entry) => entry.ply)).toEqual([1, 2])
+      expect(comments[0]).toMatchObject({ move: 'e4', language: 'it', text: 'Commento finto.' })
+      // Comments are autosaved like everything else.
+      expect((await store.get(state.game!.id))!.moves[0]!.coachComment).toBe('Commento finto.')
+
+      // The comment turn carries the move, the position it was played from and the engine lines.
+      const comment = codex.requests.find((request) => request.text.includes('Commenta'))!
+      expect(comment.text).toContain('1. e4 (e2e4)')
+      expect(comment.text).toContain('+0.30')
+      expect(comment.outputSchema).toBeUndefined()
+    })
+
+    it('never makes the opponent turn wait for a comment', async () => {
+      await session.newGame(seen())
+      codex.holdCoach()
+      const state = await session.userMove('e2e4')
+
+      // The AI has already answered while the first comment is still being written.
+      expect(state.game!.moves).toHaveLength(2)
+      expect(state.game!.moves[1]!.by).toBe('ai')
+      expect(state.game!.moves[0]!.coachComment).toBeUndefined()
+      await vi.waitFor(() => expect(session.state().coach.busy).toBe(true))
+      expect(session.state().coach.streamId).toMatch(/[0-9a-f-]{36}/)
+
+      codex.releaseCoach()
+      await commented(1)
+      await vi.waitFor(() => expect(session.state().coach.busy).toBe(false))
+    })
+
+    it('comments nothing while they are hidden, and never comments backwards', async () => {
+      await session.newGame(seen({ commentsVisible: false }))
+      await session.userMove('e2e4')
+      expect(session.state().coach.commentsVisible).toBe(false)
+
+      const shown = session.setCommentsVisible(true)
+      expect(shown.coach.commentsVisible).toBe(true)
+      await session.userMove('d2d4')
+      await commented(3)
+      await commented(4)
+
+      // The two plies played while the comments were hidden stay uncommented (spec §4.2).
+      const moves = session.state().game!.moves
+      expect(moves[0]!.coachComment).toBeUndefined()
+      expect(moves[1]!.coachComment).toBeUndefined()
+    })
+
+    it('comments at most six skipped moves, in order', async () => {
+      await session.newGame(seen({ commentsVisible: false }))
+      for (let move = 0; move < 4; move += 1) await session.userMove(legalMoves(session.state().fen)[0]!.uci)
+      expect(session.state().game!.moves).toHaveLength(8)
+
+      session.commentSkipped()
+      await commented(8)
+      await vi.waitFor(() => expect(session.state().game!.coachLog).toHaveLength(6))
+
+      const moves = session.state().game!.moves
+      expect(moves.filter((move) => move.coachComment).map((move) => move.ply)).toEqual([3, 4, 5, 6, 7, 8])
+      expect(session.state().game!.coachLog.map((entry) => entry.ply)).toEqual([3, 4, 5, 6, 7, 8])
+    })
+
+    it('answers a question and records both sides of it in the log', async () => {
+      await session.newGame(seen({ commentsVisible: false }))
+      const state = await session.askCoach('  che piano ho?  ')
+
+      expect(state.coach.lastAnswer).toEqual({ question: 'che piano ho?', text: 'Risposta finta.', ply: 0 })
+      expect(state.game!.coachLog.map((entry) => entry.kind)).toEqual(['question', 'answer'])
+      expect(state.game!.coachLog[0]!.text).toBe('che piano ho?')
+      expect(codex.requests[0]!.text).toContain('Domanda: che piano ho?')
+      expect((await store.get(state.game!.id))!.coachLog).toHaveLength(2)
+      await expect(session.askCoach('   ')).rejects.toMatchObject({ code: 'BAD_QUESTION' })
+    })
+
+    it('draws a hint until the next user move', async () => {
+      await session.newGame(seen({ commentsVisible: false }))
+      const state = await session.requestHint()
+
+      expect(state.coach.hint).toEqual({ move: 'Na3', uci: 'b1a3', reason: 'occupa il centro' })
+      expect(state.game!.coachLog[0]).toMatchObject({ kind: 'hint', move: 'Na3', text: 'occupa il centro' })
+      expect(codex.requests[0]!.outputSchema).toMatchObject({ required: ['move', 'reason'] })
+
+      const moved = await session.userMove('e2e4')
+      expect(moved.coach.hint).toBeNull()
+    })
+
+    it('drops the hint on request and on a takeback', async () => {
+      await session.newGame(seen({ commentsVisible: false }))
+      await session.requestHint()
+      expect(session.clearHint().coach.hint).toBeNull()
+
+      // A takeback changes the position the hint was given for, so the arrow goes with it.
+      await session.userMove('e2e4')
+      await session.requestHint()
+      expect(session.state().coach.hint).not.toBeNull()
+      expect((await session.takeback()).coach.hint).toBeNull()
+    })
+
+    it('recreates the coach thread on resume and rides the recap on the first comment', async () => {
+      const game = await store.create({
+        kind: 'match',
+        userColor: 'w',
+        opponent: { model: 'gpt-6-astra', effort: 'medium', difficulty: { mode: 'fixed', level: 3, targetElo: 1200 } },
+        coach: { model: 'gpt-6-astra', effort: 'medium' },
+        clock: null,
+        language: 'it'
+      })
+      const applied = applyMove(START_FEN, 'e2e4')!
+      game.moves.push({ ply: 1, san: applied.san, uci: 'e2e4', fenAfter: applied.fen, epdAfter: epdOf(applied.fen), by: 'user' })
+      game.coachLog.push({ id: 'c1', ply: 1, kind: 'question', text: 'che piano ho?', language: 'it', createdAt: '2026-01-01T00:00:00.000Z' })
+      game.coachLog.push({ id: 'c2', ply: 1, kind: 'answer', text: 'sviluppa i pezzi', language: 'it', createdAt: '2026-01-01T00:00:00.000Z' })
+      await store.save(game)
+
+      await session.resume(game.id)
+      expect(codex.started.map((thread) => thread.role)).toEqual(['opponent', 'coach'])
+      // The comment on the AI answer is the first coach turn, and it carries the recap.
+      await commented(2)
+      const comment = codex.requests.find((request) => request.text.includes('Commenta'))!
+      expect(comment.text).toMatch(/riprende da un salvataggio/)
+      expect(comment.text).toContain('sviluppa i pezzi')
+    })
+
+    it('keeps playing when the coach cannot answer', async () => {
+      await session.newGame(seen())
+      codex.script = [
+        { ok: true, text: JSON.stringify({ move: 'Na6', shortComment: 'ok' }), turnId: 'm1', effectiveModel: null, durationMs: 1 },
+        { ok: false, reason: 'failed', message: 'coach down', turnId: null },
+        { ok: false, reason: 'failed', message: 'coach down', turnId: null }
+      ]
+      const state = await session.userMove('e2e4')
+      expect(state.status).toBe('playing')
+      expect(state.game!.moves).toHaveLength(2)
+      await vi.waitFor(() => expect(session.state().coach.busy).toBe(false))
+      expect(session.state().game!.moves[0]!.coachComment).toBeUndefined()
+      expect(session.state().error).toBeNull()
+    })
+  })
+
   it('reports being busy only while the opponent is thinking', async () => {
     await session.newGame(options())
     expect(session.isBusy()).toBe(false)
@@ -457,7 +645,8 @@ describe('GameSession', () => {
     const state = await session.newGame(options())
     const id = state.game!.id
     await session.close()
-    expect(codex.closed).toEqual(['thread-1'])
+    // The coach thread goes first, then the opponent one.
+    expect(codex.closed).toEqual(['thread-2', 'thread-1'])
     expect(session.state().game).toBeNull()
     expect(session.state().status).toBe('idle')
     expect((await store.get(id))!.status).toBe('in_progress')

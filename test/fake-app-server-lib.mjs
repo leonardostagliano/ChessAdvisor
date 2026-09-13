@@ -205,6 +205,12 @@ export function createFakeServer(io, options = {}) {
   function finalText(params, state) {
     const text = inputText(params)
     const properties = schemaProperties(params)
+    // The hint schema (spec §4.2) is the only one with both `move` and `reason`.
+    if (properties && 'move' in properties && 'reason' in properties) {
+      const fen = fenFrom(text)
+      const forced = forcedMoveFrom(text)
+      return JSON.stringify({ move: forced ?? randomLegalMove(fen), reason: 'fake hint' })
+    }
     if (properties && 'move' in properties) {
       const fen = fenFrom(text)
       const forced = forcedMoveFrom(text)
@@ -217,6 +223,9 @@ export function createFakeServer(io, options = {}) {
     if (properties && 'takeaways' in properties) {
       return JSON.stringify({ takeaways: ['a', 'b', 'c'], summary: 'fake' })
     }
+    // Plain-text coach turns: a comment on a move, or an answer to a question (spec §4.2).
+    if (text.includes('Commenta')) return `Commento finto sulla mossa ${state.turnCount}.`
+    if (text.includes('Domanda:')) return 'Risposta finta.'
     return `Fake coach answer for ply ${state.turnCount}.`
   }
 
