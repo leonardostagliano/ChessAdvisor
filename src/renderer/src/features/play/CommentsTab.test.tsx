@@ -110,6 +110,22 @@ describe('CommentsTab', () => {
     expect(screen.queryByText('Apri il centro.')).not.toBeInTheDocument()
   })
 
+  it('turns the comments back on from the primary action of the empty state', async () => {
+    render(<CommentsTab session={session([], { commentsVisible: false })} />)
+
+    expect(screen.getByText('Commenti nascosti')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Riattiva i commenti' }))
+    await waitFor(() => expect(setCommentsVisible).toHaveBeenCalledWith(true))
+  })
+
+  it('offers the skipped moves from the empty state of a feed with nothing in it', async () => {
+    render(<CommentsTab session={session([move(0, 'e4', 'e2e4', FEN_1, 'user')])} />)
+
+    expect(screen.getByText('Ancora nessun commento')).toBeInTheDocument()
+    fireEvent.click(screen.getAllByRole('button', { name: 'Commenta le mosse saltate' })[0]!)
+    await waitFor(() => expect(commentSkipped).toHaveBeenCalled())
+  })
+
   it('binds the switch to the main process, which owns the choice', async () => {
     render(<CommentsTab session={session([move(0, 'e4', 'e2e4', FEN_1, 'user')])} />)
 

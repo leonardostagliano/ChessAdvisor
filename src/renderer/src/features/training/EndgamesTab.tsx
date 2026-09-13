@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { Button } from '../../components/ui/Button'
+import { EmptyState } from '../../components/EmptyState'
 import { cx } from '../../components/ui/cx'
 import { useTrainingStore } from '../../stores/trainingStore'
 import { useUiStore } from '../../stores/uiStore'
@@ -18,6 +19,21 @@ export function EndgamesTab(): React.JSX.Element {
   const language = useUiStore((state) => state.language)
   const endgames = useTrainingStore((state) => state.endgames)
   const request = useTrainingStore((state) => state.request)
+  const loading = useTrainingStore((state) => state.loading)
+
+  // The catalogue ships with the app: an empty list means the dataset could not be read.
+  if (endgames.length === 0) {
+    return (
+      <EmptyState
+        eyebrow={t('training.endgames.title')}
+        title={t('training.endgames.emptyTitle')}
+        body={t('training.endgames.emptyBody')}
+        action={t('training.endgames.reload')}
+        disabled={loading}
+        onAction={() => void useTrainingStore.getState().load()}
+      />
+    )
+  }
 
   return (
     <section className={styles.card} aria-label={t('training.endgames.listLabel')}>

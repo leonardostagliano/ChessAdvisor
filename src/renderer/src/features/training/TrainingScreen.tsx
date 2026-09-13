@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
+import { tabStripKeyDown } from '../../app/keyboard'
 import { cx } from '../../components/ui/cx'
 import { initTrainingStore, TRAINING_TABS, useTrainingStore, type TrainingTab } from '../../stores/trainingStore'
 import { EndgamesTab } from './EndgamesTab'
@@ -35,7 +36,12 @@ export function TrainingScreen(): React.JSX.Element {
         <p className={styles.subtitle}>{t('training.subtitle')}</p>
       </header>
 
-      <div className={styles.tabs} role="tablist" aria-label={t('training.areas')}>
+      <div
+        className={styles.tabs}
+        role="tablist"
+        aria-label={t('training.areas')}
+        onKeyDown={(event) => tabStripKeyDown(event, TRAINING_TABS, tab, (next) => useTrainingStore.getState().setTab(next))}
+      >
         {TABS.map((entry) => (
           <button
             key={entry.id}

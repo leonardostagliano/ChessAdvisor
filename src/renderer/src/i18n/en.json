@@ -280,7 +280,10 @@
     "name": "Coach",
     "you": "You",
     "showComments": "Show comments",
-    "commentsHidden": "Comments are hidden. Turning them back on starts again from the next move.",
+    "commentsHiddenTitle": "Comments are hidden",
+    "commentsHidden": "Turn them back on and the coach comments again from the next move.",
+    "commentsHiddenAction": "Turn the comments back on",
+    "noCommentsTitle": "No comment yet",
     "noComments": "No comment yet: the first one arrives after the next move.",
     "commentSkipped": "Comment the skipped moves",
     "writing": "The coach is writing…",
@@ -289,7 +292,9 @@
     "question": "Ask the coach",
     "questionPlaceholder": "What plan should I follow in this position?",
     "send": "Send",
+    "emptyTitle": "The coach is here for you",
     "empty": "Ask a question or request a hint: the coach answers here.",
+    "emptyAction": "Write a question",
     "hint": "Hint",
     "hintOf": "Hint: {{move}}",
     "hideHint": "Hide the hint",
@@ -333,7 +338,8 @@
   "archive": {
     "title": "Games",
     "subtitle": "Resume an interrupted game or delete the ones you no longer need.",
-    "empty": "No saved game yet.",
+    "emptyTitle": "No saved game yet",
+    "emptyBody": "The games you play stay here: resume the interrupted ones and review the finished ones.",
     "loading": "Loading the games…",
     "resume": "Resume",
     "delete": "Delete",
@@ -367,7 +373,8 @@
     "dateWeek": "Last 7 days",
     "dateMonth": "Last 30 days",
     "dateYear": "Last year",
-    "noMatch": "No game matches the filters.",
+    "noMatchTitle": "No game with these filters",
+    "noMatchBody": "Change one filter, or clear them all to see the whole list again.",
     "review": "Review",
     "accuracy": "Accuracy {{value}}%",
     "clearFilters": "Clear the filters"
@@ -377,11 +384,14 @@
     "open": "Review",
     "close": "Close the review",
     "loading": "Loading the game…",
-    "notFound": "Game not found.",
+    "notFoundTitle": "Game not found",
+    "notFoundBody": "It may have been deleted: go back to the games and pick another one.",
     "analyse": "Analyse",
     "analysing": "Analysis running",
     "analysingProgress": "Analysing the game: ply {{ply}} of {{total}}.",
+    "notAnalysedTitle": "Game not analysed yet",
     "notAnalysed": "This game has not been analysed yet.",
+    "unavailableTitle": "Analysis unavailable",
     "unavailable": "Stockfish is unavailable: move comments and the coach's lesson still work.",
     "white": "White",
     "black": "Black",
@@ -570,6 +580,7 @@
       "hint": "Recognised from the position, with the deviations from theory you repeat most often.",
       "emptyTitle": "No opening recognised",
       "emptyBody": "Openings show up here after the first game has been analysed.",
+      "emptyAction": "Play a game",
       "tableLabel": "Your openings",
       "columnEco": "ECO",
       "columnName": "Opening",
@@ -590,6 +601,8 @@
     "endgames": {
       "title": "Canonical endgames",
       "hint": "Play opens a game from the position, against the opponent at the highest level.",
+      "emptyTitle": "No endgame available",
+      "emptyBody": "The endgame catalogue was not loaded: try again in a moment.",
       "listLabel": "Canonical endgames",
       "goal": {
         "win": "Win",
@@ -601,7 +614,8 @@
         "3": "Hard"
       },
       "play": "Play",
-      "starting": "Starting…"
+      "starting": "Starting…",
+      "reload": "Reload the endgames"
     },
     "plan": {
       "title": "Study plan",
@@ -632,5 +646,15 @@
         "play": "Game"
       }
     }
+  },
+  "shortcuts": {
+    "title": "Keyboard shortcuts",
+    "intro": "They work everywhere, except while you are typing in a text field.",
+    "moves": "Previous and next move, in the game and in the review",
+    "ends": "Jump to the starting position or back to the last one",
+    "promotion": "Pick the promotion piece: queen, rook, bishop, knight",
+    "escape": "Close the open dialog, or cancel the promotion",
+    "tab": "Move to the next group; the arrows move between the tabs",
+    "sheet": "Open this list"
   }
 }

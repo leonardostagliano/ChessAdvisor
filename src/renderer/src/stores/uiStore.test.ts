@@ -46,6 +46,7 @@ beforeEach(() => {
   changeLanguage.mockClear()
   window.localStorage.clear()
   delete document.documentElement.dataset.theme
+  delete document.documentElement.dataset.themeSwitching
 })
 
 afterEach(() => {
@@ -76,6 +77,24 @@ describe('uiStore', () => {
     useUiStore.getState().setTheme('editorial')
     expect(useUiStore.getState().resolvedTheme).toBe('editorial')
     expect(document.documentElement.dataset.theme).toBe('editorial')
+  })
+
+  it('marks the root while the themes crossfade and clears the mark afterwards', async () => {
+    vi.useFakeTimers()
+    try {
+      installMatchMedia(true)
+      const { useUiStore, THEME_TRANSITION_MS } = await loadStore()
+      // The first paint is not a change: nothing is marked until a theme replaces another.
+      expect(document.documentElement.dataset.themeSwitching).toBeUndefined()
+
+      useUiStore.getState().setTheme('editorial')
+      expect(document.documentElement.dataset.themeSwitching).toBe('true')
+
+      vi.advanceTimersByTime(THEME_TRANSITION_MS)
+      expect(document.documentElement.dataset.themeSwitching).toBeUndefined()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('follows system changes while the choice is system and stops after unsubscribing', async () => {

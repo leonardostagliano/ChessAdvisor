@@ -133,6 +133,14 @@ describe('CoachTab', () => {
     expect(screen.queryByText('Questo va nella scheda Commenti.')).not.toBeInTheDocument()
   })
 
+  it('points at the question field from the empty state', () => {
+    render(<CoachTab session={session()} engineAvailable />)
+
+    expect(screen.getByText('Il coach è a disposizione')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Scrivi una domanda' }))
+    expect(screen.getByLabelText('Domanda al coach')).toHaveFocus()
+  })
+
   it('asks for a hint and puts it away again', async () => {
     const { rerender } = render(<CoachTab session={session()} engineAvailable />)
     fireEvent.click(screen.getByRole('button', { name: 'Suggerimento' }))

@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { gameStatus } from '@shared/chess/notation'
 import type { Eval } from '@shared/types/game'
+import { tabStripKeyDown, useMoveKeys } from '../../app/keyboard'
 import { Board, type BoardArrow } from '../../board/Board'
 import { EvalBar } from '../../board/EvalBar'
 import { Button } from '../../components/ui/Button'
@@ -43,6 +44,7 @@ const TABS: { id: PanelTab; key: string }[] = [
   { id: 'moves', key: 'play.moves' },
   { id: 'coach', key: 'play.coach' }
 ]
+const TAB_IDS: readonly PanelTab[] = TABS.map((entry) => entry.id)
 
 export interface Captured {
   /** Black pieces White has taken, and vice versa; lowercase letters, strongest first. */
@@ -107,6 +109,7 @@ export function PlayScreen(): React.JSX.Element {
   const setBrowsePly = useGameStore((state) => state.setBrowsePly)
   const returnToLive = useGameStore((state) => state.returnToLive)
   const userMove = useGameStore((state) => state.userMove)
+  const browseBy = useGameStore((state) => state.browseBy)
   const storeError = useGameStore((state) => state.error)
   const engineAvailable = useEngineStore((state) => state.available)
 
@@ -172,6 +175,16 @@ export function PlayScreen(): React.JSX.Element {
     void useGameStore.getState().navigateEval(fen)
   }, [game, engineAvailable, browsePly, fen])
 
+  // ← → Home End walk the game while the board is on screen (task T22 item 4); the move list and
+  // the dialogs handle their own keys first, and this never fires while the user is writing.
+  useMoveKeys({
+    previous: useCallback(() => browseBy(-1), [browseBy]),
+    next: useCallback(() => browseBy(1), [browseBy]),
+    first: useCallback(() => setBrowsePly(-1), [setBrowsePly]),
+    last: useCallback(() => returnToLive(), [returnToLive]),
+    enabled: view === 'game' && (game?.moves.length ?? 0) > 0
+  })
+
   const movableColor = playing && session.userToMove && !session.ai.thinking && !browsing ? (userColor === 'w' ? 'white' : 'black') : undefined
 
   return (
@@ -209,6 +222,7 @@ export function PlayScreen(): React.JSX.Element {
           onResumed={() => {
             setView('game')
           }}
+          onNewGame={() => setDialogOpen(true)}
           onReview={(id) => {
             setReviewGameId(id)
             setReviewPly(null)
@@ -290,7 +304,12 @@ export function PlayScreen(): React.JSX.Element {
           </div>
 
           <aside className={styles.panel}>
-            <div className={styles.tabs} role="tablist" aria-label={t('play.panel')}>
+            <div
+              className={styles.tabs}
+              role="tablist"
+              aria-label={t('play.panel')}
+              onKeyDown={(event) => tabStripKeyDown(event, TAB_IDS, tab, setTab)}
+            >
               {TABS.map((entry) => (
                 <button
                   key={entry.id}

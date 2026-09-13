@@ -1,9 +1,11 @@
-import { useEffect } from 'react'
+import { useCallback, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Eval, Game, Move } from '@shared/types/game'
+import { useMoveKeys } from '../../app/keyboard'
 import { Board } from '../../board/Board'
 import { EvalBar, evalLabel } from '../../board/EvalBar'
 import { Button } from '../../components/ui/Button'
+import { EmptyState } from '../../components/EmptyState'
 import { cx } from '../../components/ui/cx'
 import { useEngineStore } from '../../stores/engineStore'
 import { cursorOfPly, initReviewStore, useReviewStore } from '../../stores/reviewStore'
@@ -79,13 +81,42 @@ export function ReviewScreen({ gameId, ply = null, onClose }: ReviewScreenProps)
     }
   }, [gameId, ply])
 
+  // The same keys as the board in Gioca (task T22 item 4): the move list handles them when it has
+  // the focus, this covers the rest of the screen.
+  const step = useCallback((delta: number): void => {
+    const store = useReviewStore.getState()
+    const last = (store.game?.moves.length ?? 0) - 1
+    store.setCursor(Math.min(last, Math.max(-1, store.cursor + delta)))
+  }, [])
+  useMoveKeys({
+    previous: useCallback(() => step(-1), [step]),
+    next: useCallback(() => step(1), [step]),
+    first: useCallback(() => useReviewStore.getState().setCursor(-1), []),
+    last: useCallback(() => {
+      const store = useReviewStore.getState()
+      store.setCursor((store.game?.moves.length ?? 0) - 1)
+    }, []),
+    enabled: (game?.moves.length ?? 0) > 0
+  })
+
   if (!game) {
     return (
       <section className={styles.screen} aria-label={t('review.title')}>
-        <div className={styles.empty}>
-          <p className={styles.note}>{loading ? t('review.loading') : t('review.notFound')}</p>
-          <Button onClick={onClose}>{t('review.close')}</Button>
-        </div>
+        {loading ? (
+          <div className={styles.empty}>
+            <p className={styles.note} role="status">
+              {t('review.loading')}
+            </p>
+          </div>
+        ) : (
+          <EmptyState
+            eyebrow={t('review.title')}
+            title={t('review.notFoundTitle')}
+            body={t('review.notFoundBody')}
+            action={t('review.close')}
+            onAction={onClose}
+          />
+        )}
       </section>
     )
   }
@@ -156,15 +187,25 @@ export function ReviewScreen({ gameId, ply = null, onClose }: ReviewScreenProps)
         </div>
       ) : null}
 
-      {status.state === 'unavailable' ? <p className={styles.note}>{t('review.unavailable')}</p> : null}
+      {/* No engine: the review keeps the coach's prose (spec §8), so the lesson is the way on. */}
+      {status.state === 'unavailable' ? (
+        <EmptyState
+          title={t('review.unavailableTitle')}
+          body={t('review.unavailable')}
+          action={t('review.lesson')}
+          disabled={busy}
+          onAction={() => void useReviewStore.getState().lesson()}
+        />
+      ) : null}
 
       {!analysed && !running && status.state !== 'unavailable' ? (
-        <div className={styles.empty}>
-          <p className={styles.note}>{t('review.notAnalysed')}</p>
-          <Button variant="primary" disabled={!engineAvailable} onClick={() => void useReviewStore.getState().analyze()}>
-            {t('review.analyse')}
-          </Button>
-        </div>
+        <EmptyState
+          title={t('review.notAnalysedTitle')}
+          body={t('review.notAnalysed')}
+          action={t('review.analyse')}
+          disabled={!engineAvailable}
+          onAction={() => void useReviewStore.getState().analyze()}
+        />
       ) : null}
 
       {analysis ? (

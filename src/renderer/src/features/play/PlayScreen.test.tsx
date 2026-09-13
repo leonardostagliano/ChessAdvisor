@@ -250,6 +250,37 @@ describe('PlayScreen', () => {
     await waitFor(() => expect(useGameStore.getState().browsePly).toBeNull())
   })
 
+  it('walks the game with the arrow keys and leaves them to a text field', async () => {
+    render(<PlayScreen />)
+
+    fireEvent.keyDown(window, { key: 'ArrowLeft' })
+    await waitFor(() => expect(useGameStore.getState().browsePly).toBe(1))
+    fireEvent.keyDown(window, { key: 'Home' })
+    await waitFor(() => expect(useGameStore.getState().browsePly).toBe(-1))
+    fireEvent.keyDown(window, { key: 'ArrowRight' })
+    await waitFor(() => expect(useGameStore.getState().browsePly).toBe(0))
+    fireEvent.keyDown(window, { key: 'End' })
+    await waitFor(() => expect(useGameStore.getState().browsePly).toBeNull())
+
+    // A question to the coach is text, never a command (task T22 item 4).
+    fireEvent.click(screen.getByRole('tab', { name: 'Coach' }))
+    const field = screen.getByLabelText('Domanda al coach')
+    fireEvent.keyDown(field, { key: 'ArrowLeft' })
+    expect(useGameStore.getState().browsePly).toBeNull()
+  })
+
+  it('moves between the tabs of the panel with the arrow keys', async () => {
+    render(<PlayScreen />)
+
+    const strip = screen.getByRole('tablist', { name: 'Pannello della partita' })
+    fireEvent.keyDown(strip, { key: 'ArrowLeft' })
+    expect(await screen.findByRole('switch', { name: /Mostra commenti/ })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Commenti' })).toHaveAttribute('aria-selected', 'true')
+
+    fireEvent.keyDown(strip, { key: 'End' })
+    expect(await screen.findByLabelText('Domanda al coach')).toBeInTheDocument()
+  })
+
   it('asks the engine for a score only while browsing, not for the live position', async () => {
     render(<PlayScreen />)
 
@@ -330,6 +361,19 @@ describe('PlayScreen', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Riprendi' }))
     })
     expect(resumeGame).toHaveBeenCalledWith('g0', undefined)
+  })
+
+  it('sends the user to a new game when the archive has nothing in it', async () => {
+    const api = window.api as unknown as { games: { list: () => Promise<GameSummary[]> } }
+    api.games.list = async () => []
+    render(<PlayScreen />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Partite' }))
+    expect(await screen.findByText('Nessuna partita salvata')).toBeInTheDocument()
+
+    const buttons = screen.getAllByRole('button', { name: 'Nuova partita' })
+    fireEvent.click(buttons[buttons.length - 1]!)
+    expect(await screen.findByRole('dialog')).toBeInTheDocument()
   })
 
   it('offers a substitution when the saved model is gone', async () => {

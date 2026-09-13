@@ -4,6 +4,7 @@ import { useFollowFeed } from './useFollowFeed'
 import type { CoachLogEntry, Game } from '@shared/types/game'
 import type { SessionState } from '@shared/types/session'
 import { Button } from '../../components/ui/Button'
+import { EmptyState } from '../../components/EmptyState'
 import { cx } from '../../components/ui/cx'
 import { useEngineStore } from '../../stores/engineStore'
 import { useGameStore } from '../../stores/gameStore'
@@ -52,6 +53,7 @@ export function CoachTab({ session, engineAvailable }: CoachTabProps): React.JSX
   const request = useGameStore((state) => state.coachRequest)
   const [draft, setDraft] = useState('')
   const feedRef = useRef<HTMLDivElement>(null)
+  const askRef = useRef<HTMLInputElement>(null)
 
   const oracle = engineAvailable ?? mirrored
   const game = session.game
@@ -89,7 +91,15 @@ export function CoachTab({ session, engineAvailable }: CoachTabProps): React.JSX
       </div>
 
       <div className={styles.feed} ref={feedRef}>
-        {dialogue.length === 0 && !hint && !answering ? <p className={styles.empty}>{t('coach.empty')}</p> : null}
+        {dialogue.length === 0 && !hint && !answering ? (
+          <EmptyState
+            title={t('coach.emptyTitle')}
+            body={t('coach.empty')}
+            action={t('coach.emptyAction')}
+            disabled={!game || pending}
+            onAction={() => askRef.current?.focus()}
+          />
+        ) : null}
 
         {dialogue.map((entry) => (
           <CommentCard
@@ -125,6 +135,7 @@ export function CoachTab({ session, engineAvailable }: CoachTabProps): React.JSX
         </label>
         <div className={styles.askRow}>
           <input
+            ref={askRef}
             id="coach-question"
             className={cx(styles.input, 'selectable')}
             value={draft}

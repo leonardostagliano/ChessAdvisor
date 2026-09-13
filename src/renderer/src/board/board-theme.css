@@ -92,6 +92,31 @@ cg-board square.current-premove {
 }
 
 /*
+ * Arrow and ring tracing (spec §7): the shapes of the coach are drawn in the 8x8 user space of
+ * the board, so a dash of 12 units is longer than the longest diagonal — the stroke walks from
+ * its origin to its destination in 200 ms and then stays solid. Reduced motion skips it.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .cg-wrap .cg-shapes line,
+  .cg-wrap .cg-shapes polyline,
+  .cg-wrap .cg-shapes path,
+  .cg-wrap .cg-shapes circle {
+    stroke-dasharray: 12;
+    animation: cgTrace var(--dur-2) var(--ease) both;
+  }
+}
+
+@keyframes cgTrace {
+  from {
+    stroke-dashoffset: 12;
+  }
+
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/*
  * Reduced motion is handled in Board.tsx, not here: chessground moves the pieces by writing
  * `transform` from JavaScript, so no CSS rule (not even the blanket override in themes.css) can
  * stop it. The wrapper reads `prefers-reduced-motion` and passes `animation.enabled: false`.

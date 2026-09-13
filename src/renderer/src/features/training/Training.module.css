@@ -198,6 +198,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--s-2);
+  animation: cardIn var(--dur-3) var(--ease) both;
   padding: var(--s-4);
   border: 1px solid var(--border);
   border-radius: var(--radius-card);
@@ -238,8 +239,22 @@
   }
 }
 
+/* Same entrance as the coach cards of the game: a fade and a 4 px rise (spec §7). */
+@keyframes cardIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .caret {
+  .caret,
+  .explanation {
     animation: none;
   }
 }

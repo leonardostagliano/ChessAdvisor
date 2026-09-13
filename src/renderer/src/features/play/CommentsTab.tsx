@@ -4,6 +4,7 @@ import { useFollowFeed } from './useFollowFeed'
 import type { Game, Move } from '@shared/types/game'
 import type { SessionState } from '@shared/types/session'
 import { Button } from '../../components/ui/Button'
+import { EmptyState } from '../../components/EmptyState'
 import { Switch } from '../../components/ui/Switch'
 import { useGameStore } from '../../stores/gameStore'
 import { CommentCard } from './CommentCard'
@@ -63,9 +64,25 @@ export function CommentsTab({ session }: CommentsTabProps): React.JSX.Element {
 
       <div className={styles.feed} ref={feedRef}>
         {!visible ? (
-          <p className={styles.empty}>{t('coach.commentsHidden')}</p>
+          <EmptyState
+            title={t('coach.commentsHiddenTitle')}
+            body={t('coach.commentsHidden')}
+            action={t('coach.commentsHiddenAction')}
+            disabled={!game}
+            onAction={() => void setCommentsVisible(true)}
+          />
         ) : commented.length === 0 && !writing ? (
-          <p className={styles.empty}>{t('coach.noComments')}</p>
+          <EmptyState
+            title={t('coach.noCommentsTitle')}
+            body={t('coach.noComments')}
+            {...(skipped.length > 0 && game
+              ? {
+                  action: t('coach.commentSkipped'),
+                  disabled: busy || session.coach.busy,
+                  onAction: () => void commentSkipped()
+                }
+              : {})}
+          />
         ) : (
           <>
             {commented.map((move) => (

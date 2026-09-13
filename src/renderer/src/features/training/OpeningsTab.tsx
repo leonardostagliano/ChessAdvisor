@@ -4,6 +4,7 @@ import { Button } from '../../components/ui/Button'
 import { EmptyState } from '../../components/EmptyState'
 import { cx } from '../../components/ui/cx'
 import { streamingText, useTrainingStore } from '../../stores/trainingStore'
+import { useUiStore } from '../../stores/uiStore'
 import { ExplanationCard } from './ExplanationCard'
 import styles from './Training.module.css'
 
@@ -32,7 +33,15 @@ export function OpeningsTab(): React.JSX.Element {
   }, [openings.length])
 
   if (openings.length === 0) {
-    return <EmptyState eyebrow={t('training.openings.title')} title={t('training.openings.emptyTitle')} body={t('training.openings.emptyBody')} />
+    return (
+      <EmptyState
+        eyebrow={t('training.openings.title')}
+        title={t('training.openings.emptyTitle')}
+        body={t('training.openings.emptyBody')}
+        action={t('training.openings.emptyAction')}
+        onAction={() => useUiStore.getState().setArea('play')}
+      />
+    )
   }
 
   const writing = request?.kind === 'lesson' && request.ref === entry?.eco

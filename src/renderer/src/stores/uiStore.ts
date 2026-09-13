@@ -98,9 +98,23 @@ export function resolveTheme(choice: ThemeChoice): ResolvedTheme {
   return choice
 }
 
+/** How long the crossfade of themes.css lasts; kept in step with `--dur-3`. */
+export const THEME_TRANSITION_MS = 320
+let themeTimer: ReturnType<typeof setTimeout> | null = null
+
 function applyTheme(theme: ResolvedTheme): void {
   try {
-    document.documentElement.dataset.theme = theme
+    const root = document.documentElement
+    // Only a real change crossfades: the first paint must not fade in from nothing.
+    if (root.dataset.theme && root.dataset.theme !== theme) {
+      root.dataset.themeSwitching = 'true'
+      if (themeTimer) clearTimeout(themeTimer)
+      themeTimer = setTimeout(() => {
+        themeTimer = null
+        delete root.dataset.themeSwitching
+      }, THEME_TRANSITION_MS)
+    }
+    root.dataset.theme = theme
   } catch {
     /* no document in a non-DOM environment */
   }

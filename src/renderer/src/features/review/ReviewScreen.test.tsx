@@ -164,6 +164,18 @@ describe('ReviewScreen', () => {
     await waitFor(() => expect(useReviewStore.getState().cursor).toBe(1))
   })
 
+  it('walks the game with the arrow keys from anywhere on the screen', async () => {
+    await open()
+    fireEvent.keyDown(window, { key: 'Home' })
+    await waitFor(() => expect(useReviewStore.getState().cursor).toBe(-1))
+    fireEvent.keyDown(window, { key: 'ArrowRight' })
+    await waitFor(() => expect(useReviewStore.getState().cursor).toBe(0))
+    fireEvent.keyDown(window, { key: 'End' })
+    await waitFor(() => expect(useReviewStore.getState().cursor).toBe(2))
+    fireEvent.keyDown(window, { key: 'ArrowLeft' })
+    await waitFor(() => expect(useReviewStore.getState().cursor).toBe(1))
+  })
+
   it('shows the best line of the selected move in SAN', async () => {
     await open()
     fireEvent.click(screen.getByRole('button', { name: /3\. Nf3/ }))
@@ -220,6 +232,7 @@ describe('ReviewScreen', () => {
     status.mockResolvedValueOnce({ state: 'idle' } as never)
     render(<ReviewScreen gameId="g1" onClose={() => {}} />)
     const analyse = await screen.findByRole('button', { name: 'Analizza' })
+    expect(screen.getByText('Partita non ancora analizzata')).toBeInTheDocument()
     expect(screen.getByText(/Questa partita non è ancora stata analizzata/)).toBeInTheDocument()
     fireEvent.click(analyse)
     await waitFor(() => expect(run).toHaveBeenCalledWith('g1'))
@@ -231,7 +244,10 @@ describe('ReviewScreen', () => {
     status.mockResolvedValueOnce({ state: 'unavailable' } as never)
     render(<ReviewScreen gameId="g1" onClose={() => {}} />)
     expect(await screen.findByText(/Stockfish non disponibile/)).toBeInTheDocument()
+    expect(screen.getByText('Analisi non disponibile')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Analizza' })).toBeNull()
+    // Spec §8: without the engine the review is the coach's prose, so the lesson is the way on.
+    expect(screen.getAllByRole('button', { name: 'Lezione della partita' }).length).toBeGreaterThan(1)
   })
 
   it('shows a failed review turn without losing the screen', async () => {

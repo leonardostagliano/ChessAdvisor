@@ -1,5 +1,6 @@
 /* Coach prose (spec §7): serif, generous leading, quiet chrome. */
 .card {
+  animation: cardIn var(--dur-3) var(--ease) both;
   display: flex;
   flex-direction: column;
   gap: var(--s-1);
@@ -62,6 +63,19 @@
   animation: blink 1s steps(2, start) infinite;
 }
 
+/* Entrance of a card: a fade and a 4 px rise, nothing else (spec §7). */
+@keyframes cardIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 @keyframes blink {
   50% {
     opacity: 0;
@@ -69,6 +83,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .card,
   .caret {
     animation: none;
   }

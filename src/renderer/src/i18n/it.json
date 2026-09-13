@@ -280,7 +280,10 @@
     "name": "Coach",
     "you": "Tu",
     "showComments": "Mostra commenti",
-    "commentsHidden": "Commenti nascosti. Riattivandoli il coach riprende dalla prossima mossa.",
+    "commentsHiddenTitle": "Commenti nascosti",
+    "commentsHidden": "Riattivandoli, il coach riprende a commentare dalla prossima mossa.",
+    "commentsHiddenAction": "Riattiva i commenti",
+    "noCommentsTitle": "Ancora nessun commento",
     "noComments": "Nessun commento per ora: il primo arriva dopo la prossima mossa.",
     "commentSkipped": "Commenta le mosse saltate",
     "writing": "Il coach sta scrivendo…",
@@ -289,7 +292,9 @@
     "question": "Domanda al coach",
     "questionPlaceholder": "Che piano seguo in questa posizione?",
     "send": "Invia",
+    "emptyTitle": "Il coach è a disposizione",
     "empty": "Fai una domanda o chiedi un suggerimento: le risposte del coach compaiono qui.",
+    "emptyAction": "Scrivi una domanda",
     "hint": "Suggerimento",
     "hintOf": "Suggerimento: {{move}}",
     "hideHint": "Nascondi il suggerimento",
@@ -333,7 +338,8 @@
   "archive": {
     "title": "Partite",
     "subtitle": "Riprendi una partita interrotta o elimina quelle che non ti servono più.",
-    "empty": "Nessuna partita salvata.",
+    "emptyTitle": "Nessuna partita salvata",
+    "emptyBody": "Le partite che giochi restano qui: riprendi quelle interrotte e rivedi quelle concluse.",
     "loading": "Caricamento delle partite…",
     "resume": "Riprendi",
     "delete": "Elimina",
@@ -367,7 +373,8 @@
     "dateWeek": "Ultimi 7 giorni",
     "dateMonth": "Ultimi 30 giorni",
     "dateYear": "Ultimo anno",
-    "noMatch": "Nessuna partita corrisponde ai filtri.",
+    "noMatchTitle": "Nessuna partita con questi filtri",
+    "noMatchBody": "Cambia un filtro oppure azzerali tutti per rivedere l’elenco completo.",
     "review": "Rivedi",
     "accuracy": "Accuratezza {{value}}%",
     "clearFilters": "Azzera i filtri"
@@ -377,11 +384,14 @@
     "open": "Rivedi",
     "close": "Chiudi la revisione",
     "loading": "Caricamento della partita…",
-    "notFound": "Partita non trovata.",
+    "notFoundTitle": "Partita non trovata",
+    "notFoundBody": "Potrebbe essere stata eliminata: torna alle partite e scegline un’altra.",
     "analyse": "Analizza",
     "analysing": "Analisi in corso",
     "analysingProgress": "Analisi della partita: semimossa {{ply}} di {{total}}.",
+    "notAnalysedTitle": "Partita non ancora analizzata",
     "notAnalysed": "Questa partita non è ancora stata analizzata.",
+    "unavailableTitle": "Analisi non disponibile",
     "unavailable": "Stockfish non disponibile: restano il commento delle mosse e la lezione del coach.",
     "white": "Bianco",
     "black": "Nero",
@@ -570,6 +580,7 @@
       "hint": "Riconosciute dalla posizione, con le deviazioni dalla teoria che ripeti più spesso.",
       "emptyTitle": "Nessuna apertura riconosciuta",
       "emptyBody": "Le aperture compaiono qui dopo l’analisi della prima partita.",
+      "emptyAction": "Gioca una partita",
       "tableLabel": "Le tue aperture",
       "columnEco": "ECO",
       "columnName": "Apertura",
@@ -590,6 +601,8 @@
     "endgames": {
       "title": "Finali canonici",
       "hint": "Gioca apre una partita dalla posizione, contro l’avversario al livello massimo.",
+      "emptyTitle": "Nessun finale disponibile",
+      "emptyBody": "Il catalogo dei finali non è stato caricato: riprova fra un istante.",
       "listLabel": "Finali canonici",
       "goal": {
         "win": "Vincere",
@@ -601,7 +614,8 @@
         "3": "Difficile"
       },
       "play": "Gioca",
-      "starting": "Avvio…"
+      "starting": "Avvio…",
+      "reload": "Ricarica i finali"
     },
     "plan": {
       "title": "Piano di studio",
@@ -632,5 +646,15 @@
         "play": "Partita"
       }
     }
+  },
+  "shortcuts": {
+    "title": "Scorciatoie da tastiera",
+    "intro": "Valgono ovunque, tranne mentre stai scrivendo in un campo di testo.",
+    "moves": "Mossa precedente e successiva, in partita e in revisione",
+    "ends": "Vai alla posizione iniziale o torna all’ultima",
+    "promotion": "Scegli il pezzo di promozione: donna, torre, alfiere, cavallo",
+    "escape": "Chiudi la finestra aperta o annulla la promozione",
+    "tab": "Passa al gruppo successivo; con le frecce ti muovi fra le schede",
+    "sheet": "Apri questo elenco"
   }
 }

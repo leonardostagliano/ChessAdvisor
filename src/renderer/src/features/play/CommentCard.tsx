@@ -39,7 +39,12 @@ export function CommentCard({
   const body = text.length > 0 ? text : streaming ? t('coach.writing') : ''
 
   return (
-    <article className={cx(styles.card, streaming && styles.streaming, className)}>
+    // While the text streams in, the card is a polite live region: a screen reader is told the
+    // coach is writing without being interrupted mid-sentence (task T22 item 4).
+    <article
+      className={cx(styles.card, streaming && styles.streaming, className)}
+      {...(streaming ? { 'aria-live': 'polite' as const, 'aria-busy': true } : {})}
+    >
       {move || title || foreign ? (
         <header className={styles.head}>
           {move ? (

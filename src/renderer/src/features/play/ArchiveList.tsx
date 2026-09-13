@@ -4,6 +4,7 @@ import { parseIpcError } from '@shared/ipcError'
 import type { GameSummary } from '@shared/types/game'
 import type { SessionState } from '@shared/types/session'
 import { Button } from '../../components/ui/Button'
+import { EmptyState } from '../../components/EmptyState'
 import { Modal } from '../../components/ui/Modal'
 import { Select, type SelectOption } from '../../components/ui/Select'
 import { cx } from '../../components/ui/cx'
@@ -26,6 +27,8 @@ export interface ArchiveListProps {
   onResumed?(state: SessionState): void
   /** Opens the post-game review of a finished game (spec §4.4). */
   onReview?(gameId: string): void
+  /** Primary action of the empty archive: opens the new-game dialog of the play area. */
+  onNewGame?(): void
 }
 
 export type ResultFilter = 'all' | 'win' | 'loss' | 'draw' | 'unfinished'
@@ -80,7 +83,7 @@ function bridge(): Window['api'] | undefined {
   return typeof window === 'undefined' ? undefined : window.api
 }
 
-export function ArchiveList({ onResumed, onReview }: ArchiveListProps): React.JSX.Element {
+export function ArchiveList({ onResumed, onReview, onNewGame }: ArchiveListProps): React.JSX.Element {
   const { t, i18n } = useTranslation()
   const models = useCodexStore((state) => state.models)
   const [games, setGames] = useState<GameSummary[] | null>(null)
@@ -235,14 +238,22 @@ export function ArchiveList({ onResumed, onReview }: ArchiveListProps): React.JS
       ) : null}
 
       {games === null ? <p className={styles.panelEmpty}>{t('archive.loading')}</p> : null}
-      {games !== null && games.length === 0 ? <p className={styles.panelEmpty}>{t('archive.empty')}</p> : null}
+      {games !== null && games.length === 0 ? (
+        <EmptyState
+          eyebrow={t('archive.title')}
+          title={t('archive.emptyTitle')}
+          body={t('archive.emptyBody')}
+          {...(onNewGame ? { action: t('controls.newGame'), onAction: onNewGame } : {})}
+        />
+      ) : null}
       {filtered ? (
-        <div className={styles.archiveFilter}>
-          <p className={styles.panelEmpty}>{t('archive.noMatch')}</p>
-          <Button size="sm" variant="ghost" onClick={() => setFilters(NO_FILTERS)}>
-            {t('archive.clearFilters')}
-          </Button>
-        </div>
+        <EmptyState
+          eyebrow={t('archive.filters')}
+          title={t('archive.noMatchTitle')}
+          body={t('archive.noMatchBody')}
+          action={t('archive.clearFilters')}
+          onAction={() => setFilters(NO_FILTERS)}
+        />
       ) : null}
 
       <ul className={styles.archiveRows}>

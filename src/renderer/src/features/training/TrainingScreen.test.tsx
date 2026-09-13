@@ -216,6 +216,28 @@ describe('TrainingScreen', () => {
     expect(useGameStore.getState().session.status).toBe('playing')
   })
 
+  it('offers to reload the endgames when the catalogue could not be read', async () => {
+    endgames.mockResolvedValue([])
+    render(<TrainingScreen />)
+    await waitFor(() => expect(endgames).toHaveBeenCalledTimes(1))
+    fireEvent.click(screen.getByRole('tab', { name: 'Finali' }))
+
+    expect(await screen.findByText('Nessun finale disponibile')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Ricarica i finali' }))
+    await waitFor(() => expect(endgames).toHaveBeenCalledTimes(2))
+  })
+
+  it('sends the user to the board when no opening has been recognised yet', async () => {
+    overview.mockResolvedValue([])
+    render(<TrainingScreen />)
+    await waitFor(() => expect(list).toHaveBeenCalled())
+    fireEvent.click(screen.getByRole('tab', { name: 'Aperture' }))
+
+    expect(await screen.findByText('Nessuna apertura riconosciuta')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Gioca una partita' }))
+    await waitFor(() => expect(useUiStore.getState().area).toBe('play'))
+  })
+
   it('re-reads the exercises when the main process says they changed', async () => {
     render(<TrainingScreen />)
     await waitFor(() => expect(list).toHaveBeenCalledTimes(1))
