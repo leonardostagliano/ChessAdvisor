@@ -102,6 +102,7 @@ const archive: GameSummary[] = [
 ]
 
 const deleteGame = vi.fn(async () => undefined)
+const navigateEval = vi.fn(async () => undefined)
 const resumeGame = vi.fn(async () => session())
 
 function mockApi(): void {
@@ -115,7 +116,7 @@ function mockApi(): void {
       game: {
         state: async () => session(),
         resume: resumeGame,
-        navigateEval: async () => undefined,
+        navigateEval,
         adaptiveElo: async () => null
       },
       on: () => () => {}
@@ -143,6 +144,22 @@ describe('capturedPieces', () => {
     expect(captured.w).toEqual([])
     expect(captured.b).toEqual(['r', 'p'])
     expect(captured.balance).toBe(-6)
+  })
+
+  it('does not read a promotion as a captured pawn', () => {
+    const start = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
+    // The same material as the start, except that one white pawn has become a queen: nothing was
+    // ever taken, so both lists stay empty and the balance is level.
+    const promoted = capturedPieces(start, 'rnbqkbnr/pppppppp/8/8/8/Q7/PPPPPPP1/RNBQKBNR b - - 0 1')
+    expect(promoted.w).toEqual([])
+    expect(promoted.b).toEqual([])
+    expect(promoted.balance).toBe(0)
+
+    // A real capture next to the promotion is still counted, and only once.
+    const both = capturedPieces(start, 'rnbqkbnr/ppppppp1/8/8/8/Q7/PPPPPPP1/RNBQKBNR b - - 0 1')
+    expect(both.w).toEqual(['p'])
+    expect(both.b).toEqual([])
+    expect(both.balance).toBe(1)
   })
 })
 
@@ -175,6 +192,22 @@ describe('PlayScreen', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Torna alla posizione corrente' }))
     await waitFor(() => expect(useGameStore.getState().browsePly).toBeNull())
+  })
+
+  it('asks the engine for a score only while browsing, not for the live position', async () => {
+    render(<PlayScreen />)
+
+    // The main process already pushes a fresh liveEval after every move: asking again from here
+    // would only queue the same analysis twice.
+    expect(navigateEval).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'e4' }))
+    await waitFor(() => expect(navigateEval).toHaveBeenCalledWith(FEN_1))
+
+    // Coming back has to refresh the bar, which is still showing the browsed ply's score.
+    fireEvent.click(screen.getByRole('button', { name: 'Torna alla posizione corrente' }))
+    await waitFor(() => expect(navigateEval).toHaveBeenCalledWith(FEN_3))
+    expect(navigateEval).toHaveBeenCalledTimes(2)
   })
 
   it('enables exactly the controls that make sense during a live game', () => {

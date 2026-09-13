@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { gameStatus } from '@shared/chess/notation'
 import type { Eval } from '@shared/types/game'
@@ -29,6 +29,7 @@ import styles from './PlayScreen.module.css'
 const GLYPHS: Record<string, string> = { p: '♟', n: '♞', b: '♝', r: '♜', q: '♛' }
 const VALUES: Record<string, number> = { p: 1, n: 3, b: 3, r: 5, q: 9 }
 const ORDER = ['q', 'r', 'b', 'n', 'p']
+const PROMOTABLE = ['q', 'r', 'b', 'n']
 
 export interface Captured {
   /** Black pieces White has taken, and vice versa; lowercase letters, strongest first. */
@@ -48,16 +49,27 @@ function counts(fen: string): Map<string, number> {
   return map
 }
 
+/**
+ * Pieces of one colour that have left the board, promotions netted out: a promotion takes one of
+ * that colour's own pawns away and adds a piece of another type, which a plain count diff would
+ * otherwise read as a captured pawn (and silently swallow the new piece).
+ */
+function missingOf(start: Map<string, number>, now: Map<string, number>, white: boolean): string[] {
+  const at = (map: Map<string, number>, piece: string): number => map.get(white ? piece.toUpperCase() : piece) ?? 0
+  const promoted = PROMOTABLE.reduce((sum, piece) => sum + Math.max(0, at(now, piece) - at(start, piece)), 0)
+  return ORDER.flatMap((piece) => {
+    const surplus = piece === 'p' ? promoted : 0
+    const missing = Math.max(0, at(start, piece) - at(now, piece) - surplus)
+    return Array.from({ length: missing }, () => piece)
+  })
+}
+
 /** What each side has captured, by comparing the current position with the one it started from. */
 export function capturedPieces(startFen: string, fen: string): Captured {
   const start = counts(startFen)
   const now = counts(fen)
-  const taken = (piece: string): string[] => {
-    const missing = Math.max(0, (start.get(piece) ?? 0) - (now.get(piece) ?? 0))
-    return Array.from({ length: missing }, () => piece.toLowerCase())
-  }
-  const w = ORDER.flatMap((piece) => taken(piece))
-  const b = ORDER.flatMap((piece) => taken(piece.toUpperCase()))
+  const w = missingOf(start, now, false)
+  const b = missingOf(start, now, true)
   const value = (pieces: string[]): number => pieces.reduce((sum, piece) => sum + (VALUES[piece] ?? 0), 0)
   return { w, b, balance: value(w) - value(b) }
 }
@@ -102,11 +114,18 @@ export function PlayScreen(): React.JSX.Element {
   const check = useMemo(() => gameStatus(fen).check, [fen])
 
   // Browsing asks the engine for the score of the position on screen; going back to the live
-  // position asks for that one again, so the bar never keeps a stale number (spec §4.3).
+  // position asks for that one again, so the bar never keeps a stale number (spec §4.3). The live
+  // position needs nothing else: the main process already pushes a fresh `liveEval` after every
+  // move and takeback, so echoing each new FEN back through `game:navigateEval` would only queue
+  // the same analysis twice.
+  const browsedRef = useRef(false)
   useEffect(() => {
     if (!game || !engineAvailable) return
+    const live = browsePly === null
+    if (live && !browsedRef.current) return
+    browsedRef.current = !live
     void useGameStore.getState().navigateEval(fen)
-  }, [game, engineAvailable, fen])
+  }, [game, engineAvailable, browsePly, fen])
 
   const movableColor = playing && session.userToMove && !session.ai.thinking && !browsing ? (userColor === 'w' ? 'white' : 'black') : undefined
 
