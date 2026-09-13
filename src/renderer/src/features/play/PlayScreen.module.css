@@ -165,6 +165,15 @@
   font-size: var(--fs-xs);
 }
 
+/* The strip above and below the board: captured pieces on one side, the clock on the other. */
+.aside {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  min-height: 28px;
+}
+
 /* Board + eval bar + captured pieces */
 .boardRow {
   display: flex;

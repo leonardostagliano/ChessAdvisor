@@ -104,6 +104,8 @@ const archive: GameSummary[] = [
 const deleteGame = vi.fn(async () => undefined)
 const navigateEval = vi.fn(async () => undefined)
 const resumeGame = vi.fn(async () => session())
+const requestHint = vi.fn(async () => session())
+const setCommentsVisible = vi.fn(async () => session())
 
 function mockApi(): void {
   Object.defineProperty(window, 'api', {
@@ -117,7 +119,12 @@ function mockApi(): void {
         state: async () => session(),
         resume: resumeGame,
         navigateEval,
-        adaptiveElo: async () => null
+        adaptiveElo: async () => null,
+        requestHint,
+        setCommentsVisible,
+        askCoach: async () => session(),
+        clearHint: async () => session(),
+        commentSkipped: async () => session()
       },
       on: () => () => {}
     }
@@ -129,7 +136,15 @@ beforeEach(() => {
   mockApi()
   useCodexStore.getState().apply(READY)
   useEngineStore.getState().apply({ available: true, binary: 'avx2', version: 'Stockfish 17', message: null })
-  useGameStore.setState({ session: session(), browsePly: null, aiThinking: false, busy: false, error: null })
+  useGameStore.setState({
+    session: session(),
+    browsePly: null,
+    aiThinking: false,
+    coachStream: null,
+    coachRequest: null,
+    busy: false,
+    error: null
+  })
 })
 
 afterEach(() => {
@@ -172,13 +187,13 @@ describe('PlayScreen', () => {
     expect(screen.getByRole('group', { name: 'Scacchiera' })).toBeInTheDocument()
     expect(screen.getByRole('img', { name: /Valutazione del motore/ })).toBeInTheDocument()
 
-    // Only the Mosse tab exists in M1.
-    expect(screen.getAllByRole('tab')).toHaveLength(1)
+    // Commenti, Mosse and Coach (spec §4.3), with the move list open.
+    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Commenti', 'Mosse', 'Coach'])
     for (const san of ['e4', 'e5', 'Nf3']) {
       expect(screen.getByRole('button', { name: san })).toBeInTheDocument()
     }
 
-    for (const label of ['Nuova partita', 'Annulla mossa', 'Abbandona', 'Proponi patta', 'Salva ed esci']) {
+    for (const label of ['Nuova partita', 'Annulla mossa', 'Suggerimento', 'Abbandona', 'Proponi patta', 'Salva ed esci']) {
       expect(screen.getAllByRole('button', { name: label }).length).toBeGreaterThan(0)
     }
   })
@@ -299,6 +314,44 @@ describe('PlayScreen', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Riprendi con questo modello' }))
     })
     expect(resumeGame).toHaveBeenLastCalledWith('g0', { substituteModel: 'gpt-6-astra' })
+  })
+
+  it('switches the right panel between the three tabs', async () => {
+    render(<PlayScreen />)
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Commenti' }))
+    expect(screen.getByRole('switch', { name: /Mostra commenti/ })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'e4' })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Coach' }))
+    expect(screen.getByLabelText('Domanda al coach')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Mosse' }))
+    expect(screen.getByRole('button', { name: 'e4' })).toBeInTheDocument()
+  })
+
+  it('asks the coach for a hint from the game controls', async () => {
+    render(<PlayScreen />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Suggerimento' }))
+    await waitFor(() => expect(requestHint).toHaveBeenCalled())
+  })
+
+  it('shows the user clock, and the opponent one only when the AI has a clock', () => {
+    const withClock = game()
+    withClock.clock = { initialMs: 300_000, incrementMs: 0, aiClock: false, remainingMs: { w: 297_500, b: 300_000 } }
+    const clock = { remainingMs: { w: 297_500, b: 300_000 }, running: 'w' as const, updatedAt: Date.now() }
+    useGameStore.setState({ session: session({ game: withClock, clock }), browsePly: null })
+
+    const { rerender } = render(<PlayScreen />)
+    expect(screen.getByRole('timer', { name: 'Il tuo orologio' })).toHaveTextContent('04:57')
+    expect(screen.queryByRole('timer', { name: /avversario/ })).not.toBeInTheDocument()
+
+    const both = game()
+    both.clock = { initialMs: 300_000, incrementMs: 0, aiClock: true, remainingMs: { w: 297_500, b: 300_000 } }
+    useGameStore.setState({ session: session({ game: both, clock }), browsePly: null })
+    rerender(<PlayScreen />)
+    expect(screen.getByRole('timer', { name: /avversario/ })).toHaveTextContent('05:00')
   })
 
   it('shows the result banner once the game is over', () => {

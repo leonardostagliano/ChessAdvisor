@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { gameStatus } from '@shared/chess/notation'
 import type { Eval } from '@shared/types/game'
-import { Board } from '../../board/Board'
+import { Board, type BoardArrow } from '../../board/Board'
 import { EvalBar } from '../../board/EvalBar'
 import { Button } from '../../components/ui/Button'
 import { EmptyState } from '../../components/EmptyState'
@@ -10,6 +10,9 @@ import { cx } from '../../components/ui/cx'
 import { useEngineStore } from '../../stores/engineStore'
 import { boardFen, boardLastMove, isBrowsing, startFenOf, useGameStore } from '../../stores/gameStore'
 import { ArchiveList } from './ArchiveList'
+import { ClockDisplay } from './ClockDisplay'
+import { CoachTab } from './CoachTab'
+import { CommentsTab } from './CommentsTab'
 import { GameControls } from './GameControls'
 import { MoveList } from './MoveList'
 import { NewGameDialog } from './NewGameDialog'
@@ -18,9 +21,8 @@ import { ResultBanner } from './ResultBanner'
 import styles from './PlayScreen.module.css'
 
 /**
- * The play area (spec §4.3): opponent card, board with the eval bar on its left, captured pieces
- * above and below, and a tabbed panel on the right which in M1 holds the move list alone —
- * Commenti and Coach arrive with M2 and are not pre-announced as disabled tabs.
+ * The play area (spec §4.3): opponent card, board with the eval bar on its left, clocks and
+ * captured pieces above and below, and the tabbed panel on the right — Commenti, Mosse, Coach.
  *
  * The archive lives here too, as a second view of the same area, because resuming a game is the
  * other way into the board.
@@ -30,6 +32,14 @@ const GLYPHS: Record<string, string> = { p: '♟', n: '♞', b: '♝', r: '♜',
 const VALUES: Record<string, number> = { p: 1, n: 3, b: 3, r: 5, q: 9 }
 const ORDER = ['q', 'r', 'b', 'n', 'p']
 const PROMOTABLE = ['q', 'r', 'b', 'n']
+
+/** The three tabs of the right-hand panel, in the order spec §4.3 lists them. */
+export type PanelTab = 'comments' | 'moves' | 'coach'
+const TABS: { id: PanelTab; key: string }[] = [
+  { id: 'comments', key: 'play.comments' },
+  { id: 'moves', key: 'play.moves' },
+  { id: 'coach', key: 'play.coach' }
+]
 
 export interface Captured {
   /** Black pieces White has taken, and vice versa; lowercase letters, strongest first. */
@@ -98,6 +108,7 @@ export function PlayScreen(): React.JSX.Element {
   const engineAvailable = useEngineStore((state) => state.available)
 
   const [view, setView] = useState<'game' | 'archive'>('game')
+  const [tab, setTab] = useState<PanelTab>('moves')
   const [dialogOpen, setDialogOpen] = useState(false)
 
   const browsing = isBrowsing({ session, browsePly })
@@ -112,6 +123,17 @@ export function PlayScreen(): React.JSX.Element {
     : null
   const captured = useMemo(() => capturedPieces(startFenOf(game), fen), [game, fen])
   const check = useMemo(() => gameStatus(fen).check, [fen])
+
+  // The hint belongs to the live position: browsing a past ply puts the arrow away until we are
+  // back on it, and the main process drops the hint itself as soon as the user moves (spec §4.2).
+  const hint = session.coach.hint
+  const arrows = useMemo<BoardArrow[]>(
+    () => (hint && !browsing ? [{ from: hint.uci.slice(0, 2), to: hint.uci.slice(2, 4), color: 'accent' }] : []),
+    [hint, browsing]
+  )
+  const aiColor: 'w' | 'b' = userColor === 'w' ? 'b' : 'w'
+  // "Solo il mio tempo" gives the opponent no clock at all, so there is nothing to draw for it.
+  const aiClock = game?.clock?.aiClock === true
 
   // Browsing asks the engine for the score of the position on screen; going back to the live
   // position asks for that one again, so the bar never keeps a stale number (spec §4.3). The live
@@ -176,11 +198,14 @@ export function PlayScreen(): React.JSX.Element {
             <OpponentCard session={session} />
             {game.result ? <ResultBanner game={game} onNewGame={() => setDialogOpen(true)} /> : null}
 
-            <CapturedRow
-              pieces={userColor === 'w' ? captured.b : captured.w}
-              balance={userColor === 'w' ? -captured.balance : captured.balance}
-              label={t('play.capturedByOpponent')}
-            />
+            <div className={styles.aside}>
+              <CapturedRow
+                pieces={userColor === 'w' ? captured.b : captured.w}
+                balance={userColor === 'w' ? -captured.balance : captured.balance}
+                label={t('play.capturedByOpponent')}
+              />
+              {aiClock ? <ClockDisplay clock={session.clock} color={aiColor} label={t('play.clockOpponent')} /> : null}
+            </div>
 
             <div className={styles.boardRow}>
               <EvalBar
@@ -195,15 +220,19 @@ export function PlayScreen(): React.JSX.Element {
                 check={check}
                 viewOnly={browsing || !playing}
                 movable={{ color: movableColor }}
+                arrows={arrows}
                 onMove={(uci) => void userMove(uci)}
               />
             </div>
 
-            <CapturedRow
-              pieces={userColor === 'w' ? captured.w : captured.b}
-              balance={userColor === 'w' ? captured.balance : -captured.balance}
-              label={t('play.capturedByYou')}
-            />
+            <div className={styles.aside}>
+              <CapturedRow
+                pieces={userColor === 'w' ? captured.w : captured.b}
+                balance={userColor === 'w' ? captured.balance : -captured.balance}
+                label={t('play.capturedByYou')}
+              />
+              <ClockDisplay clock={session.clock} color={userColor} label={t('play.clockYou')} />
+            </div>
 
             {!engineAvailable ? <p className={styles.note}>{t('play.engineUnavailable')}</p> : null}
             {session.error ? (
@@ -221,31 +250,53 @@ export function PlayScreen(): React.JSX.Element {
           </div>
 
           <aside className={styles.panel}>
-            {/* M1 has a single tab: the others are added, not revealed, in M2. */}
-            <div className={styles.tabs} role="tablist" aria-label={t('play.moves')}>
-              <button type="button" role="tab" aria-selected="true" className={cx(styles.tab, styles.tabActive)}>
-                {t('play.moves')}
-              </button>
+            <div className={styles.tabs} role="tablist" aria-label={t('play.panel')}>
+              {TABS.map((entry) => (
+                <button
+                  key={entry.id}
+                  type="button"
+                  role="tab"
+                  id={`play-tab-${entry.id}`}
+                  aria-selected={tab === entry.id}
+                  aria-controls={`play-panel-${entry.id}`}
+                  tabIndex={tab === entry.id ? 0 : -1}
+                  className={cx(styles.tab, tab === entry.id && styles.tabActive)}
+                  onClick={() => setTab(entry.id)}
+                >
+                  {t(entry.key)}
+                </button>
+              ))}
             </div>
-            <div className={styles.panelBody} role="tabpanel">
-              <MoveList
-                moves={game.moves}
-                browsePly={browsePly}
-                onSelect={(ply) => (ply === null ? returnToLive() : setBrowsePly(ply))}
-              />
+            <div
+              className={styles.panelBody}
+              role="tabpanel"
+              id={`play-panel-${tab}`}
+              aria-labelledby={`play-tab-${tab}`}
+            >
+              {tab === 'moves' ? (
+                <MoveList
+                  moves={game.moves}
+                  browsePly={browsePly}
+                  onSelect={(ply) => (ply === null ? returnToLive() : setBrowsePly(ply))}
+                />
+              ) : tab === 'comments' ? (
+                <CommentsTab session={session} />
+              ) : (
+                <CoachTab session={session} engineAvailable={engineAvailable} />
+              )}
             </div>
-            {browsing ? (
+            {browsing && tab === 'moves' ? (
               <div className={styles.panelFoot}>
                 <p className={styles.note}>{t('play.browsing')}</p>
                 <Button size="sm" onClick={() => returnToLive()}>
                   {t('play.returnToLive')}
                 </Button>
               </div>
-            ) : (
+            ) : tab === 'moves' ? (
               <div className={styles.panelFoot}>
                 <p className={styles.note}>{t('archive.plies', { count: game.moves.length })}</p>
               </div>
-            )}
+            ) : null}
           </aside>
         </div>
       )}

@@ -24,6 +24,7 @@ export interface ShellProps {
 export function Shell({ overlay = null }: ShellProps = {}): React.JSX.Element {
   const area = useUiStore((state) => state.area)
   const aiThinking = useGameStore((state) => state.aiThinking)
+  const coachBusy = useGameStore((state) => state.session.coach.busy)
   const Screen = SCREENS[area]
 
   useEffect(() => watchSystemTheme(), [])
@@ -33,8 +34,9 @@ export function Shell({ overlay = null }: ShellProps = {}): React.JSX.Element {
       <Rail />
       <main className={styles.content}>{overlay ?? <Screen />}</main>
       {/* Task 5: offered only when the main process reports an installable release, and never
-          while the opponent is thinking — an update prompt must not interrupt a turn (spec §3.5). */}
-      <AppUpdatePrompt blocked={aiThinking} />
+          while the opponent is thinking or the coach is writing — an update prompt must not
+          interrupt a turn (spec §3.5). */}
+      <AppUpdatePrompt blocked={aiThinking || coachBusy} />
     </div>
   )
 }

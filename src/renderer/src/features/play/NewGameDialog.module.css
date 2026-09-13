@@ -127,3 +127,35 @@
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
+
+/* Clock presets (spec §4.3): five options, then the two custom numbers under them. */
+.clocks {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.customClock {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s-3);
+}
+
+.numberField {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+}
+
+.number {
+  padding: var(--s-2) var(--s-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--bg-2);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+}
+
+.number:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}

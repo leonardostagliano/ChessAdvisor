@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { parseIpcError } from '@shared/ipcError'
+import type { StreamEnvelope } from '@shared/types/api'
 import type { Game } from '@shared/types/game'
 import type { NewGameOptions, SessionState } from '@shared/types/session'
 
@@ -35,8 +36,20 @@ export interface GameStoreState {
   browsePly: number | null
   /** True while the opponent is producing a move; the updater and the board read it. */
   aiThinking: boolean
-  /** Passthrough of the new-game choice; M2 turns it into the comments feed. */
+  /** Mirror of `session.coach.commentsVisible`, kept optimistic while the call is in flight. */
   commentsVisible: boolean
+  /**
+   * Text of the coach turn that is streaming right now, keyed by the `streamId` the session
+   * published before the turn started. Kept until the next turn opens a new one, so the feed
+   * never blinks between the last delta and the state that saves the comment.
+   */
+  coachStream: { streamId: string; text: string } | null
+  /**
+   * What *this window* asked the coach for. Comments are started by the main process, so a coach
+   * that is busy with no request of ours is writing a comment: that is how the two tabs tell
+   * whose stream they are watching.
+   */
+  coachRequest: 'answer' | 'hint' | null
   /** True while an IPC call started here has not answered yet. */
   busy: boolean
   /** Last failure of a call started here, already unwrapped from the IPC envelope. */
@@ -46,8 +59,9 @@ export interface GameStoreState {
   setBrowsePly(ply: number | null): void
   browseBy(delta: number): void
   returnToLive(): void
-  setCommentsVisible(visible: boolean): void
   clearError(): void
+  /** Appends a `stream` delta of the coach turn in flight; everything else is ignored. */
+  applyStream(envelope: StreamEnvelope): void
 
   refresh(): Promise<void>
   newGame(options: NewGameOptions): Promise<SessionState | null>
@@ -58,6 +72,13 @@ export interface GameStoreState {
   offerDraw(): Promise<{ accepted: boolean; reason: string } | null>
   close(): Promise<void>
   navigateEval(fen: string): Promise<void>
+
+  // --- Task 12: the coach in game (spec §4.2) ---
+  setCommentsVisible(visible: boolean): Promise<void>
+  askCoach(question: string): Promise<void>
+  requestHint(): Promise<void>
+  clearHint(): Promise<void>
+  commentSkipped(): Promise<void>
 }
 
 type BoardView = Pick<GameStoreState, 'session' | 'browsePly'>
@@ -133,11 +154,34 @@ export const useGameStore = create<GameStoreState>((set, get) => {
 
   const applySession = (session: SessionState): void => get().apply(session)
 
+  /**
+   * A coach turn is deliberately outside `call()`: asking a question can take half a minute, and
+   * `busy` greys out every game control. The coach has its own in-flight marker instead, which is
+   * also what tells the feed whether the stream in flight is an answer, a hint or a comment.
+   */
+  async function coachCall(
+    kind: 'answer' | 'hint',
+    run: (api: Window['api']) => Promise<SessionState>
+  ): Promise<void> {
+    const api = bridge()
+    if (!api) return
+    set({ coachRequest: kind, coachStream: null, error: null })
+    try {
+      applySession(await run(api))
+    } catch (error) {
+      set({ error: failure(error) })
+    } finally {
+      set({ coachRequest: null })
+    }
+  }
+
   return {
     session: EMPTY_SESSION,
     browsePly: null,
     aiThinking: false,
     commentsVisible: true,
+    coachStream: null,
+    coachRequest: null,
     busy: false,
     error: null,
 
@@ -145,9 +189,16 @@ export const useGameStore = create<GameStoreState>((set, get) => {
       const previous = get()
       const total = session.game?.moves.length ?? 0
       let browsePly = previous.browsePly
-      if (session.game?.id !== previous.session.game?.id) browsePly = null
+      const changed = session.game?.id !== previous.session.game?.id
+      if (changed) browsePly = null
       else if (browsePly !== null) browsePly = total === 0 ? null : Math.min(browsePly, total - 1)
-      set({ session, browsePly, aiThinking: session.ai.thinking })
+      set({
+        session,
+        browsePly,
+        aiThinking: session.ai.thinking,
+        commentsVisible: session.game ? session.coach.commentsVisible : previous.commentsVisible,
+        ...(changed ? { coachStream: null } : {})
+      })
     },
 
     setBrowsePly(ply) {
@@ -175,12 +226,18 @@ export const useGameStore = create<GameStoreState>((set, get) => {
       set({ browsePly: null })
     },
 
-    setCommentsVisible(visible) {
-      set({ commentsVisible: visible })
-    },
-
     clearError() {
       set({ error: null })
+    },
+
+    applyStream(envelope) {
+      if (!envelope || envelope.kind !== 'text') return
+      const { session, coachStream } = get()
+      // Only the coach streams into the feed: the opponent's turn carries its own id and its
+      // deltas are JSON, which has no business in a prose card.
+      if (!session.coach.streamId || envelope.streamId !== session.coach.streamId) return
+      const previous = coachStream?.streamId === envelope.streamId ? coachStream.text : ''
+      set({ coachStream: { streamId: envelope.streamId, text: previous + envelope.chunk } })
     },
 
     async refresh() {
@@ -222,6 +279,31 @@ export const useGameStore = create<GameStoreState>((set, get) => {
       await call((api) => api.game.close(), applySession)
     },
 
+    // --- Task 12: the coach in game (spec §4.2) ---
+
+    async setCommentsVisible(visible) {
+      set({ commentsVisible: visible })
+      await call((api) => api.game.setCommentsVisible(visible), applySession)
+    },
+
+    async askCoach(question) {
+      const asked = String(question ?? '').trim()
+      if (asked.length === 0) return
+      await coachCall('answer', (api) => api.game.askCoach(asked))
+    },
+
+    async requestHint() {
+      await coachCall('hint', (api) => api.game.requestHint())
+    },
+
+    async clearHint() {
+      await call((api) => api.game.clearHint(), applySession)
+    },
+
+    async commentSkipped() {
+      await call((api) => api.game.commentSkipped(), applySession)
+    },
+
     async navigateEval(fen) {
       // Deliberately outside `call()`: asking the engine for the score of the position on screen
       // is a background refresh, not a user action. Routing it through `call()` would raise
@@ -246,6 +328,10 @@ export function initGameStore(): () => void {
   const api = bridge()
   if (!api) return () => {}
   const unsubscribe = api.on('game:state', (session) => useGameStore.getState().apply(session))
+  const unsubscribeStream = api.on('stream', (envelope) => useGameStore.getState().applyStream(envelope))
   void useGameStore.getState().refresh()
-  return unsubscribe
+  return () => {
+    unsubscribe()
+    unsubscribeStream()
+  }
 }

@@ -127,6 +127,41 @@ try {
     ok(`move ${i + 1}: ${uci} → AI ${aiMove?.san}`, aiMove?.by === 'ai' && after.game.moves.length === before + 2, `fallback=${aiMove?.fallback ?? 'none'} thinkingMs=${aiMove?.thinkingMs} comment=${(aiMove?.aiShortComment ?? '').slice(0, 60)}`)
   }
   ok('played moves through the board', played === userMoves, `${played}/${userMoves}`)
+
+  // 3b. Coach (spec §4.2): the comments feed, a free question and the hint arrow.
+  await page.getByRole('tab', { name: /^Commenti$/ }).click()
+  const commentsOn = await page.getByRole('switch', { name: /Mostra commenti/ }).getAttribute('aria-checked')
+  if (commentsOn !== 'true') await page.getByRole('switch', { name: /Mostra commenti/ }).click()
+  const commented = await until(async () => {
+    const s = await state()
+    return [...(s.game?.moves ?? [])].reverse().find((m) => m.coachComment) ?? null
+  }, 60000, 'a coach comment').catch(() => null)
+  const feed = commented ? await page.locator('[role="tabpanel"]').innerText() : ''
+  ok(
+    'the coach comments a played move',
+    !!commented?.coachComment && feed.includes(commented.coachComment.slice(0, 24)),
+    `${commented?.san ?? '—'}: ${(commented?.coachComment ?? '').slice(0, 60)}`
+  )
+  await sleep(300); await shot('03b-comments.png').catch(() => {})
+
+  await page.getByRole('tab', { name: /^Coach$/ }).click()
+  await page.getByLabel('Domanda al coach').fill('Che piano seguo in questa posizione?')
+  await page.getByRole('button', { name: /^Invia$/ }).click()
+  const answer = await until(async () => (await state()).coach?.lastAnswer ?? null, 60000, 'a coach answer').catch(() => null)
+  const coachPanel = await page.locator('[role="tabpanel"]').innerText()
+  ok(
+    'the coach answers a question',
+    !!answer?.text && coachPanel.includes(answer.text.slice(0, 24)),
+    (answer?.text ?? '').slice(0, 60)
+  )
+
+  await page.getByRole('button', { name: /^Suggerimento$/ }).first().click()
+  const hint = await until(async () => (await state()).coach?.hint ?? null, 60000, 'a coach hint').catch(() => null)
+  // The arrow is a <line> inside chessground's shapes layer: no shape, no line.
+  const arrows = await page.evaluate(() => document.querySelectorAll('cg-container svg line, cg-board svg line').length)
+  ok('the hint is drawn on the board', !!hint?.uci && arrows > 0, `${hint?.move ?? '—'} (${arrows} shape lines)`)
+  await sleep(300); await shot('03c-hint.png').catch(() => {})
+  await page.getByRole('tab', { name: /^Mosse$/ }).click()
   await page.evaluate(() => { document.documentElement.dataset.theme = 'night' }); await sleep(400); await shot('04-play-night.png')
   await page.evaluate(() => { document.documentElement.dataset.theme = 'editorial' }); await sleep(400); await shot('05-play-editorial.png')
   await page.evaluate(() => { document.documentElement.dataset.theme = 'night' })
@@ -160,9 +195,31 @@ try {
   ok('resign finishes the game', fin.game?.result?.reason === 'resign', JSON.stringify(fin.game?.result))
   await sleep(400); await shot('07-result.png')
 
-  // 7. Settings
+  // 7. Clocks (spec §4.3): 5+0 in "solo il mio tempo", where only the user burns time.
+  await page.getByRole('button', { name: /Nuova partita/ }).first().click()
+  await page.getByRole('dialog').waitFor()
+  await page.getByRole('radio', { name: '5+0' }).click()
+  await page.getByRole('button', { name: /Inizia partita/ }).click()
+  await until(async () => { const s = await state(); return s.status === 'playing' && s.clock !== null }, 60000, 'clock game')
+  const clocked = await state()
+  const before = clocked.clock
+  await sleep(1500)
+  const after = (await state()).clock
+  ok(
+    'the user clock runs while the AI has none',
+    clocked.game?.userColor === 'w' &&
+      after.remainingMs.w < before.remainingMs.w &&
+      after.remainingMs.b === clocked.game.clock.initialMs &&
+      after.running === 'w',
+    `w ${before.remainingMs.w} → ${after.remainingMs.w}, b ${after.remainingMs.b}, running=${after.running}`
+  )
+  const timers = await page.getByRole('timer').count()
+  ok('only the clock of the side that has one is on screen', timers === 1, `${timers} timers`)
+  await sleep(300); await shot('09-clock.png')
+
+  // 8. Settings
   await page.getByRole('link', { name: /Impostazioni/ }).or(page.getByRole('button', { name: /Impostazioni/ })).first().click()
-  await sleep(600); await shot('08-settings.png')
+  await sleep(600); await shot('10-settings.png')
   const quota = await api(() => window.api.codex.quota())
   ok('quota readable', quota === null || typeof quota.ordinaryUsageAllowed === 'boolean', JSON.stringify(quota)?.slice(0, 100))
 } catch (e) {

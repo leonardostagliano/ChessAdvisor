@@ -5,6 +5,7 @@ import type { Game } from '@shared/types/game'
 import { DIFFICULTY_LEVELS, type SessionState } from '@shared/types/session'
 import { cx } from '../../components/ui/cx'
 import { useCodexStore } from '../../stores/codexStore'
+import { useUiStore } from '../../stores/uiStore'
 import styles from './PlayScreen.module.css'
 
 /**
@@ -61,6 +62,7 @@ export function difficultyLabel(
 export function OpponentCard({ session, models }: OpponentCardProps): React.JSX.Element | null {
   const { t } = useTranslation()
   const mirrored = useCodexStore((state) => state.models)
+  const uiLanguage = useUiStore((state) => state.language)
   const catalogue = models ?? mirrored
   const game = session.game
   const elapsed = useElapsed(session.ai.startedAt, session.ai.thinking)
@@ -123,10 +125,19 @@ export function OpponentCard({ session, models }: OpponentCardProps): React.JSX.
         </div>
       ) : null}
 
+      {/* Changing the UI language only applies from the next turn (spec §4.3): what is already
+          written keeps its own language and says so, instead of pretending to be translated. */}
       {!session.ai.thinking && lastAiMove?.aiShortComment ? (
         <p className={styles.comment}>
           <span className={cx(styles.moveTag, 'mono')}>{lastAiMove.san}</span>
           <span className="selectable">{lastAiMove.aiShortComment}</span>
+          {game.language !== uiLanguage ? (
+            <span className={styles.chip}>
+              {t('coach.languageBadge', {
+                language: t(game.language === 'it' ? 'settings.languageIt' : 'settings.languageEn')
+              })}
+            </span>
+          ) : null}
         </p>
       ) : null}
     </section>

@@ -7,7 +7,7 @@ import '@testing-library/jest-dom/vitest'
 import '../../i18n'
 import { useCodexStore } from '../../stores/codexStore'
 import { EMPTY_SESSION, useGameStore } from '../../stores/gameStore'
-import { NewGameDialog } from './NewGameDialog'
+import { NewGameDialog, clockOf, needsClockWarning } from './NewGameDialog'
 
 const MODELS: ModelInfo[] = [
   {
@@ -85,6 +85,35 @@ beforeEach(() => {
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
+})
+
+describe('clockOf', () => {
+  it('answers null for "Nessuno" and milliseconds for everything else', () => {
+    expect(clockOf('none', 10, 5, false)).toBeNull()
+    expect(clockOf('5+0', 10, 5, false)).toEqual({ initialMs: 300_000, incrementMs: 0, aiClock: false })
+    expect(clockOf('custom', 3, 2, true)).toEqual({ initialMs: 180_000, incrementMs: 2_000, aiClock: true })
+  })
+
+  it('keeps a custom time control inside usable bounds', () => {
+    expect(clockOf('custom', 0, 5, false)).toBeNull()
+    expect(clockOf('custom', 10_000, 10_000, false)).toEqual({
+      initialMs: 180 * 60_000,
+      incrementMs: 180_000,
+      aiClock: false
+    })
+  })
+})
+
+describe('needsClockWarning', () => {
+  it('fires only for a high effort on a short time control the AI also runs', () => {
+    const short = { initialMs: 300_000, incrementMs: 0, aiClock: true }
+    expect(needsClockWarning(short, 'high')).toBe(true)
+    expect(needsClockWarning({ ...short, initialMs: 600_000 }, 'xhigh')).toBe(true)
+    expect(needsClockWarning(short, 'medium')).toBe(false)
+    expect(needsClockWarning({ ...short, aiClock: false }, 'high')).toBe(false)
+    expect(needsClockWarning({ ...short, initialMs: 900_000, incrementMs: 10_000 }, 'high')).toBe(false)
+    expect(needsClockWarning(null, 'high')).toBe(false)
+  })
 })
 
 describe('NewGameDialog', () => {
@@ -194,6 +223,87 @@ describe('NewGameDialog', () => {
       lastDifficulty: { mode: 'adaptive', level: 3 }
     })
     await waitFor(() => expect(onClose).toHaveBeenCalled())
+  })
+
+  it('offers the clock presets and starts with none of them', async () => {
+    render(<NewGameDialog open onClose={() => {}} />)
+    const group = await screen.findByRole('radiogroup', { name: 'Orologio' })
+
+    expect(within(group).getAllByRole('radio').map((option) => option.textContent)).toEqual([
+      'Nessuno',
+      '5+0',
+      '10+0',
+      '15+10',
+      'Personalizzato'
+    ])
+    expect(within(group).getByRole('radio', { name: 'Nessuno' })).toHaveAttribute('aria-checked', 'true')
+    // The mode only exists once there is a clock to share (spec §4.3).
+    expect(screen.queryByRole('radiogroup', { name: 'Modalità' })).not.toBeInTheDocument()
+
+    fireEvent.click(within(group).getByRole('radio', { name: '15+10' }))
+    expect(screen.getByRole('radiogroup', { name: 'Modalità' })).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'Solo il mio tempo' })).toHaveAttribute('aria-checked', 'true')
+  })
+
+  it('passes the chosen time control to the new game', async () => {
+    render(<NewGameDialog open onClose={() => {}} />)
+    const clocks = await screen.findByRole('radiogroup', { name: 'Orologio' })
+
+    fireEvent.click(within(clocks).getByRole('radio', { name: '15+10' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Orologio anche per l’AI' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Inizia partita' }))
+
+    await waitFor(() => expect(started).toHaveLength(1))
+    expect(started[0]).toMatchObject({ clock: { initialMs: 900_000, incrementMs: 10_000, aiClock: true } })
+  })
+
+  it('takes the custom time control from its two inputs', async () => {
+    render(<NewGameDialog open onClose={() => {}} />)
+    const clocks = await screen.findByRole('radiogroup', { name: 'Orologio' })
+
+    fireEvent.click(within(clocks).getByRole('radio', { name: 'Personalizzato' }))
+    fireEvent.change(screen.getByLabelText('Minuti'), { target: { value: '3' } })
+    fireEvent.change(screen.getByLabelText('Incremento (secondi)'), { target: { value: '2' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Inizia partita' }))
+
+    await waitFor(() => expect(started).toHaveLength(1))
+    expect(started[0]).toMatchObject({ clock: { initialMs: 180_000, incrementMs: 2_000, aiClock: false } })
+  })
+
+  it('makes the user choose before giving the AI a clock it will flag on', async () => {
+    render(<NewGameDialog open onClose={() => {}} />)
+    await screen.findByRole('radiogroup', { name: /difficolt/i })
+
+    // gpt-6-astra with a high effort, 5+0, clock for the AI too: the case of spec §4.3.
+    const listbox = await openSelect(/ragionamento/i)
+    fireEvent.click(within(listbox).getByRole('option', { name: /Alto/ }))
+    fireEvent.click(within(screen.getByRole('radiogroup', { name: 'Orologio' })).getByRole('radio', { name: '5+0' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Orologio anche per l’AI' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Inizia partita' }))
+
+    const warning = await screen.findByText(/rischia di perdere per tempo/)
+    expect(warning).toBeInTheDocument()
+    expect(started).toHaveLength(0)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Solo il mio tempo' }))
+    await waitFor(() => expect(started).toHaveLength(1))
+    expect(started[0]).toMatchObject({ effort: 'high', clock: { initialMs: 300_000, aiClock: false } })
+  })
+
+  it('starts the risky game as it is when the user insists', async () => {
+    render(<NewGameDialog open onClose={() => {}} />)
+    await screen.findByRole('radiogroup', { name: /difficolt/i })
+
+    const listbox = await openSelect(/ragionamento/i)
+    fireEvent.click(within(listbox).getByRole('option', { name: /Alto/ }))
+    fireEvent.click(within(screen.getByRole('radiogroup', { name: 'Orologio' })).getByRole('radio', { name: '10+0' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Orologio anche per l’AI' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Inizia partita' }))
+
+    await screen.findByText(/rischia di perdere per tempo/)
+    fireEvent.click(screen.getByRole('button', { name: 'Continua comunque' }))
+    await waitFor(() => expect(started).toHaveLength(1))
+    expect(started[0]).toMatchObject({ clock: { initialMs: 600_000, incrementMs: 0, aiClock: true } })
   })
 
   it('explains that no model is playable when Codex has none', async () => {

@@ -46,7 +46,16 @@ function session(patch: Partial<SessionState> = {}): SessionState {
 }
 
 beforeEach(() => {
-  useGameStore.setState({ session: EMPTY_SESSION, browsePly: null, aiThinking: false, commentsVisible: true, busy: false, error: null })
+  useGameStore.setState({
+    session: EMPTY_SESSION,
+    browsePly: null,
+    aiThinking: false,
+    commentsVisible: true,
+    coachStream: null,
+    coachRequest: null,
+    busy: false,
+    error: null
+  })
 })
 
 describe('gameStore', () => {
@@ -166,6 +175,38 @@ describe('gameStore', () => {
 
     await expect(useGameStore.getState().navigateEval(FEN_2)).resolves.toBeUndefined()
     expect(useGameStore.getState().error).toBeNull()
+  })
+
+  it('runs a coach turn without marking the store busy, and remembers what it asked for', async () => {
+    const deferred = { resolve: (_: SessionState) => {} }
+    const askCoach = vi.fn(() => new Promise<SessionState>((resolve) => { deferred.resolve = resolve }))
+    vi.stubGlobal('window', Object.assign(window, { api: { game: { askCoach } } }))
+
+    const pending = useGameStore.getState().askCoach('  Che piano seguo?  ')
+    expect(askCoach).toHaveBeenCalledWith('Che piano seguo?')
+    // A question can take half a minute: greying out every game control for that long would be
+    // the wrong trade, so the coach has its own in-flight marker.
+    expect(useGameStore.getState().busy).toBe(false)
+    expect(useGameStore.getState().coachRequest).toBe('answer')
+
+    deferred.resolve(session())
+    await pending
+    expect(useGameStore.getState().coachRequest).toBeNull()
+    expect(useGameStore.getState().session.fen).toBe(FEN_3)
+  })
+
+  it('collects the deltas of the coach turn in flight and ignores every other stream', () => {
+    useGameStore.getState().apply(session({ coach: { ...EMPTY_SESSION.coach, busy: true, streamId: 's-coach' } }))
+    const store = useGameStore.getState()
+    store.applyStream({ streamId: 's-ai', threadId: 't', turnId: 'u', itemId: 'i', kind: 'text', chunk: 'ignored' })
+    store.applyStream({ streamId: 's-coach', threadId: 't', turnId: 'u', itemId: 'i', kind: 'reasoning', chunk: 'ignored' })
+    store.applyStream({ streamId: 's-coach', threadId: 't', turnId: 'u', itemId: 'i', kind: 'text', chunk: 'Buona ' })
+    store.applyStream({ streamId: 's-coach', threadId: 't', turnId: 'u', itemId: 'i', kind: 'text', chunk: 'apertura.' })
+    expect(useGameStore.getState().coachStream).toEqual({ streamId: 's-coach', text: 'Buona apertura.' })
+
+    // A different game starts with an empty feed.
+    useGameStore.getState().apply(session({ game: { ...game(), id: 'g2' } }))
+    expect(useGameStore.getState().coachStream).toBeNull()
   })
 
   it('keeps the failure of a call in the store instead of throwing at the caller', async () => {

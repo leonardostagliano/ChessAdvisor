@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Chessground } from '@lichess-org/chessground'
 import type { Api as ChessgroundApi } from '@lichess-org/chessground/api'
 import type { Config } from '@lichess-org/chessground/config'
+import type { DrawBrushes } from '@lichess-org/chessground/draw'
 import type { Color, Key } from '@lichess-org/chessground/types'
 import { legalMoves } from '@shared/chess/notation'
 import { cx } from '../components/ui/cx'
@@ -12,11 +13,14 @@ import '@lichess-org/chessground/assets/chessground.cburnett.css'
 import './board-theme.css'
 import styles from './Board.module.css'
 
-/** One coach arrow. `color` is a chessground brush name. */
+/**
+ * One coach arrow. `color` is a chessground brush name; `accent` is ours (spec §4.2: the hint is
+ * drawn in the accent colour of the current palette).
+ */
 export interface BoardArrow {
   from: string
   to: string
-  color?: 'green' | 'red' | 'blue' | 'yellow'
+  color?: 'green' | 'red' | 'blue' | 'yellow' | 'accent'
 }
 
 export interface BoardMovable {
@@ -48,6 +52,35 @@ export const MAX_SQUARE_PX = 96
 const DEFAULT_SQUARE_PX = 64
 const ANIMATION_MS = 200
 const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)'
+/** Night accent, used when the palette cannot be read (tests, a detached document). */
+const FALLBACK_ACCENT = '#e0a458'
+
+/**
+ * The accent of the palette in use, as a plain colour string: chessground writes the brush colour
+ * straight into an SVG attribute, where a `var(--accent)` reference would not resolve.
+ */
+export function accentColor(): string {
+  try {
+    const value = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim()
+    return value.length > 0 ? value : FALLBACK_ACCENT
+  } catch {
+    return FALLBACK_ACCENT
+  }
+}
+
+/**
+ * chessground's four default brushes plus the accent one. The defaults have to be restated because
+ * the type demands them, and the colours are chessground's own.
+ */
+export function arrowBrushes(accent: string): DrawBrushes {
+  return {
+    green: { key: 'g', color: '#15781B', opacity: 1, lineWidth: 10 },
+    red: { key: 'r', color: '#882020', opacity: 1, lineWidth: 10 },
+    blue: { key: 'b', color: '#003088', opacity: 1, lineWidth: 10 },
+    yellow: { key: 'y', color: '#e68f00', opacity: 1, lineWidth: 10 },
+    accent: { key: 'accent', color: accent, opacity: 0.95, lineWidth: 11 }
+  }
+}
 
 function reducedMotionNow(): boolean {
   try {
@@ -205,6 +238,9 @@ export function Board({
       drawable: {
         enabled: false,
         visible: true,
+        // Read once per config: a palette change while an arrow is on the board keeps the colour
+        // it was drawn with until the next move, which is as long as a hint ever lives.
+        brushes: arrowBrushes(accentColor()),
         autoShapes: (arrows ?? []).map((arrow) => ({
           orig: arrow.from as Key,
           dest: arrow.to as Key,

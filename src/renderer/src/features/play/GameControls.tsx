@@ -7,7 +7,7 @@ import { useGameStore } from '../../stores/gameStore'
 import styles from './PlayScreen.module.css'
 
 /**
- * The five actions of a game in M1 (spec §4.3): new game, take back, resign, offer a draw,
+ * The six actions of a game (spec §4.3): new game, take back, hint, resign, offer a draw,
  * save and exit. Every one of them is a main-process call; the buttons only decide when they
  * make sense, and resigning — the one irreversible action — asks for a confirmation first.
  */
@@ -28,6 +28,8 @@ export function canTakeBack(session: SessionState): boolean {
 export function GameControls({ session, onNewGame, onExit }: GameControlsProps): React.JSX.Element {
   const { t } = useTranslation()
   const busy = useGameStore((state) => state.busy)
+  const coachRequest = useGameStore((state) => state.coachRequest)
+  const requestHint = useGameStore((state) => state.requestHint)
   const takeback = useGameStore((state) => state.takeback)
   const resign = useGameStore((state) => state.resign)
   const offerDraw = useGameStore((state) => state.offerDraw)
@@ -59,6 +61,14 @@ export function GameControls({ session, onNewGame, onExit }: GameControlsProps):
         </Button>
         <Button disabled={!canTakeBack(session) || busy} onClick={() => void takeback()}>
           {t('controls.takeback')}
+        </Button>
+        {/* The hint is a coach turn, not a game action: it never waits on `busy`, only on the
+            coach being free and on the position on the board being the user's to play. */}
+        <Button
+          disabled={!playing || coachRequest !== null || session.ai.thinking}
+          onClick={() => void requestHint()}
+        >
+          {t('coach.hint')}
         </Button>
         <Button variant="danger" disabled={!playing || busy} onClick={() => setConfirmResign(true)}>
           {t('controls.resign')}

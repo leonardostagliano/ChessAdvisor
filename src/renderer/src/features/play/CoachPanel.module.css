@@ -1,0 +1,100 @@
+/* Shared shell of the Commenti and Coach tabs (spec §4.3: the right-hand panel). */
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  min-height: 0;
+  height: 100%;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2);
+  flex-wrap: wrap;
+  padding: 0 var(--s-1);
+}
+
+.feed {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--s-1);
+}
+
+.empty {
+  padding: var(--s-2);
+  font-size: var(--fs-sm);
+  color: var(--text-3);
+}
+
+.badge {
+  padding: 2px 9px;
+  border: 1px solid color-mix(in srgb, var(--danger) 45%, var(--border));
+  border-radius: var(--radius-pill);
+  color: var(--danger);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+}
+
+/* A question of the user reads as an aside, not as coach prose. */
+.question {
+  border-left-color: var(--accent);
+  background: var(--surface-2);
+}
+
+.hint {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s-1);
+}
+
+.ask {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  padding: var(--s-2) var(--s-1) 0;
+  border-top: 1px solid var(--border);
+}
+
+.askLabel {
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+
+.askRow {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+  padding: var(--s-2) var(--s-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--bg-2);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm);
+}
+
+.input:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.input:disabled {
+  opacity: 0.6;
+}
+
+.pending {
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
