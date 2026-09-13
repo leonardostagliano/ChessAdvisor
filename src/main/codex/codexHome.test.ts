@@ -3,7 +3,14 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { makeTmpDir, removeTmpDir } from '../../../test/helpers/tmpDir'
-import { MINIMAL_CONFIG, ensureCodexHome, resetAuth, syncAuth, userCodexHome } from './codexHome'
+import {
+  MINIMAL_CONFIG,
+  ensureCodexHome,
+  resetAuth,
+  setConfiguredModel,
+  syncAuth,
+  userCodexHome
+} from './codexHome'
 
 const dirs: string[] = []
 
@@ -67,6 +74,44 @@ describe('ensureCodexHome', () => {
     await ensureCodexHome(dir, 'gpt-6-astra')
     const { readdir } = await import('node:fs/promises')
     expect((await readdir(dir)).filter((name) => name.endsWith('.tmp'))).toEqual([])
+  })
+})
+
+describe('setConfiguredModel', () => {
+  it('rewrites only the model line and leaves every other key untouched', async () => {
+    const dir = await tmp()
+    const file = join(dir, 'config.toml')
+    await ensureCodexHome(dir, 'placeholder')
+
+    expect(await setConfiguredModel(dir, 'gpt-6-astra')).toBe(true)
+    const config = await readFile(file, 'utf8')
+    expect(config).toBe(MINIMAL_CONFIG('gpt-6-astra'))
+    expect(config).toContain('approval_policy = "never"')
+    expect(config).toContain('hooks = false')
+  })
+
+  it('keeps comments and unknown keys, and rewrites nothing when the model already matches', async () => {
+    const dir = await tmp()
+    const file = join(dir, 'config.toml')
+    const original = ['# hand written', 'model   =   "old-model"', 'model_reasoning_effort = "low"', ''].join('\n')
+    await writeFile(file, original)
+
+    expect(await setConfiguredModel(dir, 'gpt-6-astra')).toBe(true)
+    expect(await readFile(file, 'utf8')).toBe(
+      ['# hand written', 'model = "gpt-6-astra"', 'model_reasoning_effort = "low"', ''].join('\n')
+    )
+
+    expect(await setConfiguredModel(dir, 'gpt-6-astra')).toBe(false)
+  })
+
+  it('adds the key when the config has none and ignores a missing config', async () => {
+    const dir = await tmp()
+    const file = join(dir, 'config.toml')
+    await writeFile(file, 'approval_policy = "never"\n')
+    expect(await setConfiguredModel(dir, 'gpt-6-astra')).toBe(true)
+    expect(await readFile(file, 'utf8')).toBe('model = "gpt-6-astra"\napproval_policy = "never"\n')
+
+    expect(await setConfiguredModel(join(dir, 'nowhere'), 'gpt-6-astra')).toBe(false)
   })
 })
 

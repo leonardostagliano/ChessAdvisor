@@ -9,7 +9,7 @@ import type {
 import pkg from '../../../package.json'
 import { ManagedProcess } from '../process/childProcess'
 import type { SettingsStore } from '../store/settingsStore'
-import { ensureCodexHome, resetAuth, syncAuth } from './codexHome'
+import { ensureCodexHome, resetAuth, setConfiguredModel, syncAuth } from './codexHome'
 import { TESTED_CODEX_VERSION } from './protocolVersion'
 import { mergeQuotaPatch, quotaFromRead } from './quota'
 import { appServerCommand, codexVersion, findCodexExe } from './resolveCodex'
@@ -430,6 +430,7 @@ export class CodexService {
       }
 
       this.modelCatalogue = await this.readModels(rpc)
+      await this.syncConfiguredModel()
       const rateLimits = await rpc.request<Params>('account/rateLimits/read').catch((error) => {
         console.error('[codex] account/rateLimits/read failed:', error)
         return null
@@ -511,6 +512,20 @@ export class CodexService {
       if (cursor === null) break
     }
     return models
+  }
+
+  /**
+   * Replaces the placeholder `model` of the dedicated `config.toml` with the catalogue default
+   * once the app-server has told us which models exist. Best effort: a read-only home must never
+   * keep the session from starting.
+   */
+  private async syncConfiguredModel(): Promise<void> {
+    const preferred =
+      this.modelCatalogue.find((model) => model.isDefault)?.id ?? this.modelCatalogue[0]?.id
+    if (!preferred) return
+    await setConfiguredModel(this.deps.codexHomeDir, preferred).catch((error) => {
+      console.error('[codex] could not update the configured model:', error)
+    })
   }
 
   private async itemsList(threadId: string, turnId: string): Promise<unknown[]> {

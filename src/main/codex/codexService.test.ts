@@ -127,6 +127,8 @@ describe('CodexService', () => {
 
     const config = await readFile(join(h.codexHome, 'config.toml'), 'utf8')
     expect(config).toContain('hooks = false')
+    // The placeholder written before the handshake is replaced by the catalogue default.
+    expect(config).toContain('model = "gpt-6-astra"')
     expect(h.states()[0]).toEqual({ status: 'starting' })
   })
 

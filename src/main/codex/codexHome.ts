@@ -37,6 +37,30 @@ export async function ensureCodexHome(dir: string, model: string): Promise<void>
   await writeFileAtomic(file, MINIMAL_CONFIG(model))
 }
 
+/** `model = "…"` on its own line, with the optional spacing and quoting TOML allows. */
+const MODEL_LINE = /^[ \t]*model[ \t]*=[ \t]*(?:"[^"]*"|'[^']*')[ \t]*$/m
+
+/**
+ * Rewrites only the `model` key of the dedicated `config.toml` (spec §3.1): the catalogue default
+ * replaces the placeholder written before the app-server could be asked which models exist.
+ * Every other key — and any comment the file may carry — is left byte for byte as it was.
+ * Returns whether the file was touched, so a no-op start writes nothing.
+ */
+export async function setConfiguredModel(dir: string, model: string): Promise<boolean> {
+  const file = join(dir, CONFIG_FILE)
+  const existing = await readFile(file, 'utf8').catch(() => null)
+  if (existing === null) return false
+
+  const line = `model = "${model}"`
+  const updated = MODEL_LINE.test(existing)
+    ? existing.replace(MODEL_LINE, () => line)
+    : `${line}\n${existing}`
+  if (updated === existing) return false
+
+  await writeFileAtomic(file, updated)
+  return true
+}
+
 interface AuthFile {
   last_refresh?: unknown
 }
