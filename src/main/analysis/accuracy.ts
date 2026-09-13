@@ -40,7 +40,7 @@ function standardDeviation(values: number[]): number {
  *
  * A colour that never moved gets 100: there is nothing to judge, and nothing was lost.
  */
-export function gameAccuracy(perMove: { loss: number; winBefore: number }[], color: 'w' | 'b'): number {
+export function gameAccuracy(perMove: { loss: number; winBefore: number; mover?: 'w' | 'b' }[], color: 'w' | 'b'): number {
   const series = perMove.map((entry) => (Number.isFinite(entry.winBefore) ? entry.winBefore : 50))
   const total = series.length
   if (total === 0) return 100
@@ -54,7 +54,13 @@ export function gameAccuracy(perMove: { loss: number; winBefore: number }[], col
 
   const mine = perMove
     .map((entry, index) => ({ accuracy: moveAccuracy(entry.loss), weight: weightAt(index), index }))
-    .filter((entry) => (color === 'w' ? entry.index % 2 === 0 : entry.index % 2 === 1))
+    // The mover is authoritative (games from a custom position may start with Black to move);
+    // index parity is only the fallback for callers that pass bare loss/win% pairs.
+    .filter((entry) => {
+      const mover = perMove[entry.index]?.mover
+      if (mover) return mover === color
+      return color === 'w' ? entry.index % 2 === 0 : entry.index % 2 === 1
+    })
   if (mine.length === 0) return 100
 
   const weightSum = mine.reduce((sum, entry) => sum + entry.weight, 0)

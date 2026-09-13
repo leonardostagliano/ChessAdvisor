@@ -99,7 +99,7 @@ export async function analyzeGame(game: Game, engine: AnalysisEngine, openings: 
   }
 
   /** Per move, in ply order: what the accuracy and ACPL formulas need. */
-  const perMove: { loss: number; winBefore: number }[] = []
+  const perMove: { loss: number; winBefore: number; mover: 'w' | 'b' }[] = []
   const losses: { color: 'w' | 'b'; cpLossInternal: number; evalBeforeCp: number }[] = []
 
   let before = await search(fens[0]!)
@@ -121,7 +121,7 @@ export async function analyzeGame(game: Game, engine: AnalysisEngine, openings: 
     }
     move.eval = evaluation
 
-    perMove.push({ loss, winBefore: winPercent(internalCp(before.score)) })
+    perMove.push({ loss, winBefore: winPercent(internalCp(before.score)), mover })
     losses.push({ color: mover, cpLossInternal: cpLoss, evalBeforeCp: internalCp(before.score) })
 
     onProgress?.({ gameId: game.id, ply, total })
