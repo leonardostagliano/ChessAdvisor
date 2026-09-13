@@ -1,9 +1,12 @@
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { BrowserWindow, app, ipcMain, shell } from 'electron'
+import { encodeIpcErrorMessage, errorData } from '@shared/ipcError'
 import type { GameFilter } from '@shared/types/game'
 import type { Settings } from '@shared/types/settings'
 import { dataDir } from '../paths'
+import { registerGameIpc } from '../game/gameManager'
+import type { GameManager } from '../game/gameManager'
 import { GameStore } from '../store/gameStore'
 import type { Analysis, AnalysisProfile, EngineState } from '@shared/types/engine'
 import type { CodexService } from '../codex/codexService'
@@ -14,14 +17,21 @@ import { getAppVersionInfo } from '../util/appVersion'
 export interface SerializedError {
   code: string
   message: string
+  /**
+   * Payload a failure carries beyond its text (the model proposed by `MODEL_UNAVAILABLE`, for
+   * instance). Electron drops extra Error properties on the way to the renderer, so `IpcError`
+   * encodes this into the message and `parseIpcError` reads it back on the other side.
+   */
+  data?: Record<string, unknown>
 }
 
 export class IpcError extends Error {
   constructor(
     readonly code: string,
-    message: string
+    message: string,
+    readonly data?: Record<string, unknown>
   ) {
-    super(`${code}: ${message}`)
+    super(encodeIpcErrorMessage(code, message, data))
     this.name = 'IpcError'
   }
 }
@@ -29,7 +39,8 @@ export class IpcError extends Error {
 export function serializeError(error: unknown): SerializedError {
   if (error instanceof Error) {
     const code = typeof (error as NodeJS.ErrnoException).code === 'string' ? String((error as NodeJS.ErrnoException).code) : 'E_UNEXPECTED'
-    return { code, message: error.message }
+    const data = errorData(error)
+    return { code, message: error.message, ...(data ? { data } : {}) }
   }
   return { code: 'E_UNEXPECTED', message: String(error) }
 }
@@ -43,7 +54,7 @@ export function handle<T>(channel: string, fn: (...args: any[]) => Promise<T>): 
     } catch (error) {
       const serialized = serializeError(error)
       console.error(`[ipc] ${channel} failed:`, serialized.code, serialized.message)
-      throw new IpcError(serialized.code, serialized.message)
+      throw new IpcError(serialized.code, serialized.message, serialized.data)
     }
   })
 }
@@ -119,6 +130,8 @@ export function registerIpc(ctx: IpcContext): void {
   // --- end Task 7 ---
   // ── Task 8: games archive ──
   registerGamesIpc(ctx)
+  // ── Task 9: the active game ──
+  if (ctx.game) registerGameIpc({ handle, manager: ctx.game })
 }
 
 // ─── Task 8: games archive ────────────────────────────────────────────────────
@@ -163,4 +176,13 @@ async function readNotices(): Promise<string> {
   } catch (error) {
     throw new IpcError('E_NOTICES', `third-party notices unavailable: ${String((error as Error).message)}`)
   }
+}
+
+// ─── Task 9: the active game ──────────────────────────────────────────────────
+// The bindings themselves live in `game/gameManager.ts` (it owns the single session);
+// only the context slot is declared here, again by declaration merging.
+
+export interface IpcContext {
+  /** The one live game session. Absent in tests that only need settings or the archive. */
+  game?: GameManager
 }

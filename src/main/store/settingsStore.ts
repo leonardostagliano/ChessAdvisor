@@ -1,3 +1,4 @@
+import type { DifficultyChoice, DifficultyLevel } from '@shared/types/session'
 import { DEFAULT_SETTINGS, type Settings } from '@shared/types/settings'
 import { readJson, writeJsonAtomic } from './atomicWrite'
 
@@ -31,6 +32,16 @@ function engineBinary(value: unknown, fallback: Settings['engineBinary']): Setti
   return fallback
 }
 
+/** Task 9: the new-game dialog remembers the last difficulty; an unknown shape falls back. */
+function difficulty(value: unknown, fallback: DifficultyChoice): DifficultyChoice {
+  if (!isRecord(value)) return { ...fallback }
+  const mode = value.mode === 'adaptive' ? 'adaptive' : value.mode === 'fixed' ? 'fixed' : fallback.mode
+  const raw = value.level
+  const level: DifficultyLevel =
+    typeof raw === 'number' && Number.isInteger(raw) && raw >= 1 && raw <= 6 ? (raw as DifficultyLevel) : fallback.level
+  return { mode, level }
+}
+
 function seconds(value: unknown, fallback: number): number {
   if (typeof value !== 'number' || !Number.isFinite(value)) return fallback
   const rounded = Math.round(value)
@@ -57,13 +68,18 @@ export function sanitizeSettings(raw: unknown, base: Settings = DEFAULT_SETTINGS
     showReasoning: bool(input.showReasoning, base.showReasoning),
     pieceSet: oneOf(input.pieceSet, ['cburnett'] as const, base.pieceSet),
     engineBinary: engineBinary(input.engineBinary, base.engineBinary),
+    lastDifficulty: difficulty(input.lastDifficulty, base.lastDifficulty),
     updates: { autoCheck: bool(updates.autoCheck, base.updates.autoCheck) }
   }
 }
 
 /** Settings persisted as one atomic JSON file; listeners see every accepted change. */
 export class SettingsStore {
-  private current: Settings = { ...DEFAULT_SETTINGS, updates: { ...DEFAULT_SETTINGS.updates } }
+  private current: Settings = {
+    ...DEFAULT_SETTINGS,
+    lastDifficulty: { ...DEFAULT_SETTINGS.lastDifficulty },
+    updates: { ...DEFAULT_SETTINGS.updates }
+  }
   private readonly listeners = new Set<Listener>()
 
   constructor(private readonly file: string) {}
@@ -75,11 +91,19 @@ export class SettingsStore {
   }
 
   get(): Settings {
-    return { ...this.current, updates: { ...this.current.updates } }
+    return { ...this.current, lastDifficulty: { ...this.current.lastDifficulty }, updates: { ...this.current.updates } }
   }
 
   async save(patch: Partial<Settings>): Promise<Settings> {
-    const merged = sanitizeSettings({ ...this.current, ...patch, updates: { ...this.current.updates, ...(patch.updates ?? {}) } }, this.current)
+    const merged = sanitizeSettings(
+      {
+        ...this.current,
+        ...patch,
+        lastDifficulty: { ...this.current.lastDifficulty, ...(patch.lastDifficulty ?? {}) },
+        updates: { ...this.current.updates, ...(patch.updates ?? {}) }
+      },
+      this.current
+    )
     this.current = merged
     await writeJsonAtomic(this.file, merged)
     const snapshot = this.get()

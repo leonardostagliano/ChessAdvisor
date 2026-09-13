@@ -1,3 +1,5 @@
+import type { DifficultyChoice } from './session'
+
 export type Language = 'it' | 'en'
 export type ThemeChoice = 'night' | 'editorial' | 'system'
 
@@ -13,6 +15,8 @@ export interface Settings {
   showReasoning: boolean
   pieceSet: 'cburnett'
   engineBinary: 'avx2' | 'popcnt' | 'none' | null
+  /** Last difficulty picked in the new-game dialog, preselected for the next game (spec §4.3). */
+  lastDifficulty: DifficultyChoice
   updates: { autoCheck: boolean }
 }
 
@@ -28,5 +32,6 @@ export const DEFAULT_SETTINGS: Settings = {
   showReasoning: false,
   pieceSet: 'cburnett',
   engineBinary: null,
+  lastDifficulty: { mode: 'fixed', level: 3 },
   updates: { autoCheck: true }
 }

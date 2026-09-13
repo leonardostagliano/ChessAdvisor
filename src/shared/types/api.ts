@@ -1,5 +1,6 @@
 import type { Game, GameFilter, GameSummary } from './game'
 import type { CodexState, ModelInfo, QuotaSnapshot } from './codex'
+import type { NewGameOptions, SessionState } from './session'
 import type { Settings } from './settings'
 import type { Analysis, AnalysisProfile, EngineState } from './engine'
 import type { UpdateStatus, UpdatesApi } from '../updates'
@@ -76,4 +77,40 @@ export interface GamesApi {
 
 export interface Api {
   games: GamesApi
+}
+
+// ─── Task 9: the active game ──────────────────────────────────────────────────
+// One game at a time: every call acts on the single live session, and every transition is
+// also pushed on the `game:state` event, so the renderer can stay purely reactive.
+
+export interface GameApi {
+  /** Quoted so it declares a method called `new`, not a construct signature. */
+  'new'(opts: NewGameOptions): Promise<SessionState>
+  /**
+   * `substituteModel` answers a `MODEL_UNAVAILABLE` failure of a previous call: the rejection of
+   * that call carries the model to prefill in `parseIpcError(error).data.suggested`
+   * (see `@shared/ipcError`), on both sides of the IPC boundary.
+   */
+  resume(id: string, opts?: { substituteModel?: string }): Promise<SessionState>
+  userMove(uci: string): Promise<SessionState>
+  takeback(): Promise<SessionState>
+  resign(): Promise<SessionState>
+  offerDraw(): Promise<{ accepted: boolean; reason: string }>
+  /** Live eval of a position browsed in the move list; the game is not touched. */
+  navigateEval(fen: string): Promise<void>
+  state(): Promise<SessionState>
+  close(): Promise<SessionState>
+  /** Current adaptive rating, or `null` before the first adaptive game. */
+  adaptiveElo(): Promise<{ elo: number; games: number } | null>
+}
+
+export interface GameFinished {
+  gameId: string
+  result: NonNullable<Game['result']>
+}
+
+export interface Api {
+  game: GameApi
+  on(channel: 'game:state', cb: (s: SessionState) => void): () => void
+  on(channel: 'game:finished', cb: (e: GameFinished) => void): () => void
 }

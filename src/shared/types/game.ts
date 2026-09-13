@@ -1,4 +1,5 @@
 import type { Language } from './settings'
+import type { OpponentDifficulty } from './session'
 
 /** Engine score of a position. Exactly one of the two is set; `mate` is in plies-to-mate, signed. */
 export interface Eval {
@@ -90,7 +91,8 @@ export interface GameClock {
 export interface GameOpponent {
   model: string
   effort: string
-  style: 'competitive' | 'didactic'
+  /** Resolved when the game starts; level 6 (Massimo) has `targetElo: null` (spec §4.1). */
+  difficulty: OpponentDifficulty
   /** Model originally chosen, when the user accepted a substitution on resume. */
   substitutedFrom?: string
 }
