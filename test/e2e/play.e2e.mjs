@@ -358,6 +358,48 @@ try {
   await sleep(600); await shot('10-settings.png')
   const quota = await api(() => window.api.codex.quota())
   ok('quota readable', quota === null || typeof quota.ordinaryUsageAllowed === 'boolean', JSON.stringify(quota)?.slice(0, 100))
+
+  // 9. Theme and language (task T22): both palettes and both languages, from the Settings screen.
+  const themeNow = () => page.evaluate(() => document.documentElement.dataset.theme ?? '')
+  const pickOption = async (select, option) => {
+    await page.getByRole('combobox', { name: select }).click()
+    await page.getByRole('option', { name: option }).click()
+    await sleep(600)
+  }
+  await pickOption('Tema', 'Editoriale')
+  const editorial = await themeNow()
+  ok('the editorial palette is applied', editorial === 'editorial', `data-theme=${editorial}`)
+  await shot('11-theme-editorial.png')
+
+  await pickOption('Tema', 'Notturno')
+  const night = await themeNow()
+  ok('the night palette comes back', night === 'night', `data-theme=${night}`)
+  await shot('11b-theme-night.png')
+
+  await pickOption('Lingua', 'Inglese')
+  const englishRail = await page.getByRole('navigation').first().textContent()
+  const englishLang = await page.evaluate(() => document.documentElement.lang)
+  ok(
+    'the interface switches to English',
+    /Play/.test(englishRail ?? '') && /Settings/.test(englishRail ?? '') && englishLang === 'en',
+    `rail="${(englishRail ?? '').replace(/\s+/g, ' ').slice(0, 80)}" lang=${englishLang}`
+  )
+  await shot('12-english.png')
+
+  // The shortcuts sheet is part of the same pass: it must speak the language in use.
+  await page.keyboard.press('?')
+  const sheet = await page.getByRole('dialog').textContent().catch(() => null)
+  ok('the shortcuts sheet opens with ?', !!sheet && /Keyboard shortcuts/.test(sheet), (sheet ?? '').replace(/\s+/g, ' ').slice(0, 80))
+  await shot('12b-shortcuts.png')
+  await page.keyboard.press('Escape')
+  await sleep(300)
+  ok('the sheet closes with Esc', (await page.getByRole('dialog').count()) === 0)
+
+  await page.getByRole('combobox', { name: 'Language' }).click()
+  await page.getByRole('option', { name: 'Italian' }).click()
+  await sleep(600)
+  const backToItalian = await page.getByRole('navigation').first().textContent()
+  ok('the interface goes back to Italian', /Gioca/.test(backToItalian ?? ''), (backToItalian ?? '').replace(/\s+/g, ' ').slice(0, 80))
 } catch (e) {
   ok('script completed without exception', false, String(e).slice(0, 400))
   await shot('99-failure.png').catch(() => {})
