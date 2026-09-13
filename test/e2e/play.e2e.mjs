@@ -148,12 +148,11 @@ try {
   await page.getByLabel('Domanda al coach').fill('Che piano seguo in questa posizione?')
   await page.getByRole('button', { name: /^Invia$/ }).click()
   const answer = await until(async () => (await state()).coach?.lastAnswer ?? null, 60000, 'a coach answer').catch(() => null)
-  const coachPanel = await page.locator('[role="tabpanel"]').innerText()
-  ok(
-    'the coach answers a question',
-    !!answer?.text && coachPanel.includes(answer.text.slice(0, 24)),
-    (answer?.text ?? '').slice(0, 60)
-  )
+  // The renderer paints the answer a tick after the state carries it: poll the panel text too.
+  const rendered = answer?.text
+    ? await until(async () => (await page.locator('[role="tabpanel"]').innerText()).includes(answer.text.slice(0, 24)), 10000, 'the answer on screen').catch(() => false)
+    : false
+  ok('the coach answers a question', !!answer?.text && rendered, (answer?.text ?? '').slice(0, 60))
 
   await page.getByRole('button', { name: /^Suggerimento$/ }).first().click()
   const hint = await until(async () => (await state()).coach?.hint ?? null, 60000, 'a coach hint').catch(() => null)
