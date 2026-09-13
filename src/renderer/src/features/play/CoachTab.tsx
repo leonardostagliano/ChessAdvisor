@@ -78,7 +78,7 @@ export function CoachTab({ session, engineAvailable }: CoachTabProps): React.JSX
         <Button
           size="sm"
           variant="secondary"
-          disabled={!game || pending || session.status !== 'playing'}
+          disabled={!game || pending || session.status !== 'playing' || session.ai.thinking}
           onClick={() => void requestHint()}
         >
           {t('coach.hint')}
