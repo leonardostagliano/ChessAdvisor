@@ -1,0 +1,99 @@
+/*
+ * Board skin for ChessAdvisor (plan Task 10).
+ *
+ * chessground ships one theme per board colour as a base64 SVG; instead of adding a third
+ * hard-coded palette we paint the squares with a repeating conic gradient built from the
+ * `--board-dark`/`--board-light` tokens, so both themes recolour the board for free.
+ * Everything else (highlights, coordinates) is expressed with the same tokens.
+ */
+
+cg-board {
+  background-color: var(--board-light);
+  /* Top-left square is light in both orientations, as on a real board (a8 and h1). */
+  background-image: repeating-conic-gradient(
+    var(--board-dark) 0% 25%,
+    var(--board-light) 0% 50%
+  );
+  background-size: 25% 25%;
+  background-position: 0 0;
+}
+
+/* Legal destinations: a dot on an empty square, a ring around a capturable piece. */
+cg-board square.move-dest {
+  background: radial-gradient(
+    circle at center,
+    color-mix(in srgb, var(--accent) 62%, transparent) 0 21%,
+    transparent 22%
+  );
+}
+
+cg-board square.oc.move-dest {
+  background: radial-gradient(
+    circle at center,
+    transparent 0 76%,
+    color-mix(in srgb, var(--accent) 55%, transparent) 77% 88%,
+    transparent 89%
+  );
+}
+
+cg-board square.move-dest:hover,
+cg-board square.move-dest.hover {
+  background: color-mix(in srgb, var(--accent) 34%, transparent);
+}
+
+cg-board square.last-move {
+  background-color: color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+cg-board square.selected {
+  background-color: color-mix(in srgb, var(--accent) 42%, transparent);
+}
+
+cg-board square.check {
+  background: radial-gradient(
+    ellipse at center,
+    color-mix(in srgb, var(--danger) 92%, transparent) 0%,
+    color-mix(in srgb, var(--danger) 70%, transparent) 26%,
+    transparent 78%
+  );
+}
+
+/* Premoves are disabled in ChessAdvisor, but the classes exist: keep them quiet. */
+cg-board square.premove-dest,
+cg-board square.current-premove {
+  background-color: color-mix(in srgb, var(--accent-soft) 40%, transparent);
+}
+
+/* Coordinates printed inside the board: readable on both square colours. */
+.cg-wrap coords {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.02em;
+}
+
+.orientation-white .ranks :nth-child(odd),
+.orientation-white .files :nth-child(even),
+.orientation-black .ranks :nth-child(even),
+.orientation-black .files :nth-child(odd) {
+  color: color-mix(in srgb, var(--board-dark) 78%, #000);
+}
+
+.orientation-white .ranks :nth-child(even),
+.orientation-white .files :nth-child(odd),
+.orientation-black .ranks :nth-child(odd),
+.orientation-black .files :nth-child(even) {
+  color: color-mix(in srgb, var(--board-light) 84%, #fff);
+}
+
+/* Arrows drawn by the coach; the default brushes are tuned for lichess green. */
+.cg-wrap .cg-shapes,
+.cg-wrap .cg-custom-svgs {
+  overflow: visible;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  cg-board square.last-move,
+  .cg-wrap piece {
+    transition: none !important;
+  }
+}

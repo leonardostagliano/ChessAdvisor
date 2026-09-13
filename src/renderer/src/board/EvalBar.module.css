@@ -1,0 +1,47 @@
+.bar {
+  position: relative;
+  display: flex;
+  flex-direction: column-reverse;
+  width: 18px;
+  min-width: 18px;
+  align-self: stretch;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--eval-bad);
+  overflow: hidden;
+}
+
+.flipped {
+  flex-direction: column;
+}
+
+.fill {
+  width: 100%;
+  background: var(--eval-good);
+  transition: height var(--dur-3) var(--ease);
+}
+
+.value {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%) rotate(180deg);
+  writing-mode: vertical-rl;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  color: var(--text);
+  background: color-mix(in srgb, var(--surface) 84%, transparent);
+  border-radius: var(--radius-pill);
+  padding: 4px 1px;
+  pointer-events: none;
+}
+
+/* The label sits on the side that owns the smaller share, so it always stays readable. */
+.valueTop {
+  top: var(--s-1);
+}
+
+.valueBottom {
+  bottom: var(--s-1);
+}

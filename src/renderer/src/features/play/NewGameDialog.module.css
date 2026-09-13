@@ -1,0 +1,129 @@
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.labelRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-3);
+}
+
+.label {
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  color: var(--text);
+}
+
+.hint {
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+  max-width: 60ch;
+}
+
+/* Segmented controls: colour (3 options) and difficulty (7 options). */
+.segmented {
+  display: grid;
+  gap: var(--s-1);
+  padding: var(--s-1);
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+}
+
+.colors {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.levels {
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: 40px;
+  padding: var(--s-2) var(--s-1);
+  border: 1px solid transparent;
+  border-radius: calc(var(--radius-control) - 3px);
+  background: transparent;
+  color: var(--text-2);
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm);
+  line-height: 1.25;
+  text-align: center;
+  cursor: pointer;
+  transition:
+    background var(--dur-1) var(--ease),
+    color var(--dur-1) var(--ease),
+    border-color var(--dur-1) var(--ease);
+}
+
+.option:hover:not(.selected) {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.option:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.selected {
+  background: var(--surface);
+  border-color: var(--border-2);
+  color: var(--text);
+  box-shadow: var(--shadow-card);
+}
+
+.optionLabel {
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.optionCaption {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.02em;
+  color: var(--text-3);
+}
+
+.selected .optionCaption {
+  color: var(--accent);
+}
+
+.switches {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  padding-top: var(--s-1);
+  border-top: 1px solid var(--border);
+}
+
+.warning {
+  font-size: var(--fs-sm);
+  color: var(--danger);
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+@media (max-width: 640px) {
+  .levels {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}

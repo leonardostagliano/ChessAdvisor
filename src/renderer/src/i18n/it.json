@@ -97,5 +97,90 @@
     "noticesHint": "Stockfish, chessground, chess.js, pezzi cburnett, font e dataset Lichess.",
     "open": "Apri",
     "loading": "Caricamento delle note…"
+  },
+  "board": {
+    "label": "Scacchiera",
+    "evalAria": "Valutazione del motore: {{value}}",
+    "evalTitle": "Valutazione",
+    "evalEven": "posizione pari",
+    "evalWhite": "vantaggio del Bianco",
+    "evalBlack": "vantaggio del Nero",
+    "evalMateWhite": "matto per il Bianco",
+    "evalMateBlack": "matto per il Nero",
+    "evalWaiting": "—"
+  },
+  "difficulty": {
+    "title": "Difficoltà",
+    "beginner": "Principiante",
+    "easy": "Facile",
+    "medium": "Medio",
+    "challenging": "Impegnativo",
+    "strong": "Forte",
+    "max": "Massimo",
+    "adaptive": "Adattiva",
+    "elo": "~{{elo}}",
+    "maxCaption": "al massimo",
+    "adaptiveStart": "parte da 1200",
+    "adaptiveGames": "{{count}} partite adattive"
+  },
+  "newGame": {
+    "title": "Nuova partita",
+    "color": "Colore",
+    "white": "Bianco",
+    "black": "Nero",
+    "randomColor": "Casuale",
+    "model": "Modello",
+    "modelHint": "Il modello gioca attraverso la tua sessione Codex.",
+    "effort": "Impegno di ragionamento",
+    "effortHint": "Gli impegni disponibili cambiano con il modello scelto.",
+    "efforts": {
+      "minimal": "Minimo",
+      "low": "Basso",
+      "medium": "Medio",
+      "high": "Alto",
+      "xhigh": "Molto alto",
+      "ultra": "Estremo"
+    },
+    "difficultyHint": "La difficoltà cambia solo la persona dell’avversario, non il modello né l’impegno.",
+    "hintLowEffort": "Ai livelli 1-3 un impegno basso o medio basta e risponde più in fretta.",
+    "hintHighEffort": "Con Massimo è consigliato un impegno alto.",
+    "commentsVisible": "Commenti visibili",
+    "commentsVisibleHint": "Il coach commenta le mosse mentre giochi (arriva con M2).",
+    "showReasoning": "Mostra ragionamento",
+    "showReasoningHint": "Mostra il riassunto del ragionamento dell’avversario mentre pensa.",
+    "start": "Inizia partita",
+    "starting": "Avvio della partita…",
+    "noModels": "Nessun modello disponibile: controlla il collegamento a Codex.",
+    "failed": "Non è stato possibile iniziare la partita."
+  },
+  "codexStatus": {
+    "eyebrow": "Codex",
+    "retry": "Riprova",
+    "starting": {
+      "title": "Collegamento a Codex in corso",
+      "body": "Avvio dell’app-server nella cartella dedicata di ChessAdvisor."
+    },
+    "notInstalled": {
+      "title": "Codex CLI non trovato",
+      "body": "ChessAdvisor gioca attraverso la CLI di Codex già installata sul tuo computer. Percorsi cercati:",
+      "download": "Come installare Codex CLI"
+    },
+    "notAuthenticated": {
+      "title": "Sessione Codex non autenticata",
+      "body": "Apri un terminale, esegui il comando qui sotto e completa l’accesso nel browser, poi riprova.",
+      "command": "codex login",
+      "copy": "Copia il comando",
+      "copied": "Comando copiato"
+    },
+    "notIsolated": {
+      "title": "Ambiente Codex non isolato",
+      "body": "La cartella dedicata non è configurata come previsto: le partite restano bloccate finché non confermi.",
+      "problems": "Problemi rilevati",
+      "continueAnyway": "Continua comunque"
+    },
+    "crashed": {
+      "title": "L’app-server di Codex si è interrotto",
+      "body": "Il processo è stato chiuso in modo inatteso. La partita in corso è già salvata su disco."
+    }
   }
 }

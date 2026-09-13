@@ -1,0 +1,124 @@
+.screen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100%;
+  padding: var(--s-7) var(--s-6);
+  background: var(--bg);
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  width: min(640px, 100%);
+  padding: var(--s-6);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-pop);
+}
+
+.title {
+  font-family: var(--font-serif);
+  font-size: var(--fs-xl);
+  line-height: 1.2;
+  color: var(--text);
+}
+
+.body {
+  font-size: var(--fs-md);
+  line-height: var(--lh-prose);
+  color: var(--text-2);
+  max-width: 62ch;
+}
+
+.paths {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  margin: 0;
+  padding: var(--s-3);
+  list-style: none;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+
+.problems {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  margin: 0;
+  padding-left: var(--s-5);
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+
+.command {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-3) var(--s-3) var(--s-4);
+  background: var(--bg-2);
+  border: 1px solid var(--border-2);
+  border-radius: var(--radius-control);
+}
+
+.commandText {
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  color: var(--text);
+  user-select: text;
+}
+
+.copied {
+  font-size: var(--fs-xs);
+  color: var(--eval-good);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-3);
+  padding-top: var(--s-2);
+}
+
+.message {
+  padding: var(--s-3);
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+.spinner {
+  width: 22px;
+  height: 22px;
+  border: 2px solid var(--border-2);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 900ms linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: none;
+  }
+}

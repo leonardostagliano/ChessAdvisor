@@ -97,5 +97,90 @@
     "noticesHint": "Stockfish, chessground, chess.js, cburnett pieces, fonts and Lichess datasets.",
     "open": "Open",
     "loading": "Loading the notices…"
+  },
+  "board": {
+    "label": "Chessboard",
+    "evalAria": "Engine evaluation: {{value}}",
+    "evalTitle": "Evaluation",
+    "evalEven": "level position",
+    "evalWhite": "White is better",
+    "evalBlack": "Black is better",
+    "evalMateWhite": "mate for White",
+    "evalMateBlack": "mate for Black",
+    "evalWaiting": "—"
+  },
+  "difficulty": {
+    "title": "Difficulty",
+    "beginner": "Beginner",
+    "easy": "Easy",
+    "medium": "Medium",
+    "challenging": "Challenging",
+    "strong": "Strong",
+    "max": "Maximum",
+    "adaptive": "Adaptive",
+    "elo": "~{{elo}}",
+    "maxCaption": "model’s best",
+    "adaptiveStart": "starts at 1200",
+    "adaptiveGames": "{{count}} adaptive games"
+  },
+  "newGame": {
+    "title": "New game",
+    "color": "Colour",
+    "white": "White",
+    "black": "Black",
+    "randomColor": "Random",
+    "model": "Model",
+    "modelHint": "The model plays through your Codex session.",
+    "effort": "Reasoning effort",
+    "effortHint": "The available efforts change with the model you pick.",
+    "efforts": {
+      "minimal": "Minimal",
+      "low": "Low",
+      "medium": "Medium",
+      "high": "High",
+      "xhigh": "Very high",
+      "ultra": "Extreme"
+    },
+    "difficultyHint": "Difficulty only changes the opponent persona, never the model or the effort.",
+    "hintLowEffort": "At levels 1-3 a low or medium effort is enough and answers faster.",
+    "hintHighEffort": "Maximum is best paired with a high effort.",
+    "commentsVisible": "Comments visible",
+    "commentsVisibleHint": "The coach comments your moves while you play (arrives with M2).",
+    "showReasoning": "Show reasoning",
+    "showReasoningHint": "Streams the opponent reasoning summary while it thinks.",
+    "start": "Start game",
+    "starting": "Starting the game…",
+    "noModels": "No model available: check the Codex connection.",
+    "failed": "The game could not be started."
+  },
+  "codexStatus": {
+    "eyebrow": "Codex",
+    "retry": "Retry",
+    "starting": {
+      "title": "Connecting to Codex",
+      "body": "Starting the app-server in the dedicated ChessAdvisor folder."
+    },
+    "notInstalled": {
+      "title": "Codex CLI not found",
+      "body": "ChessAdvisor plays through the Codex CLI already installed on your computer. Paths searched:",
+      "download": "How to install the Codex CLI"
+    },
+    "notAuthenticated": {
+      "title": "Codex session not authenticated",
+      "body": "Open a terminal, run the command below, complete the sign-in in your browser, then retry.",
+      "command": "codex login",
+      "copy": "Copy the command",
+      "copied": "Command copied"
+    },
+    "notIsolated": {
+      "title": "Codex environment is not isolated",
+      "body": "The dedicated folder is not configured as expected: games stay blocked until you confirm.",
+      "problems": "Problems found",
+      "continueAnyway": "Continue anyway"
+    },
+    "crashed": {
+      "title": "The Codex app-server stopped",
+      "body": "The process exited unexpectedly. The game in progress is already saved on disk."
+    }
   }
 }
