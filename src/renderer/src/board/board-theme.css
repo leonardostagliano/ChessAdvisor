@@ -91,9 +91,16 @@ cg-board square.current-premove {
   overflow: visible;
 }
 
+/*
+ * Reduced motion is handled in Board.tsx, not here: chessground moves the pieces by writing
+ * `transform` from JavaScript, so no CSS rule (not even the blanket override in themes.css) can
+ * stop it. The wrapper reads `prefers-reduced-motion` and passes `animation.enabled: false`.
+ * This block only covers the transitions this stylesheet could grow later.
+ */
 @media (prefers-reduced-motion: reduce) {
-  cg-board square.last-move,
-  .cg-wrap piece {
-    transition: none !important;
+  .cg-wrap,
+  .cg-wrap * {
+    transition-duration: 0.001ms !important;
+    animation-duration: 0.001ms !important;
   }
 }

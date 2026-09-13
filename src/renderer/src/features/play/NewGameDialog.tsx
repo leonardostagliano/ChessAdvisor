@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { ModelInfo } from '@shared/types/codex'
 import {
@@ -58,6 +58,94 @@ export function preferredEffort(model: ModelInfo, current: string, remembered: s
   if (remembered && ids.includes(remembered)) return remembered
   if (ids.includes(model.defaultEffort)) return model.defaultEffort
   return ids[0] ?? model.defaultEffort
+}
+
+export interface SegmentOption {
+  /** Stable React key and test handle. */
+  id: string
+  label: string
+  caption?: string
+  checked: boolean
+  onSelect(): void
+}
+
+export interface SegmentedRadioGroupProps {
+  options: SegmentOption[]
+  /** Id of the element that names the group. */
+  labelledBy: string
+  className?: string
+}
+
+/**
+ * A segmented control that behaves like a real radio group: one Tab stop into the group and the
+ * arrow keys move (and check) the selection, the way the ARIA authoring practices describe it and
+ * the way the Select primitive already handles its own list.
+ */
+export function SegmentedRadioGroup({
+  options,
+  labelledBy,
+  className
+}: SegmentedRadioGroupProps): React.JSX.Element {
+  const buttons = useRef<(HTMLButtonElement | null)[]>([])
+  const checkedIndex = options.findIndex((option) => option.checked)
+  // Nothing checked yet: the first option carries the Tab stop, as the pattern prescribes.
+  const tabIndexOf = checkedIndex < 0 ? 0 : checkedIndex
+
+  const select = (index: number): void => {
+    const option = options[index]
+    if (!option) return
+    option.onSelect()
+    buttons.current[index]?.focus()
+  }
+
+  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
+    if (options.length === 0) return
+    const from = tabIndexOf
+    switch (event.key) {
+      case 'ArrowRight':
+      case 'ArrowDown':
+        event.preventDefault()
+        select((from + 1) % options.length)
+        break
+      case 'ArrowLeft':
+      case 'ArrowUp':
+        event.preventDefault()
+        select((from - 1 + options.length) % options.length)
+        break
+      case 'Home':
+        event.preventDefault()
+        select(0)
+        break
+      case 'End':
+        event.preventDefault()
+        select(options.length - 1)
+        break
+      default:
+        break
+    }
+  }
+
+  return (
+    <div className={className} role="radiogroup" aria-labelledby={labelledBy} onKeyDown={onKeyDown}>
+      {options.map((option, index) => (
+        <button
+          key={option.id}
+          ref={(node) => {
+            buttons.current[index] = node
+          }}
+          type="button"
+          role="radio"
+          aria-checked={option.checked}
+          tabIndex={index === tabIndexOf ? 0 : -1}
+          className={cx(styles.option, option.checked && styles.selected)}
+          onClick={() => option.onSelect()}
+        >
+          <span className={styles.optionLabel}>{option.label}</span>
+          {option.caption ? <span className={styles.optionCaption}>{option.caption}</span> : null}
+        </button>
+      ))}
+    </div>
+  )
 }
 
 export function NewGameDialog({ open, onClose, onStarted }: NewGameDialogProps): React.JSX.Element {
@@ -127,6 +215,27 @@ export function NewGameDialog({ open, onClose, onStarted }: NewGameDialogProps):
   const adaptiveCaption = adaptive ? t('difficulty.elo', { elo: adaptive.elo }) : t('difficulty.adaptiveStart')
   const hintKey = effortHintKey(difficulty)
 
+  // Six fixed personas plus the adaptive one: the seven options of spec §4.1, in that order.
+  const difficultyOptions: SegmentOption[] = [
+    ...LEVELS.map((level) => {
+      const { key, elo } = DIFFICULTY_LEVELS[level]
+      return {
+        id: `level-${level}`,
+        label: t(`difficulty.${key}`),
+        caption: elo === null ? t('difficulty.maxCaption') : t('difficulty.elo', { elo }),
+        checked: difficulty.mode === 'fixed' && difficulty.level === level,
+        onSelect: () => setDifficulty({ mode: 'fixed', level })
+      }
+    }),
+    {
+      id: 'adaptive',
+      label: t('difficulty.adaptive'),
+      caption: adaptiveCaption,
+      checked: difficulty.mode === 'adaptive',
+      onSelect: () => setDifficulty((current) => ({ mode: 'adaptive', level: current.level }))
+    }
+  ]
+
   const start = useCallback(async (): Promise<void> => {
     if (!selected || submitting) return
     const effortId = preferredEffort(selected, effort, settings?.defaultEffort ?? null)
@@ -190,20 +299,16 @@ export function NewGameDialog({ open, onClose, onStarted }: NewGameDialogProps):
           <span className={styles.label} id="new-game-color">
             {t('newGame.color')}
           </span>
-          <div className={cx(styles.segmented, styles.colors)} role="radiogroup" aria-labelledby="new-game-color">
-            {COLORS.map((option) => (
-              <button
-                key={option.value}
-                type="button"
-                role="radio"
-                aria-checked={color === option.value}
-                className={cx(styles.option, color === option.value && styles.selected)}
-                onClick={() => setColor(option.value)}
-              >
-                <span className={styles.optionLabel}>{t(`newGame.${option.key}`)}</span>
-              </button>
-            ))}
-          </div>
+          <SegmentedRadioGroup
+            className={cx(styles.segmented, styles.colors)}
+            labelledBy="new-game-color"
+            options={COLORS.map((option) => ({
+              id: option.value,
+              label: t(`newGame.${option.key}`),
+              checked: color === option.value,
+              onSelect: () => setColor(option.value)
+            }))}
+          />
         </div>
 
         <div className={styles.field}>
@@ -238,41 +343,11 @@ export function NewGameDialog({ open, onClose, onStarted }: NewGameDialogProps):
           <span className={styles.label} id="new-game-difficulty">
             {t('difficulty.title')}
           </span>
-          <div
+          <SegmentedRadioGroup
             className={cx(styles.segmented, styles.levels)}
-            role="radiogroup"
-            aria-labelledby="new-game-difficulty"
-          >
-            {LEVELS.map((level) => {
-              const { key, elo } = DIFFICULTY_LEVELS[level]
-              const checked = difficulty.mode === 'fixed' && difficulty.level === level
-              return (
-                <button
-                  key={level}
-                  type="button"
-                  role="radio"
-                  aria-checked={checked}
-                  className={cx(styles.option, checked && styles.selected)}
-                  onClick={() => setDifficulty({ mode: 'fixed', level })}
-                >
-                  <span className={styles.optionLabel}>{t(`difficulty.${key}`)}</span>
-                  <span className={styles.optionCaption}>
-                    {elo === null ? t('difficulty.maxCaption') : t('difficulty.elo', { elo })}
-                  </span>
-                </button>
-              )
-            })}
-            <button
-              type="button"
-              role="radio"
-              aria-checked={difficulty.mode === 'adaptive'}
-              className={cx(styles.option, difficulty.mode === 'adaptive' && styles.selected)}
-              onClick={() => setDifficulty({ mode: 'adaptive', level: difficulty.level })}
-            >
-              <span className={styles.optionLabel}>{t('difficulty.adaptive')}</span>
-              <span className={styles.optionCaption}>{adaptiveCaption}</span>
-            </button>
-          </div>
+            labelledBy="new-game-difficulty"
+            options={difficultyOptions}
+          />
           <span className={styles.hint}>{t('newGame.difficultyHint')}</span>
           {hintKey ? <span className={styles.hint}>{t(`newGame.${hintKey}`)}</span> : null}
         </div>

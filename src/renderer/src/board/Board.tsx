@@ -47,6 +47,46 @@ export const MIN_SQUARE_PX = 44
 export const MAX_SQUARE_PX = 96
 const DEFAULT_SQUARE_PX = 64
 const ANIMATION_MS = 200
+const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)'
+
+function reducedMotionNow(): boolean {
+  try {
+    return window.matchMedia?.(REDUCED_MOTION_QUERY).matches ?? false
+  } catch {
+    return false
+  }
+}
+
+/**
+ * The OS "reduce motion" setting, kept live.
+ *
+ * chessground slides the pieces from JavaScript (it writes `transform` frame by frame and only
+ * looks at `animation.enabled`), so the blanket `transition-duration` override in themes.css
+ * cannot reach it: the board has to read the media query itself and turn the animation off.
+ */
+export function useReducedMotion(): boolean {
+  const [reduced, setReduced] = useState(reducedMotionNow)
+
+  useEffect(() => {
+    let media: MediaQueryList | undefined
+    try {
+      media = window.matchMedia?.(REDUCED_MOTION_QUERY)
+    } catch {
+      media = undefined
+    }
+    if (!media) return
+    const onChange = (event: MediaQueryListEvent | MediaQueryList): void => setReduced(event.matches)
+    onChange(media)
+    if (typeof media.addEventListener === 'function') {
+      media.addEventListener('change', onChange)
+      return () => media?.removeEventListener('change', onChange)
+    }
+    media.addListener(onChange)
+    return () => media?.removeListener(onChange)
+  }, [])
+
+  return reduced
+}
 
 /** Board edge for a container of `width` × `height`, always a multiple of 8 for crisp squares. */
 export function boardSizeFor(width: number, height: number): number {
@@ -112,6 +152,7 @@ export function Board({
   }, [fen, onMove])
 
   const [size, setSize] = useState(DEFAULT_SQUARE_PX * 8)
+  const reducedMotion = useReducedMotion()
 
   const config = useMemo<Config>(() => {
     const locked = viewOnly || !movable?.color
@@ -123,7 +164,7 @@ export function Board({
       coordinates,
       viewOnly,
       ...(lastMove ? { lastMove: [lastMove[0] as Key, lastMove[1] as Key] } : { lastMove: [] }),
-      animation: { enabled: true, duration: ANIMATION_MS },
+      animation: reducedMotion ? { enabled: false, duration: 0 } : { enabled: true, duration: ANIMATION_MS },
       highlight: { lastMove: true, check: true },
       movable: {
         free: false,
@@ -151,7 +192,7 @@ export function Board({
         }))
       }
     }
-  }, [fen, orientation, lastMove, movable, check, arrows, viewOnly, coordinates])
+  }, [fen, orientation, lastMove, movable, check, arrows, viewOnly, coordinates, reducedMotion])
 
   // The config of the very first render, so mounting and updating never disagree.
   const initialConfigRef = useRef(config)

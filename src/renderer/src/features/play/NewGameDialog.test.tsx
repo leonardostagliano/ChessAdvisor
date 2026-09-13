@@ -107,6 +107,34 @@ describe('NewGameDialog', () => {
     expect(within(group).getByRole('radio', { name: /Medio/ })).toHaveAttribute('aria-checked', 'true')
   })
 
+  it('behaves like a radio group: a single Tab stop and arrow keys that move the choice', async () => {
+    render(<NewGameDialog open onClose={() => {}} />)
+    const group = await screen.findByRole('radiogroup', { name: /difficolt/i })
+    const options = within(group).getAllByRole('radio')
+
+    // "Medio" is the remembered choice, so it is the only option Tab can land on.
+    expect(options.map((option) => option.tabIndex)).toEqual([-1, -1, 0, -1, -1, -1, -1])
+
+    fireEvent.keyDown(group, { key: 'ArrowRight' })
+    expect(within(group).getByRole('radio', { name: /Impegnativo/ })).toHaveAttribute('aria-checked', 'true')
+    expect(document.activeElement).toBe(within(group).getByRole('radio', { name: /Impegnativo/ }))
+
+    fireEvent.keyDown(group, { key: 'ArrowUp' })
+    expect(within(group).getByRole('radio', { name: /Medio/ })).toHaveAttribute('aria-checked', 'true')
+
+    fireEvent.keyDown(group, { key: 'End' })
+    expect(within(group).getByRole('radio', { name: /Adattiva/ })).toHaveAttribute('aria-checked', 'true')
+
+    // The arrows wrap around, as the radio-group pattern prescribes.
+    fireEvent.keyDown(group, { key: 'ArrowRight' })
+    expect(within(group).getByRole('radio', { name: /Principiante/ })).toHaveAttribute('aria-checked', 'true')
+
+    const colors = screen.getByRole('radiogroup', { name: 'Colore' })
+    expect(within(colors).getAllByRole('radio').map((option) => option.tabIndex)).toEqual([0, -1, -1])
+    fireEvent.keyDown(colors, { key: 'ArrowLeft' })
+    expect(within(colors).getByRole('radio', { name: 'Casuale' })).toHaveAttribute('aria-checked', 'true')
+  })
+
   it('shows the current adaptive rating under the adaptive option', async () => {
     stubBridge({ elo: 1275, games: 4 })
     render(<NewGameDialog open onClose={() => {}} />)

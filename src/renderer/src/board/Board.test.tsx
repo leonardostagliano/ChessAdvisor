@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render, screen } from '@testing-library/react'
+import { act, cleanup, render, screen } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
 import '../i18n'
 
@@ -18,7 +18,7 @@ interface CgConfig {
   viewOnly?: boolean
   movable?: { color?: string; dests?: Map<string, string[]>; events?: { after?(orig: string, dest: string): void } }
   drawable?: { autoShapes?: { orig: string; dest?: string; brush?: string }[] }
-  animation?: { duration?: number }
+  animation?: { enabled?: boolean; duration?: number }
   premovable?: { enabled?: boolean }
   draggable?: { showGhost?: boolean }
 }
@@ -63,10 +63,36 @@ const { EvalBar, evalLabel, whiteWinPercent } = await import('./EvalBar')
 const START = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
 const PROMOTION = '8/4P3/8/8/8/8/8/K6k w - - 0 1'
 
+/** A `prefers-reduced-motion` media query the test drives by hand. */
+function installReducedMotion(matches: boolean): { emit(next: boolean): void } {
+  const listeners = new Set<(event: { matches: boolean }) => void>()
+  const mql = {
+    matches,
+    media: '(prefers-reduced-motion: reduce)',
+    addEventListener: (_type: string, cb: (event: { matches: boolean }) => void) => void listeners.add(cb),
+    removeEventListener: (_type: string, cb: (event: { matches: boolean }) => void) => void listeners.delete(cb),
+    addListener: (cb: (event: { matches: boolean }) => void) => void listeners.add(cb),
+    removeListener: (cb: (event: { matches: boolean }) => void) => void listeners.delete(cb)
+  }
+  vi.stubGlobal(
+    'matchMedia',
+    vi.fn(() => mql)
+  )
+  return {
+    emit: (next: boolean) => {
+      mql.matches = next
+      for (const cb of listeners) cb({ matches: next })
+    }
+  }
+}
+
 beforeEach(() => {
   created.length = 0
 })
-afterEach(() => cleanup())
+afterEach(() => {
+  cleanup()
+  vi.unstubAllGlobals()
+})
 
 describe('Board', () => {
   it('mounts chessground and renders the 64 squares of the board', () => {
@@ -125,11 +151,30 @@ describe('Board', () => {
   })
 
   it('uses the animation, premove and ghost settings the spec asks for', () => {
+    installReducedMotion(false)
     render(<Board fen={START} />)
     const config = lastConfig()
+    expect(config.animation?.enabled).toBe(true)
     expect(config.animation?.duration).toBe(200)
     expect(config.premovable?.enabled).toBe(false)
     expect(config.draggable?.showGhost).toBe(true)
+  })
+
+  it('drops the piece animation when the system asks for reduced motion', () => {
+    installReducedMotion(true)
+    render(<Board fen={START} />)
+    // chessground animates from JavaScript, so the very first config must already say no.
+    const config = lastConfig()
+    expect(config.animation?.enabled).toBe(false)
+    expect(config.animation?.duration).toBe(0)
+  })
+
+  it('follows a change of the reduced-motion preference while the board is mounted', () => {
+    const media = installReducedMotion(false)
+    render(<Board fen={START} />)
+    expect(lastConfig().animation?.enabled).toBe(true)
+    act(() => media.emit(true))
+    expect(lastConfig().animation?.enabled).toBe(false)
   })
 
   it('locks the board while a position is only being browsed', () => {
