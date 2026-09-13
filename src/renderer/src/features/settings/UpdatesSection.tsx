@@ -35,7 +35,20 @@ export function UpdatesSection(): React.JSX.Element {
   useEffect(() => {
     alive.current = true
     const bridge = window.api
-    if (!bridge?.updates) return
+    // The version is read on its own: "Informazioni" states it even where the updater cannot run
+    // (a portable build, a development window without the updates bridge).
+    void bridge?.app
+      ?.versionInfo?.()
+      .then((info) => {
+        if (alive.current) setVersion(info)
+      })
+      .catch(() => undefined)
+
+    if (!bridge?.updates) {
+      return () => {
+        alive.current = false
+      }
+    }
     const unsubscribe = bridge.on('updates:changed', (next) => {
       if (alive.current) setStatus(next)
     })
@@ -43,12 +56,6 @@ export function UpdatesSection(): React.JSX.Element {
       .status()
       .then((next) => {
         if (alive.current) setStatus(next)
-      })
-      .catch(() => undefined)
-    void bridge.app
-      .versionInfo()
-      .then((info) => {
-        if (alive.current) setVersion(info)
       })
       .catch(() => undefined)
     return () => {
@@ -183,6 +190,19 @@ export function UpdatesSection(): React.JSX.Element {
 
       <section className={screen.card}>
         <h2 className={screen.cardTitle}>{t('about.title')}</h2>
+
+        {/* Spec §10: the app says which version of itself is running, which Codex CLI it was
+            built against, under which licence it is distributed, and what it bundles. */}
+        <dl className={styles.grid}>
+          <dt className={styles.term}>{t('about.appVersion')}</dt>
+          <dd className={`${styles.value} mono selectable`}>{versionLabel}</dd>
+          <dt className={styles.term}>{t('about.codexTested')}</dt>
+          <dd className={`${styles.value} mono selectable`}>{version?.testedCodexVersion ?? '—'}</dd>
+          <dt className={styles.term}>{t('about.license')}</dt>
+          <dd className={`${styles.value} mono selectable`}>{t('about.licenseValue')}</dd>
+        </dl>
+        <p className={screen.fieldHint}>{t('about.codexTestedHint')}</p>
+
         <div className={screen.field}>
           <span className={screen.fieldTexts}>
             <span className={screen.fieldLabel}>{t('about.notices')}</span>

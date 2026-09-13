@@ -146,10 +146,15 @@
   },
   "about": {
     "title": "About and licences",
+    "appVersion": "ChessAdvisor version",
+    "codexTested": "Reference Codex CLI",
+    "codexTestedHint": "The version the protocol types were generated from and the app was tested against.",
+    "license": "Licence",
     "notices": "Third-party licence notices",
     "noticesHint": "Stockfish, chessground, chess.js, cburnett pieces, fonts and Lichess datasets.",
     "open": "Open",
-    "loading": "Loading the notices…"
+    "loading": "Loading the notices…",
+    "licenseValue": "GPL-3.0-only"
   },
   "board": {
     "label": "Chessboard",

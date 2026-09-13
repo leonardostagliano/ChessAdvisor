@@ -61,7 +61,10 @@ function mockApi(settings: Partial<Settings> = {}): void {
     writable: true,
     value: {
       settings: { get: async () => ({ ...DEFAULT_SETTINGS, ...settings }), save },
-      app: { versionInfo: async () => ({ version: '0.1.0', isPackaged: false }), readNotices: async () => '' },
+      app: {
+        versionInfo: async () => ({ version: '0.1.0', isPackaged: false, testedCodexVersion: '0.154.0' }),
+        readNotices: async () => '# Third-party notices'
+      },
       on: () => () => {}
     }
   })
@@ -177,6 +180,20 @@ describe('SettingsScreen', () => {
     expect(await screen.findByText('Stockfish 17')).toBeInTheDocument()
     expect(screen.getByText('avx2')).toBeInTheDocument()
     expect(screen.getByText('Disponibile')).toBeInTheDocument()
+  })
+
+  it('shows the app version, the tested CLI version and the notices in Informazioni', async () => {
+    render(<SettingsScreen />)
+
+    // The version appears twice on purpose: next to the updater and in Informazioni.
+    expect(await screen.findAllByText(/base 0\.1\.0/)).toHaveLength(2)
+    expect(screen.getByText('0.154.0')).toBeInTheDocument()
+    expect(screen.getByText('GPL-3.0-only')).toBeInTheDocument()
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Apri' }))
+    })
+    expect(await screen.findByText('# Third-party notices')).toBeInTheDocument()
   })
 
   it('disables the model pickers and warns when no Codex session is ready', async () => {

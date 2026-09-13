@@ -1,4 +1,5 @@
 import { app } from 'electron'
+import { TESTED_CODEX_VERSION } from '../codex/protocolVersion'
 
 /**
  * Installed packages always keep the release version written by CI.
@@ -15,8 +16,14 @@ export function getAppVersion(): string {
 export interface AppVersionInfo {
   version: string
   isPackaged: boolean
+  /** Codex CLI version this build was generated and tested against (spec §3.1). */
+  testedCodexVersion: string
 }
 
 export function getAppVersionInfo(): AppVersionInfo {
-  return { version: getAppVersion(), isPackaged: app.isPackaged }
+  return {
+    version: getAppVersion(),
+    isPackaged: app.isPackaged,
+    testedCodexVersion: TESTED_CODEX_VERSION
+  }
 }

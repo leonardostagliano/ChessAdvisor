@@ -146,10 +146,15 @@
   },
   "about": {
     "title": "Informazioni e licenze",
+    "appVersion": "Versione di ChessAdvisor",
+    "codexTested": "Codex CLI di riferimento",
+    "codexTestedHint": "Versione con cui sono stati generati i tipi del protocollo e provata l’app.",
+    "license": "Licenza",
     "notices": "Note sulle licenze di terze parti",
     "noticesHint": "Stockfish, chessground, chess.js, pezzi cburnett, font e dataset Lichess.",
     "open": "Apri",
-    "loading": "Caricamento delle note…"
+    "loading": "Caricamento delle note…",
+    "licenseValue": "GPL-3.0-only"
   },
   "board": {
     "label": "Scacchiera",

@@ -20,6 +20,8 @@ import type { UpdateStatus, UpdatesApi } from '../updates'
 export interface AppVersionInfo {
   version: string
   isPackaged: boolean
+  /** Codex CLI version this build was generated and tested against (spec §3.1). */
+  testedCodexVersion: string
 }
 
 /** Delta envelope pushed on the `stream` channel while a turn is running. */
