@@ -1,8 +1,9 @@
+import { epdOf } from '@shared/chess/notation'
 import type { Analysis, AnalysisProfile } from '@shared/types/engine'
 import type { Eval, Game, Move } from '@shared/types/game'
 import { acpl, gameAccuracy } from './accuracy'
 import { classify } from './classify'
-import { detectOpening, EMPTY_BOOK, type OpeningBook } from './openings'
+import { detectOpening, EMPTY_BOOK, MAX_BOOK_PLIES, type OpeningBook } from './openings'
 import { internalCp, winPercent, winPercentLoss } from './winPercent'
 
 /**
@@ -80,7 +81,14 @@ export async function analyzeGame(game: Game, engine: AnalysisEngine, openings: 
 
   const opening = detectOpening(fens, openings)
   if (opening) game.opening = opening
-  const lastBookPly = opening?.lastBookPly ?? 0
+
+  /**
+   * Rule 5: a move is `book` when the position it *reaches* is itself in the dataset — not when it
+   * merely precedes a later recognised position. The dataset has gaps inside well-known lines (the
+   * Ruy Lopez Morphy line has none of 4. Ba4 and 4… Nf6 but does have 5. O-O), so a real blunder
+   * played inside theory must still be judged and still reach the key moments.
+   */
+  const inBookAt = (ply: number): boolean => ply <= MAX_BOOK_PLIES && openings.byEpd.has(epdOf(fens[ply] ?? ''))
 
   const search = async (fen: string): Promise<Searched> => {
     const analysis = await engine.analyze(fen, 'review', opts?.signal ? { signal: opts.signal } : undefined)
@@ -107,7 +115,7 @@ export async function analyzeGame(game: Game, engine: AnalysisEngine, openings: 
       after: fromMover(after.score, mover),
       cpLoss,
       winPercentLoss: loss,
-      classification: classify({ loss, playedUci: move.uci, bestUci: before.bestUci, inBook: ply <= lastBookPly }),
+      classification: classify({ loss, playedUci: move.uci, bestUci: before.bestUci, inBook: inBookAt(ply) }),
       bestMove: before.bestUci,
       bestLine: [...before.bestLine]
     }

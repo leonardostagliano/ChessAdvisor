@@ -136,6 +136,26 @@ describe('analyzeGame', () => {
     expect(game.moves[3]!.eval?.bestLine.length).toBeGreaterThan(0)
   })
 
+  it('judges a move that leaves the dataset even when a later position of the line is book', async () => {
+    // The Ruy Lopez Morphy line has gaps: 4. Ba4 (ply 7) and 4… Nf6 (ply 8) are absent from the
+    // dataset, 5. O-O (ply 9) is back in it. A blunder played in the gap must still be judged.
+    const game = gameOf(['e4', 'e5', 'Nf3', 'Nc6', 'Bb5', 'a6', 'Ba4', 'Nf6', 'O-O'])
+    const book = openings()
+    const bookPlies = positionsOf(game).map((fen, ply) => (ply > 0 && book.byEpd.has(epdOf(fen)) ? ply : 0)).filter((ply) => ply > 0)
+    expect(bookPlies).toEqual([1, 2, 3, 4, 5, 6, 9])
+
+    // Even at +20, White throws the game away with 4. Ba4 (ply 7): the score collapses to −900.
+    const engine = fakeEngine([20, 20, 20, 20, 20, 20, 20, -900, -900, -900], (fen, index) => legalMoves(fen).find((move) => move.uci !== game.moves[index]?.uci)?.uci ?? '')
+    engine.script(positionsOf(game))
+
+    await analyzeGame(game, engine, book)
+
+    expect(game.opening?.lastBookPly).toBe(9)
+    expect(game.moves.map((move) => move.eval?.classification)).toEqual(['book', 'book', 'book', 'book', 'book', 'book', 'blunder', 'excellent', 'book'])
+    expect(game.moves[6]!.eval!.winPercentLoss).toBeGreaterThan(30)
+    expect(game.analysis?.keyMoments).toEqual([7])
+  })
+
   it('marks only the user’s own mistakes as key moments', async () => {
     const game = gameOf(['h4', 'e5', 'a4', 'Qh4'])
     // Ply 3 (the user's) and ply 4 (the AI's) both lose a lot; only the user's is a key moment.
