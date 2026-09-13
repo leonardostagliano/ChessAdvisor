@@ -1,5 +1,6 @@
-import { useEffect, useRef } from 'react'
+import { useRef } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useFollowFeed } from './useFollowFeed'
 import type { Game, Move } from '@shared/types/game'
 import type { SessionState } from '@shared/types/session'
 import { Button } from '../../components/ui/Button'
@@ -42,10 +43,7 @@ export function CommentsTab({ session }: CommentsTabProps): React.JSX.Element {
   // always started from the Coach tab, which marks itself while they run.
   const writing = visible && session.coach.busy && request === null
 
-  useEffect(() => {
-    const node = feedRef.current
-    if (node) node.scrollTop = node.scrollHeight
-  }, [commented.length, stream?.text, writing])
+  useFollowFeed(feedRef, [commented.length, stream?.text, writing])
 
   return (
     <div className={styles.panel}>

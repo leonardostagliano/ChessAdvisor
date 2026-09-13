@@ -4,7 +4,8 @@
   flex-direction: column;
   gap: var(--s-2);
   min-height: 0;
-  height: 100%;
+  /* The tab panel is a column flexbox: grow into it so that `.feed` is the element that scrolls. */
+  flex: 1;
 }
 
 .head {

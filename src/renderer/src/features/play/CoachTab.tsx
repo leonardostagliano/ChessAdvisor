@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useRef, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useFollowFeed } from './useFollowFeed'
 import type { CoachLogEntry, Game } from '@shared/types/game'
 import type { SessionState } from '@shared/types/session'
 import { Button } from '../../components/ui/Button'
@@ -59,10 +60,7 @@ export function CoachTab({ session, engineAvailable }: CoachTabProps): React.JSX
   const pending = request !== null
   const answering = request === 'answer'
 
-  useEffect(() => {
-    const node = feedRef.current
-    if (node) node.scrollTop = node.scrollHeight
-  }, [dialogue.length, stream?.text, hint?.uci, answering])
+  useFollowFeed(feedRef, [dialogue.length, stream?.text, hint?.uci, answering])
 
   const submit = (event: FormEvent): void => {
     event.preventDefault()
