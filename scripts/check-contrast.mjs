@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 /**
  * Contrast check of both palettes (spec §7: 4.5:1 for text, 3:1 for graphic elements).
  *

@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 // @ts-nocheck
 /**
  * Downloads the two bundled Stockfish builds into `resources/engine`.
