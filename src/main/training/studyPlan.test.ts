@@ -3,9 +3,9 @@ import { describe, expect, it } from 'vitest'
 import { THEMES } from '../profile/themes'
 import { buildCatalogue, decoratePlan, planView, validatePlanItems, PLAN_MAX_ITEMS, PLAN_STALE_GAMES } from './studyPlan'
 
-const exercise = (id: string, status: Exercise['status']): Exercise => ({
+const exercise = (id: string, status: Exercise['status'], kind: Exercise['kind'] = 'own_game'): Exercise => ({
   id,
-  kind: 'own_game',
+  kind,
   fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
   sideToMove: 'w',
   solution: ['e2e4'],
@@ -26,7 +26,12 @@ const endgame = (id: string): EndgamePosition => ({
 })
 
 const catalogue: StudyCatalogue = buildCatalogue({
-  exercises: [exercise('og-g1-7', 'new'), exercise('og-g1-9', 'solved')],
+  exercises: [
+    exercise('og-g1-7', 'new'),
+    exercise('og-g1-9', 'solved'),
+    exercise('tac-p1', 'new', 'thematic'),
+    exercise('end-queen_mate', 'new', 'endgame')
+  ],
   openings: ['C60', 'C60', 'B20'],
   endgames: [endgame('queen_mate')]
 })
@@ -34,9 +39,19 @@ const catalogue: StudyCatalogue = buildCatalogue({
 describe('buildCatalogue', () => {
   it('offers the whole taxonomy, the unsolved exercises, the openings once and the endgames', () => {
     expect(catalogue.themes).toEqual([...THEMES])
+    // Only the exercises taken from the user's own games: a thematic puzzle is reached through its
+    // theme and a drill through its endgame id, so neither belongs to the `own_game` bucket.
     expect(catalogue.exercises).toEqual(['og-g1-7'])
     expect(catalogue.openings).toEqual(['C60', 'B20'])
     expect(catalogue.endgames).toEqual(['queen_mate'])
+  })
+
+  it('refuses to label a thematic puzzle or a drill in progress as an own-game exercise', () => {
+    const items = validatePlanItems(
+      { items: [{ title: 'T', why: 'p', activity: { type: 'own_game', ref: 'tac-p1' } }, { title: 'T', why: 'p', activity: { type: 'own_game', ref: 'end-queen_mate' } }] },
+      catalogue
+    )
+    expect(items).toEqual([])
   })
 })
 

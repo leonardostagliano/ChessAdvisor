@@ -30,11 +30,18 @@ const isRecord = (value: unknown): value is Record<string, unknown> => typeof va
 /**
  * The catalogue of everything a plan may point at (spec §6.8): the whole taxonomy, the exercises
  * still to be solved, the openings the profile knows and the curated endgames.
+ *
+ * `exercises` backs the `own_game` activity only, so it holds the exercises carved out of the
+ * user's own games and nothing else: an unsolved thematic puzzle is reached through its theme and
+ * a drill through its endgame id, and letting either leak in here would let the plan call them
+ * "your own game".
  */
 export function buildCatalogue(p: { exercises: Exercise[]; openings: string[]; endgames: EndgamePosition[] }): StudyCatalogue {
   return {
     themes: [...THEMES],
-    exercises: p.exercises.filter((exercise) => exercise.status === 'new').map((exercise) => exercise.id),
+    exercises: p.exercises
+      .filter((exercise) => exercise.status === 'new' && exercise.kind === 'own_game')
+      .map((exercise) => exercise.id),
     openings: [...new Set(p.openings)],
     endgames: p.endgames.map((endgame) => endgame.id)
   }

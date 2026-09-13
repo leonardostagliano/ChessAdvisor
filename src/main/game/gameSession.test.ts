@@ -511,6 +511,26 @@ describe('GameSession', () => {
       // Drills are not matches: they never move the adaptive rating.
       expect(profile.get().adaptive).toBeUndefined()
     })
+
+    it('leaves the new-game choices untouched when a drill is started', async () => {
+      await session.newGame(options({ difficulty: { mode: 'adaptive', level: 3 } }))
+      expect(settings.get()).toMatchObject({
+        defaultModel: 'gpt-6-astra',
+        defaultEffort: 'medium',
+        lastDifficulty: { mode: 'adaptive', level: 3 }
+      })
+
+      // The training screen starts drills with a difficulty and a model of its own: the dialog
+      // must still reopen on what the user chose for their games (spec §4.3).
+      await session.newGame(
+        options({ kind: 'endgame_drill', difficulty: { mode: 'fixed', level: 6 }, model: 'gpt-5.5', effort: 'xhigh', startFen: MATE_IN_ONE })
+      )
+      expect(settings.get()).toMatchObject({
+        defaultModel: 'gpt-6-astra',
+        defaultEffort: 'medium',
+        lastDifficulty: { mode: 'adaptive', level: 3 }
+      })
+    })
   })
 
   describe('coach', () => {

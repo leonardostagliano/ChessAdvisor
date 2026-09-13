@@ -248,10 +248,14 @@ export class GameSession {
       ...(opts.startFen ? { startFen: opts.startFen } : {})
     })
 
-    // The dialog reopens on the same choices next time (spec §4.3).
-    await this.deps.settings
-      .save({ defaultModel: opts.model, defaultEffort: opts.effort, lastDifficulty: { ...opts.difficulty } })
-      .catch((error) => console.error('[game] the new-game choices could not be saved:', error))
+    // The dialog reopens on the same choices next time (spec §4.3). Only a real match writes them:
+    // an endgame drill is started from the training screen with a difficulty of its own (level 6,
+    // see `resolveDifficulty`) and must not overwrite what the user chose for their games.
+    if (kind === 'match') {
+      await this.deps.settings
+        .save({ defaultModel: opts.model, defaultEffort: opts.effort, lastDifficulty: { ...opts.difficulty } })
+        .catch((error) => console.error('[game] the new-game choices could not be saved:', error))
+    }
 
     this.game = game
     this.buildClock(game)
