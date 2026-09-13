@@ -12,3 +12,4 @@ release/
 *.tsbuildinfo
 resources/engine/.download/
 test/e2e/shots/
+resources/data/.download/

@@ -12,7 +12,7 @@ executable under `resources/licenses`.
 | chess.js | ^1.4 | BSD-2-Clause | below |
 | cburnett chess pieces | — | GPL (Colin M.L. Burnett) | `licenses/cburnett-notice.txt` |
 | Inter, JetBrains Mono, Fraunces | @fontsource | SIL OFL 1.1 | `licenses/fonts-ofl.txt` |
-| Lichess datasets (puzzles, openings, endgames) | — | CC0 1.0 | `licenses/lichess-cc0.txt` |
+| Lichess datasets (puzzle database, chess-openings) | dumps of 2026 | CC0 1.0 | `licenses/lichess-cc0.txt` |
 | Electron, React, Vite, Zustand, i18next and the other npm dependencies | see `package-lock.json` | MIT / BSD / Apache-2.0 | in each package under `node_modules` |
 
 ## Stockfish
@@ -80,10 +80,18 @@ loaded from a CDN. The full licence text is in `licenses/fonts-ofl.txt`.
 
 ## Lichess datasets
 
-`resources/data/puzzles.json`, `openings.json` and `endgames.json` derive from
-the open Lichess datasets (puzzle database and `lichess-org/chess-openings`),
-released under **CC0 1.0**. The EPD used to recognise openings by position is
-computed by ChessAdvisor's own preparation script.
+`resources/data/puzzles.json` and `resources/data/openings.json` derive from the
+open Lichess datasets — the [puzzle database](https://database.lichess.org/) and
+[`lichess-org/chess-openings`](https://github.com/lichess-org/chess-openings) —
+both released under **CC0 1.0**, which waives every copyright restriction. The
+subsets are produced by `npm run build:datasets` (`scripts/build-datasets.mjs`),
+which also computes the EPD used to recognise openings by position and applies
+the opponent premove of each puzzle. `fzstd` (MIT), used only by that script to
+decompress the puzzle dump, is a development dependency and is not shipped.
+
+`resources/data/endgames.json` is not derived from anything: the twenty canonical
+positions are written by hand in the same script and are part of ChessAdvisor,
+under its own GPL-3.0 licence.
 
 ## OpenAI models
 

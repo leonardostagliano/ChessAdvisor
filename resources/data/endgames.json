@@ -1,0 +1,242 @@
+[
+  {
+    "id": "queen_mate",
+    "name": {
+      "it": "Matto con la donna",
+      "en": "Queen mate"
+    },
+    "fen": "8/8/8/4k3/8/8/8/3QK3 w - - 0 1",
+    "sideToMove": "w",
+    "goal": "win",
+    "difficulty": 1,
+    "theme": "endgame_technique"
+  },
+  {
+    "id": "rook_mate",
+    "name": {
+      "it": "Matto con la torre",
+      "en": "Rook mate"
+    },
+    "fen": "8/8/8/4k3/8/8/8/3RK3 w - - 0 1",
+    "sideToMove": "w",
+    "goal": "win",
+    "difficulty": 1,
+    "theme": "endgame_technique"
+  },
+  {
+    "id": "two_bishops_mate",
+    "name": {
+      "it": "Matto con i due alfieri",
+      "en": "Two bishops mate"
+    },
+    "fen": "8/8/8/4k3/8/8/8/2BBK3 w - - 0 1",
+    "sideToMove": "w",
+    "goal": "win",
+    "difficulty": 2,
+    "theme": "endgame_technique"
+  },
+  {
+    "id": "bishop_knight_mate",
+    "name": {
+      "it": "Matto con alfiere e cavallo",
+      "en": "Bishop and knight mate"
+    },
+    "fen": "8/8/8/4k3/8/4K3/8/3BN3 w - - 0 1",
+    "sideToMove": "w",
+    "goal": "win",
+    "difficulty": 3,
+    "theme": "endgame_technique"
+  },
+  {
+    "id": "kp_king_in_front",
+    "name": {
+      "it": "Re e pedone: re davanti al pedone",
+      "en": "King and pawn: king in front"
+    },
+    "fen": "4k3/8/4K3/4P3/8/8/8/8 w - - 0 1",
+    "sideToMove": "w",
+    "goal": "win",
+    "difficulty": 1,
+    "theme": "endgame_technique"
+  },
+  {
+    "id": "kp_key_squares",
+    "name": {
+      "it": "Re e pedone: case chiave",
+      "en": "King and pawn: key squares"
+    },
+    "fen": "8/8/8/3K4/8/8/3P4/3k4 w - - 0 1",
+    "sideToMove": "w",
+    "goal": "win",
+    "difficulty": 2,
+    "theme": "endgame_technique"
+  },
+  {
+    "id": "kp_distant_opposition",
+    "name": {
+      "it": "Opposizione a distanza",
+      "en": "Distant opposition"
+    },
+    "fen": "8/8/8/3k4/8/3K4/3P4/8 b - - 0 1",
+    "sideToMove": "b",
+    "goal": "draw",
+    "difficulty": 3,
+    "theme": "endgame_technique"
+  },
+  {
+    "id": "kp_rook_pawn_corner",
+    "name": {
+      "it": "Pedone di torre: patta nell’angolo",
+      "en": "Rook pawn: draw in the corner"
+    },
+    "fen": "7k/8/7K/7P/8/8/8/8 b - - 0 1",
+    "sideToMove": "b",
+    "goal": "draw",
+    "difficulty": 2,
+    "theme": "endgame_technique"
+  },
+  {
+    "id": "king_in_the_square",
+    "name": {
+      "it": "La regola del quadrato",
+      "en": "The square of the pawn"
+    },
+    "fen": "8/8/8/4k3/P7/8/8/6K1 b - - 0 1",
+    "sideToMove": "b",
+    "goal": "draw",
+    "difficulty": 1,
+    "theme": "endgame_technique"
+  },
+  {
+    "id": "pawn_breakthrough",
+    "name": {
+      "it": "La rottura dei tre pedoni",
+      "en": "Three pawns breakthrough"
+    },
+    "fen": "7k/ppp5/8/PPP5/8/8/8/7K w - - 0 1",
+    "sideToMove": "w",
+    "goal": "win",
+    "difficulty": 2,
+    "theme": "pawn_structure"
+  },
+  {
+    "id": "outside_passed_pawn",
+    "name": {
+      "it": "Il pedone passato esterno",
+      "en": "The outside passed pawn"
+    },
+    "fen": "8/8/8/2k1p3/P3P3/2K5/8/8 w - - 0 1",
+    "sideToMove": "w",
+    "goal": "win",
+    "difficulty": 2,
+    "theme": "pawn_structure"
+  },
+  {
+    "id": "lucena",
+    "name": {
+      "it": "Posizione di Lucena",
+      "en": "Lucena position"
+    },
+    "fen": "1K6/1P1k4/8/8/8/8/r7/2R5 w - - 0 1",
+    "sideToMove": "w",
+    "goal": "win",
+    "difficulty": 3,
+    "theme": "endgame_technique"
+  },
+  {
+    "id": "philidor",
+    "name": {
+      "it": "Posizione di Philidor",
+      "en": "Philidor position"
+    },
+    "fen": "8/4k3/r7/4K3/4P3/8/8/7R b - - 0 1",
+    "sideToMove": "b",
+    "goal": "draw",
+    "difficulty": 3,
+    "theme": "endgame_technique"
+  },
+  {
+    "id": "vancura",
+    "name": {
+      "it": "Posizione di Vancura",
+      "en": "Vancura position"
+    },
+    "fen": "R7/6k1/P4r2/8/8/8/8/6K1 b - - 0 1",
+    "sideToMove": "b",
+    "goal": "draw",
+    "difficulty": 3,
+    "theme": "endgame_technique"
+  },
+  {
+    "id": "rook_behind_passer",
+    "name": {
+      "it": "Torre dietro al pedone passato",
+      "en": "Rook behind the passed pawn"
+    },
+    "fen": "r7/8/8/P6k/4K3/8/8/R7 w - - 0 1",
+    "sideToMove": "w",
+    "goal": "win",
+    "difficulty": 2,
+    "theme": "endgame_technique"
+  },
+  {
+    "id": "rook_vs_bishop",
+    "name": {
+      "it": "Torre contro alfiere",
+      "en": "Rook versus bishop"
+    },
+    "fen": "5k2/5b2/8/8/8/8/3R4/5K2 b - - 0 1",
+    "sideToMove": "b",
+    "goal": "draw",
+    "difficulty": 2,
+    "theme": "endgame_technique"
+  },
+  {
+    "id": "queen_vs_center_pawn",
+    "name": {
+      "it": "Donna contro pedone centrale",
+      "en": "Queen versus central pawn"
+    },
+    "fen": "8/8/7K/Q7/8/8/3p4/3k4 w - - 0 1",
+    "sideToMove": "w",
+    "goal": "win",
+    "difficulty": 3,
+    "theme": "endgame_technique"
+  },
+  {
+    "id": "queen_vs_rook_pawn",
+    "name": {
+      "it": "Donna contro pedone di torre",
+      "en": "Queen versus rook pawn"
+    },
+    "fen": "8/8/5K2/4Q3/8/8/p7/1k6 b - - 0 1",
+    "sideToMove": "b",
+    "goal": "draw",
+    "difficulty": 3,
+    "theme": "endgame_technique"
+  },
+  {
+    "id": "queen_vs_rook",
+    "name": {
+      "it": "Donna contro torre",
+      "en": "Queen versus rook"
+    },
+    "fen": "6k1/5r2/8/8/4Q3/8/8/6K1 w - - 0 1",
+    "sideToMove": "w",
+    "goal": "win",
+    "difficulty": 3,
+    "theme": "endgame_technique"
+  },
+  {
+    "id": "wrong_bishop",
+    "name": {
+      "it": "Alfiere di colore sbagliato",
+      "en": "Wrong-coloured bishop"
+    },
+    "fen": "7k/5K2/7P/3B4/8/8/8/8 b - - 0 1",
+    "sideToMove": "b",
+    "goal": "draw",
+    "difficulty": 3,
+    "theme": "endgame_technique"
+  }
+]

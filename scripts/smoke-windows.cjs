@@ -5,7 +5,7 @@
 const { statSync } = require('node:fs')
 const path = require('node:path')
 
-// The datasets ship from M5 on. Until then their absence is reported but does not fail the build.
+// Training needs all three datasets (spec §3.1): a package without them is broken, not incomplete.
 const ENGINE_BINARIES = ['stockfish-avx2.exe', 'stockfish-popcnt.exe']
 const DATASETS = ['puzzles.json', 'openings.json', 'endgames.json']
 
@@ -33,19 +33,9 @@ try {
 
   for (const name of ENGINE_BINARIES) nonEmptyFile(path.join(resources, 'engine', name))
 
-  const missingData = []
-  for (const name of DATASETS) {
-    try {
-      nonEmptyFile(path.join(resources, 'data', name))
-    } catch {
-      missingData.push(name)
-    }
-  }
-  if (missingData.length > 0) {
-    console.warn(`Warning: datasets not packaged yet (added in M5): ${missingData.join(', ')}`)
-  }
+  for (const name of DATASETS) nonEmptyFile(path.join(resources, 'data', name))
 
-  console.log(`Windows package ${process.env.RELEASE_VERSION}: manifest and Stockfish binaries OK`)
+  console.log(`Windows package ${process.env.RELEASE_VERSION}: manifest, Stockfish binaries and datasets OK`)
   process.exit(0)
 } catch (error) {
   console.error(`Windows package smoke failed: ${error.message}`)
