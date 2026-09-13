@@ -454,6 +454,12 @@ async function buildPuzzles({ from, out }) {
  * know, from the basic mates to Lucena, Philidor and Vancura. `goal` is what the side to move is
  * playing for, so a `draw` position is a defensive drill. Each one is validated below before the
  * dataset is written.
+ *
+ * `validateEndgames` only proves a position is legal and playable: whether the declared `goal` is
+ * actually reachable is a theoretical claim no test can check offline, so every entry here has been
+ * verified against the bundled Stockfish (`resources/engine/stockfish-avx2.exe`, depth 30+) — a
+ * `win` scores decisively for the side to move, a `draw` scores about zero. Re-run that check by
+ * hand whenever a position is added or edited: a wrong `goal` is a drill the user cannot pass.
  */
 export const ENDGAMES = [
   {
@@ -513,7 +519,10 @@ export const ENDGAMES = [
   {
     id: 'kp_distant_opposition',
     name: { it: 'Opposizione a distanza', en: 'Distant opposition' },
-    fen: '8/8/8/3k4/8/3K4/3P4/8 b - - 0 1',
+    // Black draws with the single move 1...Kd5, taking the opposition; every other king move
+    // loses (Stockfish 17.1 at depth 34: mate for White after Kc5/Kc6/Kc7/Kd7/Ke5/Ke6/Ke7).
+    // With the black king on d5 instead the defence is already lost, so the square matters.
+    fen: '8/8/3k4/8/8/3K4/3P4/8 b - - 0 1',
     sideToMove: 'b',
     goal: 'draw',
     difficulty: 3,
