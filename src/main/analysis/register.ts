@@ -52,6 +52,12 @@ export interface AnalysisManagerDeps {
   emit(channel: 'analysis:progress' | 'review:activity' | 'stream', payload: AnalysisProgress | ReviewActivity | StreamEnvelope): void
   /** Where `openings.json` lives; resolved lazily so a test can point somewhere else. */
   openingsPath(): string
+  /**
+   * M4 hook: the game has been analysed and saved, so the profile can label its key moments and
+   * update its statistics (spec §6.1, §6.3). Fire-and-forget by contract — a failing profile
+   * update never touches the analysis that produced it.
+   */
+  onAnalyzed?(game: Game): void
   now?: () => number
 }
 
@@ -195,6 +201,11 @@ export class AnalysisManager {
         { now: () => this.now() }
       )
       await this.deps.store.save(analysed)
+      try {
+        this.deps.onAnalyzed?.(analysed)
+      } catch (error) {
+        console.error('[analysis] the profile hook failed:', error)
+      }
       return analysed
     })()
     // Every caller — the one that started the run and the ones that joined it — waits on the very

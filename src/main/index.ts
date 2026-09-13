@@ -8,6 +8,7 @@ import { userCodexHome } from './codex/codexHome'
 import { EngineService } from './engine/engineService'
 import { GameManager } from './game/gameManager'
 import { emit, handle, registerIpc } from './ipc/register'
+import { ProfileService } from './profile/profileService'
 import { codexHomeDir, dataDir, pinUserDataPath, resourcePath } from './paths'
 import { killStalePids } from './process/runtimeState'
 import { cleanupTmp } from './store/atomicWrite'
@@ -55,6 +56,15 @@ shutdown.register(() => codex.shutdown())
 // One session for the whole process: it owns the board, the opponent thread and the autosave.
 const games = new GameStore(join(dataDir(), 'games'))
 const profile = new ProfileStore(join(dataDir(), 'profile.json'))
+// --- Task 17: the player profile ---
+// Level, themes, openings and history; it is fed by the analysis and read by Progressi (spec §6).
+const profileService = new ProfileService({
+  codex,
+  settings,
+  profile,
+  games,
+  emit: (channel, payload) => emit(channel, payload)
+})
 // --- Task 15: post-game analysis and review ---
 // Owns the pipeline and the review threads; a finished match hands itself to it (spec §3.1).
 const analysis = new AnalysisManager({
@@ -63,7 +73,9 @@ const analysis = new AnalysisManager({
   store: games,
   settings,
   emit: (channel, payload) => emit(channel, payload),
-  openingsPath: () => resourcePath('data', 'openings.json')
+  openingsPath: () => resourcePath('data', 'openings.json'),
+  // An analysed match updates the profile; a failure there never touches the analysis (spec §6.1).
+  onAnalyzed: (analysed) => void profileService.onGameAnalyzed(analysed).catch((error) => console.error('[main] the profile update failed:', error))
 })
 shutdown.register(() => analysis.close())
 const game = new GameManager({ codex, engine, store: games, settings, profile, emit, onFinished: (finished) => analysis.onGameFinished(finished) })
@@ -153,7 +165,7 @@ if (!gotLock) {
     // Task 9: the archive index and the profile are read once, before the first IPC call.
     await games.load().catch((error) => console.error('[main] the games archive could not be read:', error))
     await profile.load().catch((error) => console.error('[main] the profile could not be read:', error))
-    registerIpc({ settings, showWindow: showMainWindow, engine, codex, games, game, analysis })
+    registerIpc({ settings, showWindow: showMainWindow, engine, codex, games, game, analysis, profile: profileService })
     // In-app updater: never installs while a game turn is in flight.
     registerUpdates({
       handle,

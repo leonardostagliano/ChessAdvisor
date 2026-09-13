@@ -453,6 +453,48 @@ FEN: ${OPENING_FEN}`, HINT_SCHEMA)
     expect(lesson.summary).toBe('fake')
   })
 
+  it('labels the key moments and writes a qualitative assessment (spec §6.1, §6.3)', async () => {
+    const harness = startServer()
+    await harness.client.request('initialize', {
+      clientInfo: { name: 'chessadvisor', title: 'ChessAdvisor', version: '0.1.0' },
+      capabilities: null
+    })
+    const threadId = await startThread(harness)
+
+    const labelled = JSON.parse(
+      await runTextTurn(harness, threadId, ['Etichetta i momenti chiave.', '- 7. Nxe5 (f3e5)', '- 12. Qh5 (d1h5)'].join('\n'), {
+        type: 'object',
+        required: ['labels'],
+        additionalProperties: false,
+        properties: {
+          labels: {
+            type: 'array',
+            items: {
+              type: 'object',
+              required: ['ply', 'theme', 'note'],
+              additionalProperties: false,
+              properties: { ply: { type: 'number' }, theme: { type: 'string' }, note: { type: 'string' } }
+            }
+          }
+        }
+      })
+    ) as { labels: { ply: number; theme: string; note: string }[] }
+    expect(labelled.labels.map((label) => label.ply)).toEqual([7, 12])
+    expect(labelled.labels[0]!.theme).toBe('fork')
+    expect(labelled.labels[1]!.theme).toBe('pin')
+
+    const assessment = JSON.parse(
+      await runTextTurn(harness, threadId, 'Valuta il gioco della persona che alleni.', {
+        type: 'object',
+        required: ['strengths', 'weaknesses'],
+        additionalProperties: false,
+        properties: { strengths: { type: 'array', items: { type: 'string' } }, weaknesses: { type: 'array', items: { type: 'string' } } }
+      })
+    ) as { strengths: string[]; weaknesses: string[] }
+    expect(assessment.strengths).toHaveLength(2)
+    expect(assessment.weaknesses).toHaveLength(2)
+  })
+
   it('reports a logged-out account when FAKE_CODEX_LOGGED_OUT=1', async () => {
     const harness = startServer({ FAKE_CODEX_LOGGED_OUT: '1' })
     const account = await harness.client.request<{

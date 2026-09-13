@@ -117,6 +117,40 @@ function forcedMoveFrom(text) {
   return match ? match[1] : null
 }
 
+/** The fixed taxonomy of spec §6.2, copied here: the fake never imports the app's TypeScript. */
+const THEMES = [
+  'fork',
+  'pin',
+  'skewer',
+  'hanging_piece',
+  'back_rank',
+  'discovered_attack',
+  'overloaded_piece',
+  'king_safety',
+  'pawn_structure',
+  'opening_principles',
+  'development',
+  'center_control',
+  'endgame_technique',
+  'piece_activity',
+  'trade_evaluation',
+  'time_pressure',
+  'calculation_error',
+  'missed_tactic'
+]
+
+/** Plies of a labelling prompt: every moment is a line that starts with `- <ply>.` (spec §6.3). */
+function pliesFrom(text) {
+  const plies = []
+  const pattern = /^-\s*(\d+)\./gm
+  let match = pattern.exec(text)
+  while (match) {
+    plies.push(Number(match[1]))
+    match = pattern.exec(text)
+  }
+  return plies
+}
+
 function schemaProperties(params) {
   const schema = params?.outputSchema
   if (!schema || typeof schema !== 'object') return null
@@ -222,6 +256,17 @@ export function createFakeServer(io, options = {}) {
     }
     if (properties && 'takeaways' in properties) {
       return JSON.stringify({ takeaways: ['a', 'b', 'c'], summary: 'fake' })
+    }
+    // Labelling of the key moments (spec §6.3): one label per ply listed in the prompt.
+    if (properties && 'labels' in properties) {
+      return JSON.stringify({ labels: pliesFrom(text).map((ply, index) => ({ ply, theme: THEMES[index % THEMES.length], note: 'fake label' })) })
+    }
+    // Qualitative assessment of the profile (spec §6.1).
+    if (properties && 'strengths' in properties) {
+      return JSON.stringify({
+        strengths: ['fake strength one', 'fake strength two'],
+        weaknesses: ['fake weakness one', 'fake weakness two']
+      })
     }
     // Plain-text review turns (spec §4.4): a past ply, or one of the key moments.
     if (text.includes('Rivedi la mossa')) return 'Commento finto in revisione.'

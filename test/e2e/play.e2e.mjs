@@ -241,6 +241,17 @@ try {
   ok('the lesson lists three takeaways', takeaways === 3, `${takeaways} takeaways`)
   await sleep(300); await shot('08-review.png')
 
+  // The analysis feeds the profile (spec §6.1): the level and the history are written by then.
+  const profile = await until(async () => {
+    const value = await api(() => window.api.profile.get())
+    return value && value.history.length > 0 ? value : null
+  }, 60000, 'the profile of the analysed match').catch(() => null)
+  ok(
+    'the analysed match lands in the profile',
+    Boolean(profile) && profile.history[0].gameId === reviewedId && profile.level.band.length > 0 && profile.gamesSincePlan === 1,
+    profile ? `band=${profile.level.band} estimate=${profile.level.estimate} history=${profile.history.length}` : 'no profile'
+  )
+
   await page.getByRole('button', { name: /^Chiudi la revisione$/ }).click()
   await page.locator('cg-board').first().waitFor()
 

@@ -2,6 +2,7 @@ import type { Game, GameAnalysis, GameFilter, GameSummary } from './game'
 import type { CodexState, ModelInfo, QuotaSnapshot } from './codex'
 import type { NewGameOptions, SessionState } from './session'
 import type { Settings } from './settings'
+import type { Profile } from './profile'
 import type { Analysis, AnalysisProfile, EngineState } from './engine'
 import type { UpdateStatus, UpdatesApi } from '../updates'
 
@@ -185,4 +186,19 @@ export interface Api {
   review: ReviewApi
   on(channel: 'analysis:progress', cb: (e: AnalysisProgress) => void): () => void
   on(channel: 'review:activity', cb: (e: ReviewActivity) => void): () => void
+}
+
+// ─── Task 17: the player profile (spec §5, §6.1, §6.3) ────────────────────────
+// The profile is written by the main process alone — the analysis of a match feeds it — so the
+// renderer only reads it and follows `profile:changed`.
+
+export interface ProfileApi {
+  get(): Promise<Profile>
+  /** Asks the coach for a fresh qualitative assessment; resolves with the saved profile. */
+  refreshQualitative(): Promise<Profile>
+}
+
+export interface Api {
+  profile: ProfileApi
+  on(channel: 'profile:changed', cb: (p: Profile) => void): () => void
 }

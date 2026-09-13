@@ -5,10 +5,21 @@ import type { NewGameOptions, SessionState } from '@shared/types/session'
 import type { Game, GameFilter, GameSummary } from '@shared/types/game'
 import type { CodexState, ModelInfo, QuotaSnapshot } from '@shared/types/codex'
 import type { Settings } from '@shared/types/settings'
+import type { Profile } from '@shared/types/profile'
 import type { Analysis, AnalysisProfile, EngineState } from '@shared/types/engine'
 import { UPDATES_IPC, type UpdatePreferences, type UpdateStatus } from '@shared/updates'
 
-type Channel = 'stream' | 'settings:changed' | 'engine:state' | 'codex:state' | 'updates:changed' | 'game:state' | 'game:finished' | 'analysis:progress' | 'review:activity'
+type Channel =
+  | 'stream'
+  | 'settings:changed'
+  | 'engine:state'
+  | 'codex:state'
+  | 'updates:changed'
+  | 'game:state'
+  | 'game:finished'
+  | 'analysis:progress'
+  | 'review:activity'
+  | 'profile:changed'
 
 function subscribe(channel: Channel, cb: (payload: never) => void): () => void {
   const listener = (_event: IpcRendererEvent, payload: unknown): void => cb(payload as never)
@@ -74,6 +85,11 @@ const api: Api = {
     lesson: (gameId: string) => ipcRenderer.invoke('review:lesson', gameId) as Promise<ReviewLesson>,
     close: () => ipcRenderer.invoke('review:close') as Promise<void>
   },
+  // ── Task 17: the player profile ──
+  profile: {
+    get: () => ipcRenderer.invoke('profile:get') as Promise<Profile>,
+    refreshQualitative: () => ipcRenderer.invoke('profile:refreshQualitative') as Promise<Profile>
+  },
   // --- Task 6: Codex session ---------------------------------------------------------------
   codex: {
     state: () => ipcRenderer.invoke('codex:state') as Promise<CodexState>,
@@ -92,7 +108,7 @@ const api: Api = {
     install: () => ipcRenderer.invoke(UPDATES_IPC.install) as Promise<UpdateStatus>,
     openRelease: () => ipcRenderer.invoke(UPDATES_IPC.openRelease) as Promise<void>
   },
-  on: ((channel: Channel, cb: (payload: StreamEnvelope & Settings & EngineState & CodexState & UpdateStatus & SessionState & GameFinished & AnalysisProgress & ReviewActivity) => void) =>
+  on: ((channel: Channel, cb: (payload: StreamEnvelope & Settings & EngineState & CodexState & UpdateStatus & SessionState & GameFinished & AnalysisProgress & ReviewActivity & Profile) => void) =>
     subscribe(channel, cb as (payload: never) => void)) as Api['on']
 }
 
