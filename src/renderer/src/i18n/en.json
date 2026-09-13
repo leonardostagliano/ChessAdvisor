@@ -502,5 +502,135 @@
     "time_pressure": "Time management",
     "calculation_error": "Calculation error",
     "missed_tactic": "Missed tactic"
+  },
+  "training": {
+    "title": "Training",
+    "subtitle": "Exercises from your own games, tactics by theme, openings, endgames and the coach’s study plan.",
+    "areas": "Training areas",
+    "tab": {
+      "own": "From your games",
+      "thematic": "Tactics",
+      "openings": "Openings",
+      "endgames": "Endgames",
+      "plan": "Study plan"
+    },
+    "status": {
+      "new": "To do",
+      "solved": "Solved",
+      "failed": "Try again"
+    },
+    "attempts_one": "{{count}} attempt",
+    "attempts_other": "{{count}} attempts",
+    "exercise": {
+      "boardLabel": "Exercise board",
+      "promptW": "Find the best move for White",
+      "promptB": "Find the best move for Black",
+      "progress": "{{index}}/{{total}}",
+      "rating": "Rating {{value}}",
+      "correct": "Correct move.",
+      "correctAlternative": "Correct move: an equally good alternative.",
+      "solved": "Exercise solved.",
+      "wrong": "That is not the best move. Look at the position again and try once more.",
+      "over": "This exercise is over: restart it to play it again.",
+      "reset": "Restart",
+      "reveal": "Show the solution",
+      "solution": "Solution: {{line}}",
+      "explain": "Explain",
+      "explaining": "The coach is writing…",
+      "next": "Next exercise",
+      "none": "Pick an exercise from the list.",
+      "previous": "Previous exercise"
+    },
+    "own": {
+      "title": "Exercises from your games",
+      "hint": "They come from the mistakes the engine found in the games you had analysed.",
+      "emptyTitle": "No exercise yet",
+      "emptyBody": "Play a game and have it analysed: the mistakes that cost you most become exercises to replay.",
+      "emptyAction": "Go to the board",
+      "listLabel": "Exercises from your games",
+      "source": "Game of {{date}}",
+      "ply": "ply {{ply}}",
+      "openReview": "See it in the review"
+    },
+    "thematic": {
+      "title": "Tactics by theme",
+      "hint": "The coach picks the theme and the rating window from your profile, then the library draws ten puzzles.",
+      "newSet": "New set",
+      "drawing": "The coach is choosing…",
+      "range": "Rating {{min}}–{{max}}",
+      "fallback": "Set chosen by rotation: the coach needs more analysed games to choose it.",
+      "emptyTitle": "No set in progress",
+      "emptyBody": "A set is ten puzzles on the same theme, taken from the lichess database.",
+      "solvedCount": "{{solved}} of {{total}} solved",
+      "setLabel": "Puzzle set",
+      "empty": "No puzzle is available for this theme."
+    },
+    "openings": {
+      "title": "Your openings",
+      "hint": "Recognised from the position, with the deviations from theory you repeat most often.",
+      "emptyTitle": "No opening recognised",
+      "emptyBody": "Openings show up here after the first game has been analysed.",
+      "tableLabel": "Your openings",
+      "columnEco": "ECO",
+      "columnName": "Opening",
+      "columnGames": "Games",
+      "columnScore": "Score",
+      "columnAccuracy": "Accuracy",
+      "percentValue": "{{value}}%",
+      "select": "Open {{name}}",
+      "deviations": "Recurring deviations",
+      "deviationsEmpty": "No recurring deviation in this opening.",
+      "deviationCount_one": "{{count}} time",
+      "deviationCount_other": "{{count}} times",
+      "deviationBest": "the engine preferred {{san}}",
+      "lesson": "Mini-lesson",
+      "lessonBusy": "The coach is writing…",
+      "details": "Details"
+    },
+    "endgames": {
+      "title": "Canonical endgames",
+      "hint": "Play opens a game from the position, against the opponent at the highest level.",
+      "listLabel": "Canonical endgames",
+      "goal": {
+        "win": "Win",
+        "draw": "Draw"
+      },
+      "difficulty": {
+        "1": "Easy",
+        "2": "Medium",
+        "3": "Hard"
+      },
+      "play": "Play",
+      "starting": "Starting…"
+    },
+    "plan": {
+      "title": "Study plan",
+      "hint": "Four to eight activities the coach chooses from what your profile says.",
+      "emptyTitle": "No study plan yet",
+      "emptyBody": "The coach lines up the exercises, the openings and the endgames to start from, each with its reason.",
+      "generate": "Generate the plan",
+      "regenerate": "Regenerate",
+      "generating": "The coach is writing the plan…",
+      "listLabel": "Study plan activities",
+      "progress": "{{done}} of {{total}} done",
+      "generatedAt": "Written on {{date}}",
+      "why": "Why",
+      "open": "Open",
+      "done": "Done",
+      "invalid": "The material of this activity is gone: the generic activity is left.",
+      "staleGames_one": "You have played {{count}} game since the plan was written: it is worth regenerating it.",
+      "staleGames_other": "You have played {{count}} games since the plan was written: it is worth regenerating it.",
+      "staleRefs_one": "{{count}} activity points at material that is gone: it is worth regenerating the plan.",
+      "staleRefs_other": "{{count}} activities point at material that is gone: it is worth regenerating the plan.",
+      "summaryGo": "Open the plan",
+      "summaryEmpty": "The coach has not written a study plan yet.",
+      "activity": {
+        "thematic": "Tactics",
+        "own_game": "Exercise",
+        "opening": "Opening",
+        "endgame": "Endgame",
+        "play": "Game"
+      }
+    }
   }
 }

@@ -20,8 +20,9 @@ describe('Shell', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Allenamento' }))
     expect(useUiStore.getState().area).toBe('training')
-    expect(screen.getByText('disponibile dopo la prima partita analizzata')).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Genera il piano di studio' }).hasAttribute('disabled')).toBe(true)
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Allenamento')
+    expect(screen.getByRole('tablist', { name: 'Aree di allenamento' })).toBeTruthy()
+    expect(screen.getByRole('tab', { name: 'Piano di studio' })).toBeTruthy()
 
     fireEvent.click(screen.getByRole('button', { name: 'Impostazioni' }))
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Impostazioni')

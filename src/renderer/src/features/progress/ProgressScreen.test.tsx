@@ -209,10 +209,12 @@ describe('ProgressScreen', () => {
     expect(screen.getByRole('columnheader', { name: /Accuratezza/ })).toHaveAttribute('aria-sort', 'descending')
   })
 
-  it('never renders a placeholder for the study plan of M5', async () => {
+  it('ends on the study plan, offering to write the first one (spec §6.8)', async () => {
     render(<ProgressScreen />)
     await screen.findByTestId('openings-table')
-    expect(screen.queryByText(/piano di studio/i)).toBeNull()
+    const plan = screen.getByTestId('study-plan-summary')
+    expect(within(plan).getByText('Il coach non ha ancora scritto un piano di studio.')).toBeInTheDocument()
+    expect(within(plan).getByRole('button', { name: 'Genera il piano' })).toBeInTheDocument()
   })
 
   it('reports a failing read without losing the screen', async () => {

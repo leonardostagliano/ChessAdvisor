@@ -10,14 +10,29 @@ export const UI_STORAGE_KEY = 'chessadvisor.ui'
 export const AREAS: Area[] = ['play', 'training', 'progress', 'settings']
 export const DARK_QUERY = '(prefers-color-scheme: dark)'
 
+/**
+ * A review another area asked to open (Task 21: the exercises of the training section link back
+ * to the move they were carved out of). It is a one-shot request: the play area picks it up,
+ * opens the review at that ply and clears it.
+ */
+export interface ReviewTarget {
+  gameId: string
+  /** `Move.ply`, 1-based, or `null` to open the review at the last move. */
+  ply: number | null
+}
+
 export interface UiState {
   area: Area
   theme: ThemeChoice
   resolvedTheme: ResolvedTheme
   language: Language
+  reviewTarget: ReviewTarget | null
   setArea(area: Area): void
   setTheme(theme: ThemeChoice): void
   setLanguage(language: Language): void
+  /** Switches to the play area and asks it for the review of `gameId`, at `ply` when given. */
+  openReview(gameId: string, ply?: number | null): void
+  clearReviewTarget(): void
 }
 
 interface Persisted {
@@ -115,6 +130,7 @@ export const useUiStore = create<UiState>((set, get) => ({
   theme: initial.theme,
   resolvedTheme: resolveTheme(initial.theme),
   language: initial.language,
+  reviewTarget: null,
 
   setArea(area) {
     if (!isArea(area) || get().area === area) return
@@ -140,6 +156,19 @@ export const useUiStore = create<UiState>((set, get) => ({
     const state = get()
     writePersisted({ theme: state.theme, language: state.language, area: state.area })
     mirrorToMain({ language })
+  },
+
+  openReview(gameId, ply = null) {
+    if (typeof gameId !== 'string' || gameId.length === 0) return
+    // One `set`: the area guard of `setArea` would drop the switch when play is already open,
+    // and the request has to land whether or not the area changes.
+    set({ area: 'play', reviewTarget: { gameId, ply: typeof ply === 'number' ? ply : null } })
+    const state = get()
+    writePersisted({ theme: state.theme, language: state.language, area: state.area })
+  },
+
+  clearReviewTarget() {
+    if (get().reviewTarget) set({ reviewTarget: null })
   }
 }))
 

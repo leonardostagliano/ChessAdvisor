@@ -6,7 +6,7 @@ import { EvalBar, evalLabel } from '../../board/EvalBar'
 import { Button } from '../../components/ui/Button'
 import { cx } from '../../components/ui/cx'
 import { useEngineStore } from '../../stores/engineStore'
-import { initReviewStore, useReviewStore } from '../../stores/reviewStore'
+import { cursorOfPly, initReviewStore, useReviewStore } from '../../stores/reviewStore'
 import { CommentCard } from '../play/CommentCard'
 import { resultTone } from '../play/ResultBanner'
 import { EvalGraph, toWhite } from './EvalGraph'
@@ -29,6 +29,8 @@ import styles from './Review.module.css'
 
 export interface ReviewScreenProps {
   gameId: string
+  /** `Move.ply` to open the review on (Task 21: an exercise links back to its own move). */
+  ply?: number | null
   onClose(): void
 }
 
@@ -46,7 +48,7 @@ export function evalAtCursor(game: Game | null, cursor: number): Eval | null {
   return move ? (toWhite(move.eval?.after, mover(move)) ?? null) : null
 }
 
-export function ReviewScreen({ gameId, onClose }: ReviewScreenProps): React.JSX.Element {
+export function ReviewScreen({ gameId, ply = null, onClose }: ReviewScreenProps): React.JSX.Element {
   const { t, i18n } = useTranslation()
   const engineAvailable = useEngineStore((state) => state.available)
   const game = useReviewStore((state) => state.game)
@@ -63,12 +65,19 @@ export function ReviewScreen({ gameId, onClose }: ReviewScreenProps): React.JSX.
   // the `training` thread on the way out.
   useEffect(() => {
     const stop = initReviewStore()
-    void useReviewStore.getState().open(gameId)
+    void useReviewStore
+      .getState()
+      .open(gameId)
+      .then(() => {
+        // The caller asked for one move in particular: the store opened on the last one.
+        const store = useReviewStore.getState()
+        if (ply !== null && store.gameId === gameId) store.setCursor(cursorOfPly(store.game, ply))
+      })
     return () => {
       stop()
       void useReviewStore.getState().close()
     }
-  }, [gameId])
+  }, [gameId, ply])
 
   if (!game) {
     return (

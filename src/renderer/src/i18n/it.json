@@ -502,5 +502,135 @@
     "time_pressure": "Gestione del tempo",
     "calculation_error": "Errore di calcolo",
     "missed_tactic": "Tattica mancata"
+  },
+  "training": {
+    "title": "Allenamento",
+    "subtitle": "Esercizi dalle tue partite, tattica per tema, aperture, finali e il piano di studio del coach.",
+    "areas": "Aree di allenamento",
+    "tab": {
+      "own": "Dalle tue partite",
+      "thematic": "Tattica",
+      "openings": "Aperture",
+      "endgames": "Finali",
+      "plan": "Piano di studio"
+    },
+    "status": {
+      "new": "Da fare",
+      "solved": "Risolto",
+      "failed": "Da riprovare"
+    },
+    "attempts_one": "{{count}} tentativo",
+    "attempts_other": "{{count}} tentativi",
+    "exercise": {
+      "boardLabel": "Scacchiera dell’esercizio",
+      "promptW": "Trova la mossa migliore per il Bianco",
+      "promptB": "Trova la mossa migliore per il Nero",
+      "progress": "{{index}}/{{total}}",
+      "rating": "Rating {{value}}",
+      "correct": "Mossa corretta.",
+      "correctAlternative": "Mossa corretta: un’alternativa altrettanto buona.",
+      "solved": "Esercizio risolto.",
+      "wrong": "Non è la mossa migliore. Guarda ancora la posizione e riprova.",
+      "over": "L’esercizio è già finito: ricomincialo per rigiocarlo.",
+      "reset": "Ricomincia",
+      "reveal": "Mostra soluzione",
+      "solution": "Soluzione: {{line}}",
+      "explain": "Spiega",
+      "explaining": "Il coach sta scrivendo…",
+      "next": "Esercizio successivo",
+      "none": "Scegli un esercizio dall’elenco.",
+      "previous": "Esercizio precedente"
+    },
+    "own": {
+      "title": "Esercizi dalle tue partite",
+      "hint": "Nascono dagli errori che il motore ha trovato nelle partite che hai fatto analizzare.",
+      "emptyTitle": "Ancora nessun esercizio",
+      "emptyBody": "Gioca una partita e falla analizzare: gli errori che ti sono costati di più diventano esercizi da rigiocare.",
+      "emptyAction": "Vai alla scacchiera",
+      "listLabel": "Esercizi dalle tue partite",
+      "source": "Partita del {{date}}",
+      "ply": "semimossa {{ply}}",
+      "openReview": "Vedi nella revisione"
+    },
+    "thematic": {
+      "title": "Tattica per tema",
+      "hint": "Il coach sceglie il tema e la fascia di rating dal tuo profilo, poi la libreria estrae dieci puzzle.",
+      "newSet": "Nuova serie",
+      "drawing": "Il coach sta scegliendo…",
+      "range": "Rating {{min}}–{{max}}",
+      "fallback": "Serie scelta a rotazione: servono più partite analizzate perché la scelga il coach.",
+      "emptyTitle": "Nessuna serie in corso",
+      "emptyBody": "Una serie è fatta di dieci puzzle sullo stesso tema, presi dal database di lichess.",
+      "solvedCount": "{{solved}} di {{total}} risolti",
+      "setLabel": "Serie di puzzle",
+      "empty": "Nessun puzzle disponibile per questo tema."
+    },
+    "openings": {
+      "title": "Le tue aperture",
+      "hint": "Riconosciute dalla posizione, con le deviazioni dalla teoria che ripeti più spesso.",
+      "emptyTitle": "Nessuna apertura riconosciuta",
+      "emptyBody": "Le aperture compaiono qui dopo l’analisi della prima partita.",
+      "tableLabel": "Le tue aperture",
+      "columnEco": "ECO",
+      "columnName": "Apertura",
+      "columnGames": "Partite",
+      "columnScore": "Punti",
+      "columnAccuracy": "Accuratezza",
+      "percentValue": "{{value}}%",
+      "select": "Apri {{name}}",
+      "deviations": "Deviazioni ricorrenti",
+      "deviationsEmpty": "Nessuna deviazione ricorrente in questa apertura.",
+      "deviationCount_one": "{{count}} volta",
+      "deviationCount_other": "{{count}} volte",
+      "deviationBest": "il motore preferiva {{san}}",
+      "lesson": "Mini-lezione",
+      "lessonBusy": "Il coach sta scrivendo…",
+      "details": "Dettagli"
+    },
+    "endgames": {
+      "title": "Finali canonici",
+      "hint": "Gioca apre una partita dalla posizione, contro l’avversario al livello massimo.",
+      "listLabel": "Finali canonici",
+      "goal": {
+        "win": "Vincere",
+        "draw": "Pattare"
+      },
+      "difficulty": {
+        "1": "Facile",
+        "2": "Medio",
+        "3": "Difficile"
+      },
+      "play": "Gioca",
+      "starting": "Avvio…"
+    },
+    "plan": {
+      "title": "Piano di studio",
+      "hint": "Da quattro a otto attività scelte dal coach su quello che dice il tuo profilo.",
+      "emptyTitle": "Nessun piano di studio",
+      "emptyBody": "Il coach mette in fila gli esercizi, le aperture e i finali da cui partire, con il motivo di ognuno.",
+      "generate": "Genera il piano",
+      "regenerate": "Rigenera",
+      "generating": "Il coach sta scrivendo il piano…",
+      "listLabel": "Attività del piano di studio",
+      "progress": "{{done}} di {{total}} completate",
+      "generatedAt": "Generato il {{date}}",
+      "why": "Perché",
+      "open": "Apri",
+      "done": "Fatto",
+      "invalid": "Il materiale di questa attività non esiste più: resta l’attività generica.",
+      "staleGames_one": "Hai giocato {{count}} partita da quando il piano è stato scritto: conviene rigenerarlo.",
+      "staleGames_other": "Hai giocato {{count}} partite da quando il piano è stato scritto: conviene rigenerarlo.",
+      "staleRefs_one": "{{count}} attività punta a materiale che non esiste più: conviene rigenerare il piano.",
+      "staleRefs_other": "{{count}} attività puntano a materiale che non esiste più: conviene rigenerare il piano.",
+      "summaryGo": "Apri il piano",
+      "summaryEmpty": "Il coach non ha ancora scritto un piano di studio.",
+      "activity": {
+        "thematic": "Tattica",
+        "own_game": "Esercizio",
+        "opening": "Apertura",
+        "endgame": "Finale",
+        "play": "Partita"
+      }
+    }
   }
 }

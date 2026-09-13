@@ -270,6 +270,65 @@ try {
   const confidence = await page.getByTestId('confidence-ring').getAttribute('aria-label')
   ok('the confidence of the estimate is written in words', /\d/.test(confidence ?? ''), confidence ?? 'no ring')
   await sleep(300); await shot('08b-progress.png')
+
+  // 6c. Allenamento (spec §6.4–§6.8): a thematic set drawn by the coach, the first puzzle solved
+  // on the board, and the study plan written from the catalogue of what the app can offer.
+  await page.getByRole('button', { name: /^Allenamento$/ }).first().click()
+  await page.getByRole('tablist', { name: 'Aree di allenamento' }).waitFor()
+  await page.getByRole('tab', { name: 'Tattica' }).click()
+  await page.getByRole('button', { name: /^Nuova serie$/ }).click()
+  const player = page.locator('[data-testid="exercise-player"]')
+  await player.waitFor({ timeout: 120000 })
+
+  // The puzzle on screen is read through the bridge, exactly as a user would read the board: the
+  // first move of its solution is the one to play. A promotion would need the picker, so the set
+  // is walked until a plain move comes up.
+  let exercise = null
+  for (let i = 0; i < 10; i++) {
+    const id = await player.getAttribute('data-exercise')
+    exercise = await api((value) => window.api.training.exercises.get(value), id)
+    if (exercise && exercise.solution[0] && exercise.solution[0].length === 4) break
+    exercise = null
+    const next = page.getByRole('button', { name: /^Esercizio successivo$/ })
+    if (!(await next.count()) || (await next.isDisabled())) break
+    await next.click()
+    await sleep(200)
+  }
+  ok('the thematic set opens on a puzzle of the library', !!exercise, exercise ? `${exercise.id} ${exercise.themes ?? exercise.theme} rating=${exercise.rating}` : 'no exercise')
+
+  const puzzleBoard = page.locator('cg-board').first()
+  const puzzleWhite = exercise?.sideToMove === 'w'
+  const clickPuzzle = async (sq) => {
+    const b = await puzzleBoard.boundingBox()
+    const file = sq.charCodeAt(0) - 97, rank = Number(sq[1]) - 1
+    const size = b.width / 8
+    await page.mouse.click(
+      b.x + (puzzleWhite ? file : 7 - file) * size + size / 2,
+      b.y + (puzzleWhite ? 7 - rank : rank) * size + size / 2
+    )
+  }
+  const solution = exercise?.solution?.[0] ?? ''
+  if (solution) {
+    await clickPuzzle(solution.slice(0, 2))
+    await sleep(200)
+    await clickPuzzle(solution.slice(2, 4))
+  }
+  const feedback = await until(async () => {
+    const text = await page.locator('[data-testid="exercise-feedback"]').textContent().catch(() => null)
+    return text && /corretta/i.test(text) ? text : null
+  }, 30000, 'the feedback of the exercise').catch(() => null)
+  ok('the first move of the solution is accepted', !!feedback, `${solution} → ${feedback ?? 'no feedback'}`)
+  await sleep(300); await shot('08c-training.png')
+
+  await page.getByRole('tab', { name: 'Piano di studio' }).click()
+  await page.getByRole('button', { name: /^Genera il piano$/ }).click()
+  const planItems = await until(async () => {
+    const n = await page.locator('[data-testid="study-plan"] [data-item]').count()
+    return n > 0 ? n : null
+  }, 120000, 'the items of the study plan').catch(() => 0)
+  ok('the study plan lists at least four activities', planItems >= 4, `${planItems} items`)
+  await sleep(300); await shot('08d-plan.png')
+
   await page.getByRole('button', { name: /^Gioca$/ }).first().click()
   await page.locator('cg-board').first().waitFor()
 

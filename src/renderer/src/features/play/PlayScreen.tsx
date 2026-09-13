@@ -9,6 +9,7 @@ import { EmptyState } from '../../components/EmptyState'
 import { cx } from '../../components/ui/cx'
 import { useEngineStore } from '../../stores/engineStore'
 import { boardFen, boardLastMove, isBrowsing, startFenOf, useGameStore } from '../../stores/gameStore'
+import { useUiStore } from '../../stores/uiStore'
 import { ArchiveList } from './ArchiveList'
 import { ClockDisplay } from './ClockDisplay'
 import { CoachTab } from './CoachTab'
@@ -111,8 +112,20 @@ export function PlayScreen(): React.JSX.Element {
 
   const [view, setView] = useState<'game' | 'archive' | 'review'>('game')
   const [reviewGameId, setReviewGameId] = useState<string | null>(null)
+  const [reviewPly, setReviewPly] = useState<number | null>(null)
   const [tab, setTab] = useState<PanelTab>('moves')
   const [dialogOpen, setDialogOpen] = useState(false)
+
+  // Another area (the training section, spec §6.4) can ask for a review of one ply: the request
+  // is one-shot, so it is consumed as soon as it is honoured.
+  const reviewTarget = useUiStore((state) => state.reviewTarget)
+  useEffect(() => {
+    if (!reviewTarget) return
+    setReviewGameId(reviewTarget.gameId)
+    setReviewPly(reviewTarget.ply)
+    setView('review')
+    useUiStore.getState().clearReviewTarget()
+  }, [reviewTarget])
 
   const browsing = isBrowsing({ session, browsePly })
   const fen = boardFen({ session, browsePly })
@@ -190,7 +203,7 @@ export function PlayScreen(): React.JSX.Element {
       </header>
 
       {view === 'review' && reviewGameId ? (
-        <ReviewScreen gameId={reviewGameId} onClose={() => setView(game ? 'game' : 'archive')} />
+        <ReviewScreen gameId={reviewGameId} ply={reviewPly} onClose={() => setView(game ? 'game' : 'archive')} />
       ) : view === 'archive' ? (
         <ArchiveList
           onResumed={() => {
@@ -198,6 +211,7 @@ export function PlayScreen(): React.JSX.Element {
           }}
           onReview={(id) => {
             setReviewGameId(id)
+            setReviewPly(null)
             setView('review')
           }}
         />
@@ -218,6 +232,7 @@ export function PlayScreen(): React.JSX.Element {
                 onNewGame={() => setDialogOpen(true)}
                 onReview={() => {
                   setReviewGameId(game.id)
+                  setReviewPly(null)
                   setView('review')
                 }}
               />
