@@ -161,7 +161,15 @@
     "evalBlack": "vantaggio del Nero",
     "evalMateWhite": "matto per il Bianco",
     "evalMateBlack": "matto per il Nero",
-    "evalWaiting": "—"
+    "evalWaiting": "—",
+    "promotion": {
+      "title": "Scegli il pezzo della promozione",
+      "cancel": "Annulla la promozione",
+      "queen": "Donna",
+      "knight": "Cavallo",
+      "rook": "Torre",
+      "bishop": "Alfiere"
+    }
   },
   "difficulty": {
     "title": "Difficoltà",

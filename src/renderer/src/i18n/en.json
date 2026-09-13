@@ -161,7 +161,15 @@
     "evalBlack": "Black is better",
     "evalMateWhite": "mate for White",
     "evalMateBlack": "mate for Black",
-    "evalWaiting": "—"
+    "evalWaiting": "—",
+    "promotion": {
+      "title": "Choose the promotion piece",
+      "cancel": "Cancel the promotion",
+      "queen": "Queen",
+      "knight": "Knight",
+      "rook": "Rook",
+      "bishop": "Bishop"
+    }
   },
   "difficulty": {
     "title": "Difficulty",

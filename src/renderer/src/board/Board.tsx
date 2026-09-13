@@ -19,8 +19,22 @@ import styles from './Board.module.css'
  */
 export interface BoardArrow {
   from: string
-  to: string
+  /** Destination square; leave it out to draw a circle on `from` instead of an arrow. */
+  to?: string
   color?: 'green' | 'red' | 'blue' | 'yellow' | 'accent'
+}
+
+export type PromotionRole = 'queen' | 'rook' | 'bishop' | 'knight'
+export const PROMOTION_ROLES: { role: PromotionRole; letter: 'q' | 'r' | 'b' | 'n' }[] = [
+  { role: 'queen', letter: 'q' },
+  { role: 'knight', letter: 'n' },
+  { role: 'rook', letter: 'r' },
+  { role: 'bishop', letter: 'b' }
+]
+
+/** True when `orig → dest` is a pawn promotion in `fen` (any promotion piece is legal there). */
+export function isPromotion(fen: string, orig: string, dest: string): boolean {
+  return legalMoves(fen).some((move) => move.uci.length === 5 && move.uci.startsWith(`${orig}${dest}`))
 }
 
 export interface BoardMovable {
@@ -168,17 +182,16 @@ export function destsOf(fen: string): Map<Key, Key[]> {
 }
 
 /**
- * UCI of the move chessground just played. A promotion is always completed with a queen in M1:
- * the under-promotion picker arrives with the review screen, and a queen is the right guess in
- * far more than 95 % of the games this app is meant for.
+ * UCI of the move chessground just played. For a promotion the letter comes from the picker;
+ * without a choice (programmatic callers) the queen is used.
  */
-export function uciOf(fen: string, orig: string, dest: string): string {
-  const promotion = legalMoves(fen).find(
+export function uciOf(fen: string, orig: string, dest: string, promotion?: 'q' | 'r' | 'b' | 'n'): string {
+  const candidates = legalMoves(fen).filter(
     (move) => move.uci.length === 5 && move.uci.startsWith(`${orig}${dest}`)
   )
-  if (!promotion) return `${orig}${dest}`
-  const queen = legalMoves(fen).find((move) => move.uci === `${orig}${dest}q`)
-  return (queen ?? promotion).uci
+  if (candidates.length === 0) return `${orig}${dest}`
+  const wanted = `${orig}${dest}${promotion ?? 'q'}`
+  return (candidates.find((move) => move.uci === wanted) ?? candidates[0]!).uci
 }
 
 export function Board({
@@ -206,6 +219,36 @@ export function Board({
 
   const [size, setSize] = useState(DEFAULT_SQUARE_PX * 8)
   const reducedMotion = useReducedMotion()
+  // A pawn that reached the last rank and waits for the promotion piece: chessground has already
+  // moved it visually; the move is sent (or the board restored) only when the picker closes.
+  const [promotion, setPromotion] = useState<{ orig: Key; dest: Key; color: Color } | null>(null)
+  const promotionCancelRef = useRef<() => void>(() => {})
+
+  const choosePromotion = (letter: 'q' | 'r' | 'b' | 'n'): void => {
+    if (!promotion) return
+    const current = moveRef.current
+    setPromotion(null)
+    current.onMove?.(uciOf(current.fen, promotion.orig, promotion.dest, letter))
+  }
+  const cancelPromotion = (): void => {
+    if (!promotion) return
+    setPromotion(null)
+    // Put the pawn back: the position never changed in the main process.
+    apiRef.current?.set({ fen: moveRef.current.fen, lastMove: lastMove ? [lastMove[0] as Key, lastMove[1] as Key] : [] })
+  }
+  promotionCancelRef.current = cancelPromotion
+
+  useEffect(() => {
+    if (!promotion) return
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        promotionCancelRef.current()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [promotion])
 
   const config = useMemo<Config>(() => {
     const locked = viewOnly || !movable?.color
@@ -227,6 +270,10 @@ export function Board({
         events: {
           after: (orig: Key, dest: Key) => {
             const current = moveRef.current
+            if (isPromotion(current.fen, orig, dest)) {
+              setPromotion({ orig, dest, color: turnColorOf(current.fen) })
+              return
+            }
             current.onMove?.(uciOf(current.fen, orig, dest))
           }
         }
@@ -243,7 +290,7 @@ export function Board({
         brushes: arrowBrushes(accentColor()),
         autoShapes: (arrows ?? []).map((arrow) => ({
           orig: arrow.from as Key,
-          dest: arrow.to as Key,
+          ...(arrow.to ? { dest: arrow.to as Key } : {}),
           brush: arrow.color ?? 'green'
         }))
       }
@@ -320,9 +367,43 @@ export function Board({
     }
   }, [])
 
+  // Promotion picker geometry: a column of four squares over the destination file, starting from
+  // the promotion rank and running towards the centre of the board (as lichess does).
+  const square = size / 8
+  const promotionStyle = (() => {
+    if (!promotion) return null
+    const file = promotion.dest.charCodeAt(0) - 97
+    const column = orientation === 'white' ? file : 7 - file
+    const fromTop = (orientation === 'white') === (promotion.color === 'white')
+    return { left: column * square, top: fromTop ? 0 : size - 4 * square, width: square, height: 4 * square }
+  })()
+
   return (
     <div ref={frameRef} className={cx(styles.frame, className)} role="group" aria-label={label ?? t('board.label')}>
-      <div ref={hostRef} className={cx('cg-wrap', styles.board)} style={{ width: size, height: size }} />
+      <div className={styles.stage} style={{ width: size, height: size }}>
+        <div ref={hostRef} className={cx('cg-wrap', styles.board)} style={{ width: size, height: size }} />
+        {promotion && promotionStyle ? (
+          <>
+            <button type="button" className={styles.promotionBackdrop} aria-label={t('board.promotion.cancel')} onClick={cancelPromotion} />
+            <div className={cx('cg-wrap', styles.promotion)} style={promotionStyle} role="dialog" aria-label={t('board.promotion.title')} data-testid="promotion-picker">
+              {PROMOTION_ROLES.map(({ role, letter }, index) => (
+                <button
+                  key={role}
+                  type="button"
+                  className={styles.promotionChoice}
+                  style={{ width: square, height: square }}
+                  aria-label={t(`board.promotion.${role}`)}
+                  title={t(`board.promotion.${role}`)}
+                  autoFocus={index === 0}
+                  onClick={() => choosePromotion(letter)}
+                >
+                  <piece className={`${promotion.color} ${role}`} />
+                </button>
+              ))}
+            </div>
+          </>
+        ) : null}
+      </div>
     </div>
   )
 }

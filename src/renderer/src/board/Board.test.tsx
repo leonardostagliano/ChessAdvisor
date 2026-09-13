@@ -57,6 +57,7 @@ vi.mock('@lichess-org/chessground', () => ({
   }
 }))
 
+const { act: reactAct, fireEvent: fire, screen: view } = await import('@testing-library/react')
 const { Board } = await import('./Board')
 const { EvalBar, evalLabel, whiteWinPercent } = await import('./EvalBar')
 
@@ -122,11 +123,44 @@ describe('Board', () => {
     expect(onMove).toHaveBeenCalledWith('e2e4')
   })
 
-  it('completes a promotion with a queen', () => {
+  it('asks which piece to promote to and sends the chosen one', () => {
     const onMove = vi.fn()
     render(<Board fen={PROMOTION} movable={{ color: 'white' }} onMove={onMove} />)
-    lastConfig().movable?.events?.after?.('e7', 'e8')
-    expect(onMove).toHaveBeenCalledWith('e7e8q')
+    reactAct(() => {
+      lastConfig().movable?.events?.after?.('e7', 'e8')
+    })
+    expect(onMove).not.toHaveBeenCalled()
+    const picker = view.getByTestId('promotion-picker')
+    const choices = picker.querySelectorAll('button')
+    expect(choices).toHaveLength(4)
+    fire.click(view.getByRole('button', { name: 'Torre' }))
+    expect(onMove).toHaveBeenCalledWith('e7e8r')
+    expect(view.queryByTestId('promotion-picker')).toBeNull()
+  })
+
+  it('cancels the promotion with Escape and puts the pawn back', () => {
+    const onMove = vi.fn()
+    render(<Board fen={PROMOTION} movable={{ color: 'white' }} onMove={onMove} />)
+    reactAct(() => {
+      lastConfig().movable?.events?.after?.('e7', 'e8')
+    })
+    const before = created[0]!.configs.length
+    reactAct(() => {
+      fire.keyDown(window, { key: 'Escape' })
+    })
+    expect(onMove).not.toHaveBeenCalled()
+    expect(view.queryByTestId('promotion-picker')).toBeNull()
+    // The board was reset to the unchanged position.
+    expect(created[0]!.configs.length).toBe(before + 1)
+    expect(lastConfig().fen).toBe(PROMOTION)
+  })
+
+  it('draws a circle for an arrow without destination', () => {
+    render(<Board fen={START} arrows={[{ from: 'e2', color: 'accent' }, { from: 'e2', to: 'e4', color: 'accent' }]} />)
+    const shapes = lastConfig().drawable?.autoShapes ?? []
+    expect(shapes).toHaveLength(2)
+    expect(shapes[0]).toEqual({ orig: 'e2', brush: 'accent' })
+    expect(shapes[1]).toEqual({ orig: 'e2', dest: 'e4', brush: 'accent' })
   })
 
   it('pushes fen, lastMove, check and arrows through set() without remounting', () => {

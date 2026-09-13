@@ -128,7 +128,14 @@ export function PlayScreen(): React.JSX.Element {
   // back on it, and the main process drops the hint itself as soon as the user moves (spec §4.2).
   const hint = session.coach.hint
   const arrows = useMemo<BoardArrow[]>(
-    () => (hint && !browsing ? [{ from: hint.uci.slice(0, 2), to: hint.uci.slice(2, 4), color: 'accent' }] : []),
+    () =>
+      hint && !browsing
+        ? [
+            // A ring on the piece to move, then the arrow to its destination: spec §4.2.
+            { from: hint.uci.slice(0, 2), color: 'accent' },
+            { from: hint.uci.slice(0, 2), to: hint.uci.slice(2, 4), color: 'accent' }
+          ]
+        : [],
     [hint, browsing]
   )
   const aiColor: 'w' | 'b' = userColor === 'w' ? 'b' : 'w'
