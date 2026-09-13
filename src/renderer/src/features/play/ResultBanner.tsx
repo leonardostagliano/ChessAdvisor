@@ -5,13 +5,15 @@ import { cx } from '../../components/ui/cx'
 import styles from './PlayScreen.module.css'
 
 /**
- * The end of a game (spec §4.3). M1 shows the outcome from the user's point of view and offers
- * a new game; the "Rivedi" button that opens the review arrives with M3.
+ * The end of a game (spec §4.3): the outcome from the user's point of view, the way into the
+ * post-game review (spec §4.4) and the way into the next game.
  */
 
 export interface ResultBannerProps {
   game: Game
   onNewGame(): void
+  /** Opens the review of this game; absent only where there is nowhere to open it. */
+  onReview?(): void
 }
 
 export type ResultTone = 'win' | 'loss' | 'draw'
@@ -23,7 +25,7 @@ export function resultTone(result: GameResult, userColor: 'w' | 'b'): ResultTone
   return winner === userColor ? 'win' : 'loss'
 }
 
-export function ResultBanner({ game, onNewGame }: ResultBannerProps): React.JSX.Element | null {
+export function ResultBanner({ game, onNewGame, onReview }: ResultBannerProps): React.JSX.Element | null {
   const { t } = useTranslation()
   if (!game.result) return null
 
@@ -42,9 +44,16 @@ export function ResultBanner({ game, onNewGame }: ResultBannerProps): React.JSX.
         </h2>
         <p className={cx(styles.resultScore, 'mono')}>{game.result.outcome}</p>
       </div>
-      <Button variant="primary" onClick={onNewGame}>
-        {t('controls.newGame')}
-      </Button>
+      <div className={styles.resultActions}>
+        {onReview ? (
+          <Button variant="primary" onClick={onReview}>
+            {t('review.open')}
+          </Button>
+        ) : null}
+        <Button variant={onReview ? 'secondary' : 'primary'} onClick={onNewGame}>
+          {t('controls.newGame')}
+        </Button>
+      </div>
     </section>
   )
 }

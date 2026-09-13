@@ -195,6 +195,55 @@ try {
   ok('resign finishes the game', fin.game?.result?.reason === 'resign', JSON.stringify(fin.game?.result))
   await sleep(400); await shot('07-result.png')
 
+  // 6b. Review (spec §4.4): the pipeline runs by itself when the game ends, the screen shows the
+  // accuracy of both colours and the evaluation graph, and the coach writes the lesson.
+  const reviewedId = fin.game.id
+  await page.getByRole('button', { name: /^Rivedi$/ }).first().click()
+  await page.getByRole('region', { name: 'Revisione' }).waitFor()
+  const analysisState = await until(
+    async () => {
+      const s = await api((id) => window.api.analysis.status(id), reviewedId)
+      return s.state === 'done' || s.state === 'unavailable' ? s : null
+    },
+    300000,
+    'analysis done'
+  ).catch(() => null)
+  ok('the analysis of the finished game completes', analysisState?.state === 'done', JSON.stringify(analysisState))
+
+  const review = page.getByRole('region', { name: 'Revisione' })
+  const accuracies = await until(async () => {
+    const text = await review.innerText()
+    const found = text.match(/\d+([.,]\d)?%/g)
+    return found && found.length >= 2 ? found : null
+  }, 60000, 'accuracy numbers').catch(() => null)
+  ok('the review shows the accuracy of both colours', !!accuracies && accuracies.length >= 2, (accuracies ?? []).slice(0, 2).join(' / '))
+
+  const analysedGame = await api((id) => window.api.games.get(id), reviewedId)
+  const points = await page.locator('[data-testid="eval-graph"] [data-ply]').count()
+  ok(
+    'the evaluation graph has one point per position',
+    points === (analysedGame?.moves?.length ?? 0) + 1,
+    `${points} points for ${analysedGame?.moves?.length ?? 0} plies`
+  )
+
+  const moments = await page.getByRole('region', { name: 'Momenti chiave' }).count()
+  ok('the key moments list is on screen', moments === 1, `keyMoments=${JSON.stringify(analysedGame?.analysis?.keyMoments ?? [])}`)
+
+  await page.getByRole('button', { name: /^Lezione della partita$/ }).click()
+  const takeaways = await until(
+    async () => {
+      const n = await page.locator('section[aria-label="Lezione della partita"] ol li').count()
+      return n > 0 ? n : null
+    },
+    120000,
+    'the lesson of the game'
+  ).catch(() => 0)
+  ok('the lesson lists three takeaways', takeaways === 3, `${takeaways} takeaways`)
+  await sleep(300); await shot('08-review.png')
+
+  await page.getByRole('button', { name: /^Chiudi la revisione$/ }).click()
+  await page.locator('cg-board').first().waitFor()
+
   // 7. Clocks (spec §4.3): 5+0 in "solo il mio tempo", where only the user burns time.
   await page.getByRole('button', { name: /Nuova partita/ }).first().click()
   await page.getByRole('dialog').waitFor()

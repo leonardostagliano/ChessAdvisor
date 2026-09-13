@@ -9,6 +9,7 @@ import { EMPTY_SESSION, START_FEN, useGameStore } from '../../stores/gameStore'
 import { useCodexStore } from '../../stores/codexStore'
 import { useEngineStore } from '../../stores/engineStore'
 import { capturedPieces } from './PlayScreen'
+import { NO_FILTERS, filterGames } from './ArchiveList'
 
 /**
  * Smoke test of the play screen against a mocked bridge: the board is the only part that needs a
@@ -98,6 +99,18 @@ const archive: GameSummary[] = [
     userColor: 'b',
     opponent: { model: 'gpt-5.5', effort: 'low', difficulty: { mode: 'fixed', level: 2, targetElo: 900 } },
     plies: 8
+  },
+  {
+    id: 'g2',
+    createdAt: '2026-09-10T10:00:00.000Z',
+    updatedAt: '2026-09-10T11:00:00.000Z',
+    kind: 'match',
+    status: 'finished',
+    userColor: 'w',
+    opponent: { model: 'gpt-6-astra', effort: 'low', difficulty: { mode: 'fixed', level: 3, targetElo: 1200 } },
+    result: { outcome: '1-0', reason: 'checkmate' },
+    plies: 24,
+    accuracy: { w: 81.5, b: 64.2 }
   }
 ]
 
@@ -115,6 +128,8 @@ function mockApi(): void {
       app: { versionInfo: async () => ({ version: '0.1.0', isPackaged: false }) },
       settings: { get: async () => null, save: async () => null },
       games: { list: async () => archive, get: async () => null, delete: deleteGame },
+      analysis: { run: async () => null, status: async () => ({ state: 'idle' }) },
+      review: { commentMove: async () => '', commentKeyMoments: async () => [], lesson: async () => null, close: async () => undefined },
       game: {
         state: async () => session(),
         resume: resumeGame,
@@ -175,6 +190,32 @@ describe('capturedPieces', () => {
     expect(both.w).toEqual(['p'])
     expect(both.b).toEqual([])
     expect(both.balance).toBe(1)
+  })
+})
+
+describe('filterGames', () => {
+  it('keeps everything with no filter at all', () => {
+    expect(filterGames(archive, NO_FILTERS)).toHaveLength(2)
+  })
+
+  it('filters by result, from the point of view of the user', () => {
+    expect(filterGames(archive, { ...NO_FILTERS, result: 'win' }).map((game) => game.id)).toEqual(['g2'])
+    expect(filterGames(archive, { ...NO_FILTERS, result: 'loss' })).toEqual([])
+    expect(filterGames(archive, { ...NO_FILTERS, result: 'unfinished' }).map((game) => game.id)).toEqual(['g0'])
+  })
+
+  it('filters by colour, effective model and kind', () => {
+    expect(filterGames(archive, { ...NO_FILTERS, color: 'b' }).map((game) => game.id)).toEqual(['g0'])
+    expect(filterGames(archive, { ...NO_FILTERS, model: 'gpt-6-astra' }).map((game) => game.id)).toEqual(['g2'])
+    expect(filterGames(archive, { ...NO_FILTERS, kind: 'endgame_drill' })).toEqual([])
+  })
+
+  it('filters by date on a window that ends now', () => {
+    const now = Date.parse('2026-09-11T12:00:00.000Z')
+    expect(filterGames(archive, { ...NO_FILTERS, date: 'week' }, now)).toHaveLength(2)
+    const later = Date.parse('2026-09-30T12:00:00.000Z')
+    expect(filterGames(archive, { ...NO_FILTERS, date: 'week' }, later)).toEqual([])
+    expect(filterGames(archive, { ...NO_FILTERS, date: 'month' }, later)).toHaveLength(2)
   })
 })
 
@@ -362,5 +403,37 @@ describe('PlayScreen', () => {
 
     render(<PlayScreen />)
     expect(screen.getByText('Hai perso per abbandono')).toBeInTheDocument()
+  })
+
+  it('opens the review from the result banner', async () => {
+    const finished = game()
+    finished.status = 'finished'
+    finished.result = { outcome: '0-1', reason: 'resign' }
+    useGameStore.setState({ session: session({ game: finished, status: 'finished' }), browsePly: null })
+
+    render(<PlayScreen />)
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Rivedi' }))
+    })
+    expect(screen.getByRole('region', { name: 'Revisione' })).toBeInTheDocument()
+  })
+
+  it('filters the archive and opens the review of a finished game', async () => {
+    render(<PlayScreen />)
+    fireEvent.click(screen.getByRole('button', { name: 'Partite' }))
+    await screen.findByText('contro gpt-5.5')
+    expect(screen.getByText('Accuratezza 81.5%')).toBeInTheDocument()
+
+    // The five filters of spec §4.4; picking "Vittorie" leaves the finished game alone.
+    const filters = screen.getByRole('group', { name: 'Filtri' })
+    expect(filters.querySelectorAll('[role="combobox"]')).toHaveLength(5)
+    fireEvent.click(screen.getByRole('combobox', { name: 'Risultato' }))
+    fireEvent.click(await screen.findByRole('option', { name: 'Vittorie' }))
+    await waitFor(() => expect(screen.queryByText('contro gpt-5.5')).not.toBeInTheDocument())
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Rivedi' }))
+    })
+    expect(screen.getByRole('region', { name: 'Revisione' })).toBeInTheDocument()
   })
 })
