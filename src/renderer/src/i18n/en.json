@@ -47,8 +47,7 @@
     },
     "progress": {
       "title": "Your progress",
-      "body": "Estimated level, accuracy and improving themes, computed from the games you played.",
-      "action": "Open the dashboard"
+      "body": "Estimated level, accuracy and improving themes, computed from the games you played."
     }
   },
   "settings": {

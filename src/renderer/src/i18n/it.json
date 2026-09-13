@@ -47,8 +47,7 @@
     },
     "progress": {
       "title": "I tuoi progressi",
-      "body": "Livello stimato, accuratezza e temi in miglioramento, calcolati dalle partite che hai giocato.",
-      "action": "Apri il cruscotto"
+      "body": "Livello stimato, accuratezza e temi in miglioramento, calcolati dalle partite che hai giocato."
     }
   },
   "settings": {
