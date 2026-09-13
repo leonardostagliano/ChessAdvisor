@@ -1,0 +1,420 @@
+/* Progress dashboard (spec §6.9): one column of cards, every chart drawn inline and every value
+   written next to it, so nothing on this screen is readable by colour alone (spec §7). */
+.screen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  max-width: 1080px;
+  min-height: 100%;
+  padding: var(--s-6) var(--s-6) var(--s-8);
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.title {
+  font-size: var(--fs-xl);
+  color: var(--text);
+}
+
+.subtitle {
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+  max-width: 62ch;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--s-4);
+  align-items: start;
+}
+
+.wide {
+  grid-column: 1 / -1;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  min-width: 0;
+  padding: var(--s-4);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+}
+
+.cardHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  flex-wrap: wrap;
+}
+
+.cardTitle {
+  font-family: var(--font-ui);
+  font-size: var(--fs-md);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.note {
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+
+.error {
+  font-size: var(--fs-sm);
+  color: var(--danger);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  flex-wrap: wrap;
+}
+
+/* ── Level card ──────────────────────────────────────────────────────────── */
+.levelRow {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  flex-wrap: wrap;
+}
+
+.ring {
+  flex: none;
+  width: 96px;
+  height: 96px;
+}
+
+.ringTrack {
+  fill: none;
+  stroke: var(--bg-3);
+  stroke-width: 9;
+}
+
+.ringFill {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 9;
+  stroke-linecap: round;
+  transition: stroke-dasharray var(--dur-3) var(--ease);
+}
+
+.ringValue {
+  fill: var(--text);
+  font-family: var(--font-mono);
+  font-size: 22px;
+  text-anchor: middle;
+}
+
+.ringCaption {
+  fill: var(--text-3);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  text-anchor: middle;
+}
+
+.levelTexts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  min-width: 0;
+}
+
+.band {
+  font-size: var(--fs-2xl);
+  font-family: var(--font-serif);
+  color: var(--text);
+  line-height: 1.1;
+}
+
+.estimate {
+  font-size: var(--fs-md);
+  color: var(--text-2);
+}
+
+.qualitative {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--s-3);
+}
+
+.listBlock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding: var(--s-3);
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+}
+
+.listTitle {
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  margin: 0;
+  padding-left: var(--s-4);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-prose);
+  color: var(--text-2);
+}
+
+.listStrengths {
+  border-left: 3px solid var(--eval-good);
+}
+
+.listWeaknesses {
+  border-left: 3px solid var(--accent);
+}
+
+/* ── Accuracy trend ──────────────────────────────────────────────────────── */
+.trend {
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--bg-2);
+}
+
+.trendGrid {
+  stroke: var(--border-2);
+  stroke-width: 1;
+  stroke-dasharray: 4 4;
+}
+
+.trendAxis {
+  fill: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+.trendLine {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.trendArea {
+  fill: color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+.trendDot {
+  fill: var(--accent);
+  stroke: var(--bg-2);
+  stroke-width: 1.5;
+}
+
+.trendLast {
+  fill: var(--text);
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+
+.trendLabel {
+  fill: var(--text-2);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-anchor: middle;
+}
+
+.legend {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  flex-wrap: wrap;
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+}
+
+.legendValue {
+  font-family: var(--font-mono);
+  color: var(--text);
+}
+
+/* ── Bars (classifications and themes) ───────────────────────────────────── */
+.bars {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bar {
+  display: grid;
+  grid-template-columns: minmax(96px, 30%) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+.barLabel {
+  font-size: var(--fs-sm);
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.barTrack {
+  display: block;
+  height: 10px;
+  border-radius: var(--radius-pill);
+  background: var(--bg-3);
+  overflow: hidden;
+}
+
+.barFill {
+  display: block;
+  height: 100%;
+  border-radius: var(--radius-pill);
+  background: currentcolor;
+  transition: width var(--dur-2) var(--ease);
+}
+
+.barValue {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+  min-width: 88px;
+}
+
+.barPrimary {
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  color: var(--text);
+}
+
+.barSecondary {
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+  white-space: nowrap;
+}
+
+/* Classification colours; every use carries the word as well (spec §7). */
+.fill_book {
+  color: var(--text-3);
+}
+
+.fill_best,
+.fill_excellent {
+  color: var(--eval-good);
+}
+
+.fill_good {
+  color: var(--text-2);
+}
+
+.fill_inaccuracy {
+  color: var(--accent);
+}
+
+.fill_mistake {
+  color: color-mix(in srgb, var(--eval-bad) 70%, var(--accent));
+}
+
+.fill_blunder {
+  color: var(--eval-bad);
+}
+
+.fill_theme {
+  color: var(--accent);
+}
+
+/* ── Openings table ──────────────────────────────────────────────────────── */
+.tableScroll {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-sm);
+}
+
+.table th,
+.table td {
+  padding: var(--s-2) var(--s-3);
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.table th {
+  padding: 0;
+}
+
+.table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.sort {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+  width: 100%;
+  padding: var(--s-2) var(--s-3);
+  border: none;
+  background: transparent;
+  color: var(--text-3);
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  text-align: left;
+}
+
+.sort:hover {
+  color: var(--text);
+}
+
+.sortActive {
+  color: var(--accent);
+}
+
+.sortArrow {
+  font-family: var(--font-mono);
+}
+
+.numeric {
+  font-family: var(--font-mono);
+  text-align: right;
+}
+
+.openingName {
+  white-space: normal;
+  min-width: 180px;
+  color: var(--text);
+}
+
+@media (max-width: 900px) {
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .barFill,
+  .ringFill {
+    transition: none;
+  }
+}

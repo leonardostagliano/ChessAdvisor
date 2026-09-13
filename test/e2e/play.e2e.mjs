@@ -255,6 +255,24 @@ try {
   await page.getByRole('button', { name: /^Chiudi la revisione$/ }).click()
   await page.locator('cg-board').first().waitFor()
 
+  // 6b. Progressi (spec §6.9): the analysed match gives the dashboard a level and one trend point.
+  await page.getByRole('button', { name: /^Progressi$/ }).first().click()
+  const levelCard = page.getByRole('region', { name: 'Livello stimato' })
+  await levelCard.waitFor()
+  const levelText = (await levelCard.innerText()).replace(/\s+/g, ' ')
+  ok(
+    'the progress dashboard shows the band of the level',
+    /Principiante|Novizio|Intermedio|Avanzato|Esperto/.test(levelText),
+    levelText.slice(0, 120)
+  )
+  const trendPoints = await page.locator('[data-testid="accuracy-trend"] [data-point]').count()
+  ok('the accuracy trend has one point per analysed match', trendPoints === 1, `${trendPoints} points`)
+  const confidence = await page.getByTestId('confidence-ring').getAttribute('aria-label')
+  ok('the confidence of the estimate is written in words', /\d/.test(confidence ?? ''), confidence ?? 'no ring')
+  await sleep(300); await shot('08b-progress.png')
+  await page.getByRole('button', { name: /^Gioca$/ }).first().click()
+  await page.locator('cg-board').first().waitFor()
+
   // 7. Clocks (spec §4.3): 5+0 in "solo il mio tempo", where only the user burns time.
   await page.getByRole('button', { name: /Nuova partita/ }).first().click()
   await page.getByRole('dialog').waitFor()
