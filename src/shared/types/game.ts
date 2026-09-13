@@ -9,7 +9,15 @@ export interface Eval {
 
 export type MoveClassification = 'book' | 'best' | 'excellent' | 'good' | 'inaccuracy' | 'mistake' | 'blunder'
 
-/** Quality of one played move, filled by the post-game analysis pipeline (M3). Moves are UCI. */
+/**
+ * Quality of one played move, filled by the post-game analysis pipeline (M3). Moves are UCI.
+ *
+ * PERSPECTIVE: `before` and `after` are from the point of view of the player who made the move —
+ * positive always means "the mover stood well" — so a reader that needs White's perspective (the
+ * evaluation graph of the review, for instance) flips the sign on Black's plies. `cpLoss` is in
+ * internal centipawns (a mate counts as `sign × (10000 − |mate|)`) and `winPercentLoss` in points
+ * of winning chance, both of them the mover's own loss and never negative.
+ */
 export interface MoveEval {
   before: Eval
   after: Eval
@@ -67,9 +75,11 @@ export interface GameResult {
 }
 
 export interface GameAnalysis {
+  /** Percentage per colour, one decimal (spec §3.1, rule 6). */
   accuracy: { w: number; b: number }
+  /** Average centipawn loss per colour, rounded (rule 7). */
   acpl: { w: number; b: number }
-  /** Plies worth reviewing, as indices into `Game.moves`. */
+  /** Plies worth reviewing: the user's own mistakes and blunders, 1-based as `Move.ply`. */
   keyMoments: number[]
   lesson?: { takeaways: string[]; summary: string; language: Language }
   analyzedAt: string

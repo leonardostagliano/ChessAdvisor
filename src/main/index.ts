@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { BrowserWindow, app, nativeTheme, powerMonitor, shell } from 'electron'
 import icon from '../../resources/icon.png?asset'
+import { AnalysisManager } from './analysis/register'
 import { CodexService } from './codex/codexService'
 import { userCodexHome } from './codex/codexHome'
 import { EngineService } from './engine/engineService'
@@ -54,7 +55,18 @@ shutdown.register(() => codex.shutdown())
 // One session for the whole process: it owns the board, the opponent thread and the autosave.
 const games = new GameStore(join(dataDir(), 'games'))
 const profile = new ProfileStore(join(dataDir(), 'profile.json'))
-const game = new GameManager({ codex, engine, store: games, settings, profile, emit })
+// --- Task 15: post-game analysis and review ---
+// Owns the pipeline and the review threads; a finished match hands itself to it (spec §3.1).
+const analysis = new AnalysisManager({
+  codex,
+  engine,
+  store: games,
+  settings,
+  emit: (channel, payload) => emit(channel, payload),
+  openingsPath: () => resourcePath('data', 'openings.json')
+})
+shutdown.register(() => analysis.close())
+const game = new GameManager({ codex, engine, store: games, settings, profile, emit, onFinished: (finished) => analysis.onGameFinished(finished) })
 // The turn is interrupted and the game stays `in_progress` on disk (spec §4.3).
 shutdown.register(() => game.shutdown())
 // --- end Task 9 ---
@@ -141,7 +153,7 @@ if (!gotLock) {
     // Task 9: the archive index and the profile are read once, before the first IPC call.
     await games.load().catch((error) => console.error('[main] the games archive could not be read:', error))
     await profile.load().catch((error) => console.error('[main] the profile could not be read:', error))
-    registerIpc({ settings, showWindow: showMainWindow, engine, codex, games, game })
+    registerIpc({ settings, showWindow: showMainWindow, engine, codex, games, game, analysis })
     // In-app updater: never installs while a game turn is in flight.
     registerUpdates({
       handle,

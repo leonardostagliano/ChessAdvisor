@@ -17,6 +17,7 @@
     "test:watch": "vitest",
     "codex:types": "codex app-server generate-ts -o src/main/codex/protocol",
     "fetch:stockfish": "node scripts/fetch-stockfish.mjs",
+    "build:datasets": "node scripts/build-datasets.mjs",
     "gen-icon": "node scripts/gen-icon.mjs",
     "build:win": "electron-vite build && electron-builder --win nsis portable --x64 --publish never --config electron-builder.yml",
     "smoke:win": "node scripts/smoke-windows.cjs",

@@ -61,6 +61,12 @@ export interface GameSessionDeps {
   profile: ProfileStore
   /** `stream` carries the coach deltas straight to the renderer (spec §4.2). */
   emit(channel: 'game:state' | 'game:finished' | 'stream', payload: SessionState | GameFinishedEvent | StreamEnvelope): void
+  /**
+   * M3 hook of `game:finished`: the analysis pipeline starts itself when a match ends (spec §3.1).
+   * `game:finished` is an event for the renderer, so the main process needs a call of its own;
+   * it is fire-and-forget by contract — a failing analysis never touches the game.
+   */
+  onFinished?(game: Game): void
   now(): number
 }
 
@@ -942,6 +948,12 @@ export class GameSession {
     this.status = 'finished'
     this.emitState()
     this.deps.emit('game:finished', { gameId: game.id, result })
+    // The game on disk is already saved above: the pipeline reads it back by id.
+    try {
+      this.deps.onFinished?.(game)
+    } catch (error) {
+      console.error('[game] the post-game hook failed:', error)
+    }
   }
 
   /**

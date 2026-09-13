@@ -7,6 +7,8 @@ import type { Settings } from '@shared/types/settings'
 import { dataDir } from '../paths'
 import { registerGameIpc } from '../game/gameManager'
 import type { GameManager } from '../game/gameManager'
+import { registerAnalysisIpc } from '../analysis/register'
+import type { AnalysisManager } from '../analysis/register'
 import { GameStore } from '../store/gameStore'
 import type { Analysis, AnalysisProfile, EngineState } from '@shared/types/engine'
 import type { CodexService } from '../codex/codexService'
@@ -132,6 +134,8 @@ export function registerIpc(ctx: IpcContext): void {
   registerGamesIpc(ctx)
   // ── Task 9: the active game ──
   if (ctx.game) registerGameIpc({ handle, manager: ctx.game })
+  // ── Task 15: post-game analysis and review ──
+  if (ctx.analysis) registerAnalysisIpc({ handle, manager: ctx.analysis })
 }
 
 // ─── Task 8: games archive ────────────────────────────────────────────────────
@@ -185,4 +189,13 @@ async function readNotices(): Promise<string> {
 export interface IpcContext {
   /** The one live game session. Absent in tests that only need settings or the archive. */
   game?: GameManager
+}
+
+// ─── Task 15: post-game analysis and review ───────────────────────────────────
+// Same shape as the game block above: the bindings live with the manager, only the context
+// slot is declared here.
+
+export interface IpcContext {
+  /** Owner of the analysis pipeline and of the review threads; absent in tests that do not need it. */
+  analysis?: AnalysisManager
 }

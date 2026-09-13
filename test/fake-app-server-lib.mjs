@@ -223,6 +223,8 @@ export function createFakeServer(io, options = {}) {
     if (properties && 'takeaways' in properties) {
       return JSON.stringify({ takeaways: ['a', 'b', 'c'], summary: 'fake' })
     }
+    // Plain-text review turns (spec §4.4): a past ply, or one of the key moments.
+    if (text.includes('Rivedi la mossa')) return 'Commento finto in revisione.'
     // Plain-text coach turns: a comment on a move, or an answer to a question (spec §4.2).
     if (text.includes('Commenta')) return `Commento finto sulla mossa ${state.turnCount}.`
     if (text.includes('Domanda:')) return 'Risposta finta.'

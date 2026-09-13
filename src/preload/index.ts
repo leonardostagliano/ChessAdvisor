@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
-import type { Api, AppVersionInfo, GameFinished, StreamEnvelope } from '@shared/types/api'
+import type { AnalysisProgress, AnalysisStatus, Api, AppVersionInfo, GameFinished, ReviewActivity, ReviewLesson, StreamEnvelope } from '@shared/types/api'
 import type { NewGameOptions, SessionState } from '@shared/types/session'
 import type { Game, GameFilter, GameSummary } from '@shared/types/game'
 import type { CodexState, ModelInfo, QuotaSnapshot } from '@shared/types/codex'
@@ -8,7 +8,7 @@ import type { Settings } from '@shared/types/settings'
 import type { Analysis, AnalysisProfile, EngineState } from '@shared/types/engine'
 import { UPDATES_IPC, type UpdatePreferences, type UpdateStatus } from '@shared/updates'
 
-type Channel = 'stream' | 'settings:changed' | 'engine:state' | 'codex:state' | 'updates:changed' | 'game:state' | 'game:finished'
+type Channel = 'stream' | 'settings:changed' | 'engine:state' | 'codex:state' | 'updates:changed' | 'game:state' | 'game:finished' | 'analysis:progress' | 'review:activity'
 
 function subscribe(channel: Channel, cb: (payload: never) => void): () => void {
   const listener = (_event: IpcRendererEvent, payload: unknown): void => cb(payload as never)
@@ -63,6 +63,17 @@ const api: Api = {
     clearHint: () => ipcRenderer.invoke('game:clearHint') as Promise<SessionState>,
     commentSkipped: () => ipcRenderer.invoke('game:commentSkipped') as Promise<SessionState>
   },
+  // ── Task 15: post-game analysis and review ──
+  analysis: {
+    run: (gameId: string) => ipcRenderer.invoke('analysis:run', gameId) as Promise<Game>,
+    status: (gameId: string) => ipcRenderer.invoke('analysis:status', gameId) as Promise<AnalysisStatus>
+  },
+  review: {
+    commentMove: (gameId: string, ply: number) => ipcRenderer.invoke('review:commentMove', gameId, ply) as Promise<string>,
+    commentKeyMoments: (gameId: string) => ipcRenderer.invoke('review:commentKeyMoments', gameId) as Promise<{ ply: number; text: string }[]>,
+    lesson: (gameId: string) => ipcRenderer.invoke('review:lesson', gameId) as Promise<ReviewLesson>,
+    close: () => ipcRenderer.invoke('review:close') as Promise<void>
+  },
   // --- Task 6: Codex session ---------------------------------------------------------------
   codex: {
     state: () => ipcRenderer.invoke('codex:state') as Promise<CodexState>,
@@ -81,7 +92,7 @@ const api: Api = {
     install: () => ipcRenderer.invoke(UPDATES_IPC.install) as Promise<UpdateStatus>,
     openRelease: () => ipcRenderer.invoke(UPDATES_IPC.openRelease) as Promise<void>
   },
-  on: ((channel: Channel, cb: (payload: StreamEnvelope & Settings & EngineState & CodexState & UpdateStatus & SessionState & GameFinished) => void) =>
+  on: ((channel: Channel, cb: (payload: StreamEnvelope & Settings & EngineState & CodexState & UpdateStatus & SessionState & GameFinished & AnalysisProgress & ReviewActivity) => void) =>
     subscribe(channel, cb as (payload: never) => void)) as Api['on']
 }
 

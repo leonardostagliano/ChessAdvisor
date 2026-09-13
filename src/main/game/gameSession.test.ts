@@ -310,6 +310,48 @@ describe('GameSession', () => {
     expect(codex.closed).toEqual(['thread-1'])
   })
 
+  it('hands the finished game to the analysis hook exactly once (M3)', async () => {
+    const finished: { id: string; status: string }[] = []
+    session = new GameSession({
+      codex,
+      engine: fakeEngine(),
+      store,
+      settings,
+      profile,
+      emit,
+      onFinished: (game) => finished.push({ id: game.id, status: game.status }),
+      now: () => (clock += 1000)
+    })
+    const started = await session.newGame(options({ userColor: 'b' }))
+    await session.resign()
+    await session.resign()
+
+    expect(finished).toEqual([{ id: started.game!.id, status: 'finished' }])
+    // The game is already on disk when the hook fires: the pipeline reads it back by id.
+    expect((await store.get(started.game!.id))!.result).toEqual({ outcome: '1-0', reason: 'resign' })
+  })
+
+  it('never lets a failing analysis hook break the end of a game', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    session = new GameSession({
+      codex,
+      engine: fakeEngine(),
+      store,
+      settings,
+      profile,
+      emit,
+      onFinished: () => {
+        throw new Error('the pipeline exploded')
+      },
+      now: () => (clock += 1000)
+    })
+    await session.newGame(options({ userColor: 'b' }))
+    const state = await session.resign()
+
+    expect(state.game!.result).toEqual({ outcome: '1-0', reason: 'resign' })
+    expect(errors).toHaveBeenCalled()
+  })
+
   it('keeps the checkmate result when a resignation arrives after the game is over', async () => {
     await session.newGame(options({ startFen: MATE_IN_ONE }))
     await session.userMove('f7g7')

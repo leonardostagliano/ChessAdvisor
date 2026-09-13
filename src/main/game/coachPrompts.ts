@@ -26,12 +26,12 @@ export interface EngineContext {
   bestLines: { san: string; pv: string[]; eval: Eval }[]
 }
 
-const COLOR_NAME: Record<'it' | 'en', { w: string; b: string }> = {
+export const COLOR_NAME: Record<'it' | 'en', { w: string; b: string }> = {
   it: { w: 'il Bianco', b: 'il Nero' },
   en: { w: 'White', b: 'Black' }
 }
 
-const CLASSIFICATION_NAME: Record<'it' | 'en', Record<MoveClassification, string>> = {
+export const CLASSIFICATION_NAME: Record<'it' | 'en', Record<MoveClassification, string>> = {
   it: {
     book: 'teoria',
     best: 'migliore',
@@ -53,7 +53,7 @@ const CLASSIFICATION_NAME: Record<'it' | 'en', Record<MoveClassification, string
 }
 
 /** Pawns with a sign, or "matto in N": the notation a player reads on an evaluation bar. */
-function formatEval(value: Eval | null | undefined, language: 'it' | 'en'): string {
+export function formatEval(value: Eval | null | undefined, language: 'it' | 'en'): string {
   if (!value) return language === 'it' ? 'non disponibile' : 'not available'
   if (typeof value.mate === 'number') {
     const side = value.mate >= 0 ? COLOR_NAME[language].w : COLOR_NAME[language].b
@@ -71,7 +71,7 @@ function formatEval(value: Eval | null | undefined, language: 'it' | 'en'): stri
  * The block of Stockfish data shared by every coach call, or the oracle-less notice.
  * `evalAfter` is only written when the call is about a move that has already been played.
  */
-function engineBlock(engine: EngineContext | null, language: 'it' | 'en', opts: { withAfter: boolean }): string[] {
+export function engineBlock(engine: EngineContext | null, language: 'it' | 'en', opts: { withAfter: boolean }): string[] {
   const it = language === 'it'
   if (!engine) {
     return [
@@ -104,7 +104,7 @@ function engineBlock(engine: EngineContext | null, language: 'it' | 'en', opts: 
 }
 
 /** `FEN:` and `PGN:` lines, in the shape every prompt of the app uses. */
-function positionBlock(fen: string, pgn: string, language: 'it' | 'en'): string[] {
+export function positionBlock(fen: string, pgn: string, language: 'it' | 'en'): string[] {
   const text = movetext(pgn)
   return [`FEN: ${fen}`, `PGN: ${text.length > 0 ? text : language === 'it' ? '(partita appena iniziata)' : '(game just started)'}`]
 }
