@@ -1,5 +1,6 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import '@testing-library/jest-dom/vitest'
 import '../../i18n'
 import { useUiStore } from '../../stores/uiStore'
 import { Shell } from './Shell'
@@ -26,6 +27,30 @@ describe('Shell', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Impostazioni' }))
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Impostazioni')
+  })
+
+  it('opens the shortcuts sheet with ? and closes it with Esc', () => {
+    render(<Shell />)
+    expect(screen.queryByRole('dialog')).toBeNull()
+
+    fireEvent.keyDown(window, { key: '?' })
+    const sheet = screen.getByRole('dialog')
+    expect(sheet).toHaveTextContent('Scorciatoie da tastiera')
+    expect(sheet).toHaveTextContent('Mossa precedente e successiva, in partita e in revisione')
+
+    fireEvent.keyDown(sheet, { key: 'Escape' })
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('leaves ? alone while the user is writing', () => {
+    render(<Shell />)
+    const field = document.createElement('input')
+    document.body.appendChild(field)
+    field.focus()
+
+    fireEvent.keyDown(field, { key: '?' })
+    expect(screen.queryByRole('dialog')).toBeNull()
+    field.remove()
   })
 
   it('re-renders the rail labels after a language change', async () => {

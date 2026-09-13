@@ -52,10 +52,14 @@
   transition: background var(--dur-2) var(--ease);
 }
 
-.promotionChoice:hover,
+.promotionChoice:hover {
+  background: var(--accent-soft);
+}
+
 .promotionChoice:focus-visible {
   outline: none;
   background: var(--accent-soft);
+  box-shadow: var(--focus-ring);
 }
 
 .promotionChoice piece {

@@ -223,6 +223,7 @@ export function Board({
   // moved it visually; the move is sent (or the board restored) only when the picker closes.
   const [promotion, setPromotion] = useState<{ orig: Key; dest: Key; color: Color } | null>(null)
   const promotionCancelRef = useRef<() => void>(() => {})
+  const promotionChooseRef = useRef<(letter: 'q' | 'r' | 'b' | 'n') => void>(() => {})
 
   const choosePromotion = (letter: 'q' | 'r' | 'b' | 'n'): void => {
     if (!promotion) return
@@ -237,6 +238,7 @@ export function Board({
     apiRef.current?.set({ fen: moveRef.current.fen, lastMove: lastMove ? [lastMove[0] as Key, lastMove[1] as Key] : [] })
   }
   promotionCancelRef.current = cancelPromotion
+  promotionChooseRef.current = choosePromotion
 
   useEffect(() => {
     if (!promotion) return
@@ -244,7 +246,14 @@ export function Board({
       if (event.key === 'Escape') {
         event.preventDefault()
         promotionCancelRef.current()
+        return
       }
+      // 1…4 pick the piece in the order the column shows it (task T22 item 1).
+      const index = Number(event.key) - 1
+      const choice = PROMOTION_ROLES[index]
+      if (!choice) return
+      event.preventDefault()
+      promotionChooseRef.current(choice.letter)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)

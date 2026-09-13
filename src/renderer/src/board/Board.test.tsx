@@ -138,6 +138,20 @@ describe('Board', () => {
     expect(view.queryByTestId('promotion-picker')).toBeNull()
   })
 
+  it('picks the promotion piece with the number keys, in the order of the column', () => {
+    const onMove = vi.fn()
+    render(<Board fen={PROMOTION} movable={{ color: 'white' }} onMove={onMove} />)
+    reactAct(() => {
+      lastConfig().movable?.events?.after?.('e7', 'e8')
+    })
+    reactAct(() => {
+      fire.keyDown(window, { key: '3' })
+    })
+    // The column shows queen, knight, rook, bishop: the third key is the rook.
+    expect(onMove).toHaveBeenCalledWith('e7e8r')
+    expect(view.queryByTestId('promotion-picker')).toBeNull()
+  })
+
   it('cancels the promotion with Escape and puts the pawn back', () => {
     const onMove = vi.fn()
     render(<Board fen={PROMOTION} movable={{ color: 'white' }} onMove={onMove} />)
