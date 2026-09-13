@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs'
 import { join, resolve } from 'node:path'
-import { BrowserWindow, app, nativeTheme, shell } from 'electron'
+import { BrowserWindow, app, nativeTheme, powerMonitor, shell } from 'electron'
 import icon from '../../resources/icon.png?asset'
 import { CodexService } from './codex/codexService'
 import { userCodexHome } from './codex/codexHome'
@@ -171,6 +171,9 @@ if (!gotLock) {
     })
     tray.update('ChessAdvisor — inattivo')
     app.on('activate', () => showMainWindow())
+
+    // A suspended machine skips every clock tick: the flag is checked again on the way back up.
+    powerMonitor.on('resume', () => void game.checkClock())
 
     // The renderer follows `codex:state`; a boot failure is a screen, never a crash.
     void codex.start().catch((error) => console.error('[main] Codex service failed to start:', error))

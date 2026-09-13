@@ -4,12 +4,22 @@ import { pgnOf } from '@shared/chess/pgn'
 import type { StreamEnvelope } from '@shared/types/api'
 import type { CoachLogEntry, Game, GameResult, Move } from '@shared/types/game'
 import type { Language } from '@shared/types/settings'
-import { DIFFICULTY_LEVELS, nearestLevel, type CoachState, type DifficultyChoice, type NewGameOptions, type OpponentDifficulty, type SessionState } from '@shared/types/session'
+import {
+  DIFFICULTY_LEVELS,
+  nearestLevel,
+  type ClockConfig,
+  type CoachState,
+  type DifficultyChoice,
+  type NewGameOptions,
+  type OpponentDifficulty,
+  type SessionState
+} from '@shared/types/session'
 import type { CodexService } from '../codex/codexService'
 import type { EngineService } from '../engine/engineService'
 import type { GameStore } from '../store/gameStore'
 import type { ProfileStore } from '../store/profileStore'
 import type { SettingsStore } from '../store/settingsStore'
+import { GameClock } from './clock'
 import { CoachSession, type CoachActivity } from './coach'
 import { OpponentTurnError, playOpponentTurn } from './opponentTurn'
 import { DRAW_OFFER_SCHEMA, drawOfferText, opponentBaseInstructions } from './prompts'
@@ -83,8 +93,24 @@ export const MAX_SKIPPED_COMMENTS = 6
 const RESUME_RECAP_ENTRIES = 10
 /** How long `close()` waits for an interrupted comment before walking away from it. */
 const COMMENT_SETTLE_MS = 2000
+/** How often a running clock republishes the state; the renderer interpolates in between. */
+const CLOCK_TICK_MS = 1000
+/** Grace the opponent turn gets on top of its remaining time before it is cut off (spec §4.3). */
+const CLOCK_TURN_GRACE_MS = 2000
 
 const clamp = (value: number, min: number, max: number): number => Math.min(max, Math.max(min, value))
+
+/** The clock a new game is saved with: both sides start on the full initial time. */
+function initialClock(cfg: ClockConfig | null | undefined): Game['clock'] {
+  if (!cfg || !(cfg.initialMs > 0)) return null
+  const initialMs = Math.round(cfg.initialMs)
+  return {
+    initialMs,
+    incrementMs: Math.max(0, Math.round(cfg.incrementMs)),
+    aiClock: cfg.aiClock === true,
+    remainingMs: { w: initialMs, b: initialMs }
+  }
+}
 
 export class GameSession {
   private game: Game | null = null
@@ -102,6 +128,12 @@ export class GameSession {
   private coachActivity: CoachActivity = { busy: false, streamId: null }
   private coachHint: CoachState['hint'] = null
   private coachAnswer: CoachState['lastAnswer'] = null
+  /** Clocks of the running game (spec §4.3); `null` when the game is played without them. */
+  private clock: GameClock | null = null
+  /** Republishes the state while a clock runs; owned here, cleared on stop and on close. */
+  private ticker: NodeJS.Timeout | null = null
+  /** Guards against a second expiry landing while the first one is still finishing the game. */
+  private expiring = false
   /** Plies pushed while comments were visible and not commented yet, in order. */
   private pendingComments: number[] = []
   /** Comments run one at a time, behind the moves: the AI turn never waits for one. */
@@ -154,6 +186,7 @@ export class GameSession {
       liveEval: this.liveEvalValue ? { ...this.liveEvalValue } : null,
       status: this.status,
       error: this.error,
+      clock: this.clock ? this.clock.snapshot() : null,
       coach: {
         commentsVisible: this.commentsVisible,
         busy: this.coachActivity.busy,
@@ -180,6 +213,7 @@ export class GameSession {
   }
 
   private emitState(): void {
+    this.syncClock()
     this.deps.emit('game:state', this.state())
   }
 
@@ -203,7 +237,7 @@ export class GameSession {
       userColor,
       opponent: { model: opts.model, effort: opts.effort, difficulty },
       coach: { model: opts.coach.model, effort: opts.coach.effort },
-      clock: null,
+      clock: initialClock(opts.clock),
       language: opts.language,
       ...(opts.startFen ? { startFen: opts.startFen } : {})
     })
@@ -214,6 +248,7 @@ export class GameSession {
       .catch((error) => console.error('[game] the new-game choices could not be saved:', error))
 
     this.game = game
+    this.buildClock(game)
     this.showReasoning = opts.showReasoning
     this.commentsVisible = opts.commentsVisible
     this.pendingTakebackNotice = null
@@ -292,6 +327,8 @@ export class GameSession {
     await this.deps.store.save(game)
 
     this.game = game
+    // The clocks resume where the last committed move left them (spec §4.3).
+    this.buildClock(game)
     this.showReasoning = this.deps.settings.get().showReasoning
     this.commentsVisible = true
     this.pendingTakebackNotice = null
@@ -343,6 +380,8 @@ export class GameSession {
       if (this.ai.thinking) await this.deps.codex.interrupt(threadId).catch(() => undefined)
       await this.deps.codex.closeThread(threadId).catch(() => undefined)
     }
+    this.stopTicker()
+    this.clock = null
     this.game = null
     this.status = 'idle'
     this.error = null
@@ -373,6 +412,10 @@ export class GameSession {
     this.emitState()
 
     if (await this.checkEnd()) {
+      this.flushComments()
+      return this.state()
+    }
+    if (await this.checkTimeout()) {
       this.flushComments()
       return this.state()
     }
@@ -411,7 +454,7 @@ export class GameSession {
           pgn: pgnOf(game.moves, game.startFen ? { startFen: game.startFen } : undefined),
           lastUserMove: lastMove?.by === 'user' ? lastMove.san : null,
           takebackNotice: notice,
-          timeoutMs: this.deps.settings.get().turnTimeoutSec * 1000,
+          timeoutMs: this.turnTimeoutMs(game),
           streamId,
           onDelta: (kind, delta) => {
             if (kind !== 'reasoning' || !this.showReasoning || epoch !== this.turnEpoch) return
@@ -433,6 +476,8 @@ export class GameSession {
         this.fail(`the opponent answered with ${move.uci}, which is not legal in ${fen}`)
         return
       }
+      // Only the attempt that produced this move is charged; the retries are given back.
+      this.clock?.chargeAi(move.thinkingMs)
       this.pushMove(game, {
         san: applied.san,
         uci: move.uci,
@@ -450,6 +495,8 @@ export class GameSession {
       // Comments start only now: an opponent turn must never wait for the coach (spec §4.2).
       this.flushComments()
       if (await this.checkEnd()) return
+      // Spec §4.3: the flag is also checked when a turn completes, not only on the tick.
+      if (await this.checkTimeout()) return
       await this.runEval(this.fen())
     } catch (error) {
       if (epoch !== this.turnEpoch) return
@@ -465,7 +512,9 @@ export class GameSession {
 
   private pushMove(game: Game, move: Omit<Move, 'ply' | 'epdAfter'>): void {
     const ply = game.moves.length + 1
-    game.moves.push({ ...move, ply, epdAfter: epdOf(move.fenAfter) })
+    // The increment belongs to the move that has just been validated, final move included.
+    const clockAfter = this.commitClock(game, move.by === 'user' ? game.userColor : this.aiColor(game))
+    game.moves.push({ ...move, ply, epdAfter: epdOf(move.fenAfter), ...(clockAfter ? { clockAfter } : {}) })
     // Reactivating the comments never comments backwards (spec §4.2): only what is pushed while
     // they are visible is ever queued.
     if (this.commentsVisible) this.pendingComments.push(ply)
@@ -513,6 +562,8 @@ export class GameSession {
       removed += 1
     }
     game.takebacks += 1
+    // The clocks go back with the moves: `clockAfter` of what is left, or the initial time.
+    this.restoreClock(game)
     this.pendingComments = this.pendingComments.filter((ply) => ply <= game.moves.length)
     this.coachHint = null
     this.pendingTakebackNotice = removed
@@ -574,6 +625,135 @@ export class GameSession {
   async navigateEval(fen: string): Promise<void> {
     if (typeof fen !== 'string' || fen.trim().length === 0) throw new GameError('BAD_FEN', 'a FEN string is required')
     await this.runEval(fen)
+  }
+
+  // ------------------------------------------------------------------ clocks (spec §4.3)
+
+  private aiColor(game: Game): 'w' | 'b' {
+    return game.userColor === 'w' ? 'b' : 'w'
+  }
+
+  /** (Re)creates the live clock from what the game carries; a game without clocks has none. */
+  private buildClock(game: Game): void {
+    this.stopTicker()
+    this.expiring = false
+    this.clock = game.clock
+      ? new GameClock(
+          { initialMs: game.clock.initialMs, incrementMs: game.clock.incrementMs, aiClock: game.clock.aiClock, aiColor: this.aiColor(game) },
+          game.clock.remainingMs,
+          this.deps.now
+        )
+      : null
+  }
+
+  /** Stops the mover's clock, credits the increment and writes the result into the game. */
+  private commitClock(game: Game, color: 'w' | 'b'): { w: number; b: number } | null {
+    if (!this.clock || !game.clock) return null
+    const remaining = this.clock.onMoveCommitted(color)
+    game.clock.remainingMs = { ...remaining }
+    return remaining
+  }
+
+  /** A takeback puts the clocks back where the move that is still on the board left them. */
+  private restoreClock(game: Game): void {
+    if (!game.clock) return
+    const last = game.moves[game.moves.length - 1]
+    game.clock.remainingMs = last?.clockAfter ? { ...last.clockAfter } : { w: game.clock.initialMs, b: game.clock.initialMs }
+    this.buildClock(game)
+  }
+
+  /**
+   * Points the running clock at the side to move, and keeps the ticker alive only while one is
+   * actually burning time. Called before every published state, so no transition can leave a
+   * clock running for the wrong side.
+   */
+  private syncClock(): void {
+    const clock = this.clock
+    if (!clock) {
+      this.stopTicker()
+      return
+    }
+    const game = this.game
+    if (!game || this.status !== 'playing' || game.status === 'finished') {
+      clock.stop()
+      this.stopTicker()
+      return
+    }
+    clock.start(this.sideToMove(this.fen()))
+    if (clock.snapshot().running) this.startTicker()
+    else this.stopTicker()
+  }
+
+  private startTicker(): void {
+    if (this.ticker) return
+    this.ticker = setInterval(() => void this.onTick(), CLOCK_TICK_MS)
+    // A running clock must never be the reason the process stays alive.
+    this.ticker.unref?.()
+  }
+
+  private stopTicker(): void {
+    if (!this.ticker) return
+    clearInterval(this.ticker)
+    this.ticker = null
+  }
+
+  /** One second of clock: either the flag falls, or the renderer gets a fresh state to show. */
+  private async onTick(): Promise<void> {
+    if (!this.clock) {
+      this.stopTicker()
+      return
+    }
+    if (await this.checkTimeout()) return
+    if (this.clock.snapshot().running === null) {
+      this.stopTicker()
+      return
+    }
+    this.emitState()
+  }
+
+  /**
+   * Settles the clocks and checks the flag outside the tick: after a suspended machine
+   * (`powerMonitor 'resume'`) the interval may not have run for hours (spec §4.3).
+   */
+  async checkClock(): Promise<SessionState> {
+    if (this.clock && !(await this.checkTimeout())) this.emitState()
+    return this.state()
+  }
+
+  private async checkTimeout(): Promise<boolean> {
+    const expired = this.clock?.expired() ?? null
+    if (!expired || !this.game || this.game.status === 'finished') return false
+    await this.handleExpiry(expired)
+    return true
+  }
+
+  /** The flag has fallen: the turn in flight is dropped and the game ends on time. */
+  private async handleExpiry(color: 'w' | 'b'): Promise<void> {
+    const game = this.game
+    if (!game || game.status === 'finished' || this.expiring) return
+    this.expiring = true
+    try {
+      this.stopTicker()
+      this.clock?.stop()
+      if (this.ai.thinking) {
+        this.turnEpoch += 1
+        this.ai = idleAi()
+        if (this.threadId) await this.deps.codex.interrupt(this.threadId).catch(() => undefined)
+      }
+      // Spec §6.1: a game the AI lost on time is excluded from the level estimation of M4, which
+      // reads `result.reason === 'timeout'` and the losing colour off `outcome` and `userColor`.
+      // The adaptive rating of §4.1 is a different quantity and keeps counting this game.
+      await this.finish({ outcome: color === 'w' ? '0-1' : '1-0', reason: 'timeout' })
+    } finally {
+      this.expiring = false
+    }
+  }
+
+  /** Spec §4.3: with a clock on the AI the turn can never outlive the time it has left. */
+  private turnTimeoutMs(game: Game): number {
+    const base = this.deps.settings.get().turnTimeoutSec * 1000
+    if (!this.clock || !game.clock?.aiClock) return base
+    return Math.max(0, Math.min(base, this.clock.remaining()[this.aiColor(game)] + CLOCK_TURN_GRACE_MS))
   }
 
   // ------------------------------------------------------------------ coach (spec §4.2)
@@ -747,6 +927,11 @@ export class GameSession {
     game.result = result
     this.turnEpoch += 1
     this.ai = idleAi()
+    this.stopTicker()
+    if (this.clock && game.clock) {
+      this.clock.stop()
+      game.clock.remainingMs = { ...this.clock.remaining() }
+    }
     await this.autosave(game)
 
     const threadId = this.threadId

@@ -3,7 +3,7 @@ import { applyMove, epdOf, legalMoves } from '@shared/chess/notation'
 import type { ModelInfo, TurnRequest, TurnResult } from '@shared/types/codex'
 import type { Analysis, EngineState } from '@shared/types/engine'
 import type { Game, Move } from '@shared/types/game'
-import type { NewGameOptions } from '@shared/types/session'
+import type { NewGameOptions, SessionState } from '@shared/types/session'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { makeTmpDir, removeTmpDir } from '../../../test/helpers/tmpDir'
 import { GameStore } from '../store/gameStore'
@@ -45,6 +45,8 @@ class FakeCodex implements SessionCodex {
   readonly closed: string[] = []
   readonly requests: TurnRequest[] = []
   script: TurnResult[] = []
+  /** Called before every answer: the clock tests let a turn burn some of the fake wall time. */
+  onTurn: ((req: TurnRequest) => void) | null = null
   catalogue: ModelInfo[] = MODELS
   private holding = false
   private pending: ((result: TurnResult) => void) | null = null
@@ -60,6 +62,7 @@ class FakeCodex implements SessionCodex {
 
   async runTurn(req: TurnRequest): Promise<TurnResult> {
     this.requests.push(req)
+    this.onTurn?.(req)
     if (this.holding) {
       this.holding = false
       return new Promise<TurnResult>((resolve) => {
@@ -627,6 +630,185 @@ describe('GameSession', () => {
       await vi.waitFor(() => expect(session.state().coach.busy).toBe(false))
       expect(session.state().game!.moves[0]!.coachComment).toBeUndefined()
       expect(session.state().error).toBeNull()
+    })
+  })
+
+  describe('clocks', () => {
+    const FIVE_MINUTES = 300_000
+    /** The wall clock of these tests moves only when a test says so. */
+    let at = 0
+
+    const timed = (clock: NewGameOptions['clock'] = { initialMs: FIVE_MINUTES, incrementMs: 3_000, aiClock: false }): NewGameOptions =>
+      options({ clock })
+
+    /** A session whose `now()` is frozen: nothing but the test advances the clocks. */
+    const buildFrozen = (): void => {
+      at = 1_700_000_000_000
+      session = new GameSession({ codex, engine: fakeEngine(), store, settings, profile, emit, now: () => at })
+    }
+
+    beforeEach(() => buildFrozen())
+
+    it('plays without clocks unless the dialog asked for one', async () => {
+      const state = await session.newGame(options())
+      expect(state.clock).toBeNull()
+      expect(state.game!.clock).toBeNull()
+      await session.userMove('e2e4')
+      expect(session.state().game!.moves[0]!.clockAfter).toBeUndefined()
+    })
+
+    it('runs the user clock and credits the increment to whoever has moved', async () => {
+      const state = await session.newGame(timed())
+      expect(state.game!.clock).toEqual({ initialMs: FIVE_MINUTES, incrementMs: 3_000, aiClock: false, remainingMs: { w: FIVE_MINUTES, b: FIVE_MINUTES } })
+      expect(state.clock).toEqual({ remainingMs: { w: FIVE_MINUTES, b: FIVE_MINUTES }, running: 'w', updatedAt: at })
+
+      at += 10_000
+      const moved = await session.userMove('e2e4')
+      // 10 s burned, 3 s of increment credited right after the move was validated.
+      expect(moved.game!.moves[0]!.clockAfter).toEqual({ w: 293_000, b: FIVE_MINUTES })
+      expect(moved.clock).toEqual({ remainingMs: { w: 293_000, b: FIVE_MINUTES }, running: 'w', updatedAt: at })
+      expect(moved.game!.clock!.remainingMs).toEqual({ w: 293_000, b: FIVE_MINUTES })
+      expect((await store.get(moved.game!.id))!.clock!.remainingMs).toEqual({ w: 293_000, b: FIVE_MINUTES })
+    })
+
+    it('never runs the AI clock in "solo il mio tempo"', async () => {
+      await session.newGame(timed())
+      at += 5_000
+      await session.userMove('e2e4')
+      expect(session.state().clock!.remainingMs).toEqual({ w: 298_000, b: FIVE_MINUTES })
+
+      codex.hold()
+      const pending = session.userMove(legalMoves(session.state().fen)[0]!.uci)
+      await vi.waitFor(() => expect(session.state().ai.thinking).toBe(true))
+      // The opponent is thinking: nobody's clock is running and the AI never loses a millisecond.
+      expect(session.state().clock!.running).toBeNull()
+      at += 60_000
+      expect(session.state().clock!.remainingMs).toEqual({ w: 301_000, b: FIVE_MINUTES })
+
+      await session.takeback()
+      await pending
+    })
+
+    it('charges the AI only the thinking time of the accepted attempt', async () => {
+      await session.newGame(timed({ initialMs: 60_000, incrementMs: 2_000, aiClock: true }))
+      // Every attempt burns four seconds of wall time; only the last one is charged (spec §4.3).
+      codex.onTurn = () => {
+        at += 4_000
+      }
+      codex.script = [
+        { ok: false, reason: 'failed', message: 'hiccup', turnId: null },
+        { ok: false, reason: 'failed', message: 'hiccup', turnId: null }
+      ]
+      const state = await session.userMove('e2e4')
+
+      const answer = state.game!.moves[1]!
+      expect(answer.thinkingMs).toBe(4_000)
+      expect(answer.thinkingOverheadMs).toBe(8_000)
+      expect(answer.clockAfter).toEqual({ w: 62_000, b: 58_000 })
+      expect(state.clock!.remainingMs).toEqual({ w: 62_000, b: 58_000 })
+      // Spec §4.3: the turn can never be given more time than the AI has left, plus two seconds.
+      expect(codex.requests[0]!.timeoutMs).toBe(62_000)
+    })
+
+    it('finishes the game on time when the user flag falls', async () => {
+      const started = await session.newGame(timed({ initialMs: 5_000, incrementMs: 0, aiClock: false }))
+      at += 6_000
+      const state = await session.checkClock()
+
+      expect(state.status).toBe('finished')
+      expect(state.game!.result).toEqual({ outcome: '0-1', reason: 'timeout' })
+      expect(state.clock).toEqual({ remainingMs: { w: 0, b: 5_000 }, running: null, updatedAt: at })
+      expect(emit).toHaveBeenCalledWith('game:finished', { gameId: started.game!.id, result: { outcome: '0-1', reason: 'timeout' } })
+      expect((await store.get(started.game!.id))!.clock!.remainingMs.w).toBe(0)
+    })
+
+    it('interrupts the opponent turn when the AI runs out of time', async () => {
+      await session.newGame(timed({ initialMs: 3_000, incrementMs: 0, aiClock: true }))
+      codex.hold()
+      const pending = session.userMove('e2e4')
+      await vi.waitFor(() => expect(session.state().ai.thinking).toBe(true))
+      expect(session.state().clock!.running).toBe('b')
+
+      at += 10_000
+      const state = await session.checkClock()
+      await pending
+
+      expect(codex.interrupted).toEqual(['thread-1'])
+      expect(state.ai.thinking).toBe(false)
+      expect(state.status).toBe('finished')
+      // The AI plays Black: its flag is the user's win.
+      expect(state.game!.result).toEqual({ outcome: '1-0', reason: 'timeout' })
+      expect(state.clock!.remainingMs.b).toBe(0)
+    })
+
+    it('puts the clocks back where the takeback puts the moves', async () => {
+      await session.newGame(timed())
+      at += 20_000
+      await session.userMove('e2e4')
+      at += 15_000
+      await session.userMove(legalMoves(session.state().fen)[0]!.uci)
+      expect(session.state().clock!.remainingMs).toEqual({ w: 271_000, b: FIVE_MINUTES })
+
+      const back = await session.takeback()
+      expect(back.game!.moves).toHaveLength(2)
+      // 300 s − 20 s + 3 s of increment: what the first pair of moves left on the clock.
+      expect(back.clock!.remainingMs).toEqual({ w: 283_000, b: FIVE_MINUTES })
+      expect(back.game!.clock!.remainingMs).toEqual({ w: 283_000, b: FIVE_MINUTES })
+
+      // Back to the empty board: the clocks are the ones the game started with.
+      const empty = await session.takeback()
+      expect(empty.game!.moves).toHaveLength(0)
+      expect(empty.clock!.remainingMs).toEqual({ w: FIVE_MINUTES, b: FIVE_MINUTES })
+    })
+
+    it('resumes a game with the time it had left on disk', async () => {
+      const game = await store.create({
+        kind: 'match',
+        userColor: 'w',
+        opponent: { model: 'gpt-6-astra', effort: 'medium', difficulty: { mode: 'fixed', level: 3, targetElo: 1200 } },
+        coach: { model: 'gpt-6-astra', effort: 'medium' },
+        clock: { initialMs: FIVE_MINUTES, incrementMs: 3_000, aiClock: false, remainingMs: { w: 123_000, b: FIVE_MINUTES } },
+        language: 'it'
+      })
+      const applied = applyMove(START_FEN, 'e2e4')!
+      game.moves.push({
+        ply: 1,
+        san: applied.san,
+        uci: 'e2e4',
+        fenAfter: applied.fen,
+        epdAfter: epdOf(applied.fen),
+        by: 'user',
+        clockAfter: { w: 123_000, b: FIVE_MINUTES }
+      })
+      await store.save(game)
+
+      const state = await session.resume(game.id)
+      // The AI answered on resume; the user's remaining time is the one that was saved.
+      expect(state.game!.moves).toHaveLength(2)
+      expect(state.clock).toEqual({ remainingMs: { w: 123_000, b: FIVE_MINUTES }, running: 'w', updatedAt: at })
+    })
+
+    it('republishes the state once a second while a clock runs', async () => {
+      vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
+      try {
+        await session.newGame(timed())
+        emit.mockClear()
+        at += 1_000
+        await vi.advanceTimersByTimeAsync(1_000)
+
+        const published = emit.mock.calls.filter(([channel]) => channel === 'game:state')
+        expect(published).toHaveLength(1)
+        expect((published[0]![1] as SessionState).clock).toEqual({ remainingMs: { w: 299_000, b: FIVE_MINUTES }, running: 'w', updatedAt: at })
+
+        // A finished game stops the ticker.
+        await session.resign()
+        emit.mockClear()
+        at += 2_000
+        await vi.advanceTimersByTimeAsync(2_000)
+        expect(emit.mock.calls.filter(([channel]) => channel === 'game:state')).toHaveLength(0)
+      } finally {
+        vi.useRealTimers()
+      }
     })
   })
 

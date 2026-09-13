@@ -1,4 +1,4 @@
-import type { NewGameOptions, SessionState } from '@shared/types/session'
+import type { ClockConfig, NewGameOptions, SessionState } from '@shared/types/session'
 import { GameError, GameSession, type GameSessionDeps } from './gameSession'
 
 /**
@@ -28,6 +28,14 @@ export class GameManager {
     return this.current.isBusy()
   }
 
+  /**
+   * Settles the clocks and checks the flag after the machine woke up: while it slept the tick
+   * never ran, and the main process is the only authority on the time left (spec §4.3).
+   */
+  async checkClock(): Promise<void> {
+    await this.current.checkClock().catch((error) => console.error('[game] the clock check failed:', error))
+  }
+
   /** Called on quit: interrupts the running turn and leaves the game `in_progress` on disk. */
   async shutdown(): Promise<void> {
     await this.current.close().catch((error) => console.error('[game] shutdown failed:', error))
@@ -43,6 +51,26 @@ export interface RegisterGameIpcDeps {
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value)
+
+/** Bounds of a clock the dialog can ask for: from one second to three hours, increment up to 3'. */
+const MIN_INITIAL_MS = 1_000
+const MAX_INITIAL_MS = 3 * 60 * 60 * 1_000
+const MAX_INCREMENT_MS = 3 * 60 * 1_000
+
+const finite = (value: unknown): number | null => (typeof value === 'number' && Number.isFinite(value) ? value : null)
+
+/** No clock at all unless the dialog asked for a usable one (spec §4.3: "Nessuno" is the default). */
+function clockConfig(raw: unknown): ClockConfig | null {
+  if (!isRecord(raw)) return null
+  const initial = finite(raw.initialMs)
+  if (initial === null || initial < MIN_INITIAL_MS) return null
+  const increment = finite(raw.incrementMs) ?? 0
+  return {
+    initialMs: Math.round(Math.min(initial, MAX_INITIAL_MS)),
+    incrementMs: Math.round(Math.min(Math.max(0, increment), MAX_INCREMENT_MS)),
+    aiClock: raw.aiClock === true
+  }
+}
 
 /** The renderer sends plain JSON: nothing reaches the session before it has the expected shape. */
 function newGameOptions(raw: unknown): NewGameOptions {
@@ -68,6 +96,7 @@ function newGameOptions(raw: unknown): NewGameOptions {
     language: raw.language === 'en' ? 'en' : 'it',
     showReasoning: raw.showReasoning === true,
     commentsVisible: raw.commentsVisible !== false,
+    clock: clockConfig(raw.clock),
     ...(typeof raw.startFen === 'string' && raw.startFen.trim() ? { startFen: raw.startFen.trim() } : {}),
     ...(raw.kind === 'endgame_drill' ? { kind: 'endgame_drill' as const } : {})
   }

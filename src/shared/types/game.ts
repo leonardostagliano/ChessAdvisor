@@ -28,7 +28,7 @@ export interface Move {
   /** First four FEN fields of `fenAfter`: the repetition/opening key. */
   epdAfter: string
   by: 'user' | 'ai'
-  /** Remaining time of both sides after the move, in ms (M2 clocks). */
+  /** Remaining time of both sides once the move was committed and the increment credited, in ms. */
   clockAfter?: { w: number; b: number }
   /** Wall time of the accepted attempt, in ms. */
   thinkingMs?: number
@@ -81,9 +81,14 @@ export interface GameOpening {
   lastBookPly: number
 }
 
+/**
+ * Clocks of a game as they are persisted (spec §4.3). `remainingMs` is the last settled value the
+ * main process wrote: the live one travels in `SessionState.clock`.
+ */
 export interface GameClock {
   initialMs: number
   incrementMs: number
+  /** False in "Solo il mio tempo": the opponent has no clock at all. */
   aiClock: boolean
   remainingMs: { w: number; b: number }
 }
@@ -106,7 +111,7 @@ export interface Game {
   userColor: 'w' | 'b'
   opponent: GameOpponent
   coach: { model: string; effort: string }
-  /** null until M2 adds clocks. Times are milliseconds. */
+  /** `null` when the game is played with no clock (the default). Times are milliseconds. */
   clock: GameClock | null
   language: Language
   /** Set for endgame drills and study positions; absent means the standard start. */

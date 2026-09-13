@@ -25,6 +25,7 @@ export const EMPTY_SESSION: SessionState = {
   liveEval: null,
   status: 'idle',
   error: null,
+  clock: null,
   coach: { commentsVisible: true, busy: false, streamId: null, hint: null, lastAnswer: null }
 }
 

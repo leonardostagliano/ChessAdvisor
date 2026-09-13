@@ -60,6 +60,28 @@ export function nearestLevel(elo: number): DifficultyLevel {
   return best
 }
 
+/**
+ * Clocks of a game (spec §4.3), all in milliseconds. `aiClock:false` is the default mode
+ * ("Solo il mio tempo"): the AI simply has no clock.
+ */
+export interface ClockConfig {
+  initialMs: number
+  incrementMs: number
+  aiClock: boolean
+  /**
+   * Colour the opponent plays. The dialog cannot know it — the colour may be random — so the
+   * session fills it in when it builds the clock of the game.
+   */
+  aiColor?: 'w' | 'b'
+}
+
+/** Clocks as the renderer sees them: the values at `updatedAt`, interpolated for display only. */
+export interface ClockState {
+  remainingMs: { w: number; b: number }
+  running: 'w' | 'b' | null
+  updatedAt: number
+}
+
 /** Everything the new-game dialog collects; the session resolves colour and difficulty from it. */
 export interface NewGameOptions {
   userColor: 'w' | 'b' | 'random'
@@ -70,6 +92,8 @@ export interface NewGameOptions {
   language: 'it' | 'en'
   showReasoning: boolean
   commentsVisible: boolean
+  /** Absent or `null` for a game with no clock (spec §4.3). */
+  clock?: ClockConfig | null
   startFen?: string
   kind?: 'match' | 'endgame_drill'
 }
@@ -92,6 +116,8 @@ export interface SessionState {
   liveEval: { cp?: number; mate?: number; depth: number } | null
   status: 'idle' | 'playing' | 'finished' | 'error'
   error: string | null
+  /** Clocks of the running game, owned by the main process; `null` when the game has none. */
+  clock: ClockState | null
   /** Everything the Commenti and Coach tabs need (spec §4.2), pushed with the rest of the state. */
   coach: CoachState
 }
