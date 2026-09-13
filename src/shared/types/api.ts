@@ -86,7 +86,11 @@ export interface Api {
 export interface GameApi {
   /** Quoted so it declares a method called `new`, not a construct signature. */
   'new'(opts: NewGameOptions): Promise<SessionState>
-  /** `substituteModel` answers a `MODEL_UNAVAILABLE` failure of a previous call. */
+  /**
+   * `substituteModel` answers a `MODEL_UNAVAILABLE` failure of a previous call: the rejection of
+   * that call carries the model to prefill in `parseIpcError(error).data.suggested`
+   * (see `@shared/ipcError`), on both sides of the IPC boundary.
+   */
   resume(id: string, opts?: { substituteModel?: string }): Promise<SessionState>
   userMove(uci: string): Promise<SessionState>
   takeback(): Promise<SessionState>

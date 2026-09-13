@@ -271,6 +271,26 @@ describe('GameSession', () => {
     expect(state.status).toBe('finished')
   })
 
+  it('ignores a second resignation instead of recording it twice', async () => {
+    await session.newGame(options({ userColor: 'b' }))
+    await session.resign()
+    const state = await session.resign()
+
+    expect(state.game!.result).toEqual({ outcome: '1-0', reason: 'resign' })
+    expect(emit.mock.calls.filter(([channel]) => channel === 'game:finished')).toHaveLength(1)
+    expect(codex.closed).toEqual(['thread-1'])
+  })
+
+  it('keeps the checkmate result when a resignation arrives after the game is over', async () => {
+    await session.newGame(options({ startFen: MATE_IN_ONE }))
+    await session.userMove('f7g7')
+
+    const state = await session.resign()
+    expect(state.game!.result).toEqual({ outcome: '1-0', reason: 'checkmate' })
+    expect((await store.get(state.game!.id))!.result).toEqual({ outcome: '1-0', reason: 'checkmate' })
+    expect(emit.mock.calls.filter(([channel]) => channel === 'game:finished')).toHaveLength(1)
+  })
+
   it('asks the opponent about a draw offer and keeps playing when it refuses', async () => {
     await session.newGame(options())
     const answer = await session.offerDraw()
@@ -377,6 +397,14 @@ describe('GameSession', () => {
       await session.newGame(adaptive)
       await session.resign()
       expect(profile.get().adaptive).toMatchObject({ elo: 1275, games: 4 })
+    })
+
+    it('moves the rating once even if the resignation is sent twice', async () => {
+      await profile.update({ adaptive: { elo: 1200, games: 5, updatedAt: '2026-01-01T00:00:00.000Z' } })
+      await session.newGame(adaptive)
+      await session.resign()
+      await session.resign()
+      expect(profile.get().adaptive).toMatchObject({ elo: 1125, games: 6 })
     })
 
     it('clamps the rating to 500–2400', async () => {

@@ -52,6 +52,13 @@ export interface GameSessionDeps {
 
 /** Carries a machine-readable code through the IPC error contract (`serializeError`). */
 export class GameError extends Error {
+  /**
+   * Structured payload for the renderer. Electron keeps only name/message/stack of a rejection,
+   * so `serializeError` hands this to `IpcError`, which encodes it into the message for
+   * `parseIpcError` to read back: the dialog gets the model id, never a scraped string.
+   */
+  readonly data?: Record<string, unknown>
+
   constructor(
     readonly code: string,
     message: string,
@@ -60,6 +67,7 @@ export class GameError extends Error {
   ) {
     super(message)
     this.name = 'GameError'
+    if (suggested) this.data = { suggested }
   }
 }
 
@@ -510,6 +518,9 @@ export class GameSession {
 
   private async finish(result: GameResult): Promise<void> {
     const game = this.requireGame()
+    // Idempotent, like `takeback()`: a second resign, or a resign racing with the checkmate
+    // `checkEnd()` just recorded, must not overwrite the result nor apply the adaptive step twice.
+    if (game.status === 'finished') return
     game.status = 'finished'
     game.result = result
     this.turnEpoch += 1
