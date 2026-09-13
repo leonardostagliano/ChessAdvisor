@@ -7,9 +7,10 @@ executable under `resources/licenses`.
 
 | Component | Version | Licence | Text |
 | --- | --- | --- | --- |
-| Stockfish (Windows x64 binaries) | see `resources/engine/STOCKFISH-BUILD.txt` | GPL-3.0-or-later | `licenses/stockfish-notice.txt`, `licenses/gpl-3.0.txt` |
+| Stockfish (Windows x64 binaries) | `sf_17.1`, see `resources/engine/VERSION.txt` | GPL-3.0-or-later | `licenses/stockfish-notice.txt`, `licenses/gpl-3.0.txt` |
 | chessground (`@lichess-org/chessground`) | ^10 | GPL-3.0-or-later | `licenses/chessground-notice.txt` |
 | chess.js | ^1.4 | BSD-2-Clause | below |
+| playwright-core (end-to-end harness, development only) | ^1.63 | Apache-2.0 | not shipped |
 | cburnett chess pieces | — | GPL (Colin M.L. Burnett) | `licenses/cburnett-notice.txt` |
 | Inter, JetBrains Mono, Fraunces | @fontsource | SIL OFL 1.1 | `licenses/fonts-ofl.txt` |
 | Lichess datasets (puzzle database, chess-openings) | dumps of 2026 | CC0 1.0 | `licenses/lichess-cc0.txt` |
@@ -20,9 +21,19 @@ executable under `resources/licenses`.
 ChessAdvisor runs **Stockfish** as a separate process over the UCI protocol; it
 does not link against its code. The binaries in `resources/engine` are shipped
 unmodified, exactly as downloaded by `npm run fetch:stockfish` from the official
-Stockfish release assets. `resources/engine/STOCKFISH-BUILD.txt`, written by that
-script, records the release tag, the URL of the build commit and the SHA-256 of
-each binary.
+Stockfish release assets. `resources/engine/VERSION.txt`, written by that script,
+records the release tag and the exact URL each binary came from:
+
+- release **`sf_17.1`**:
+  <https://github.com/official-stockfish/Stockfish/releases/tag/sf_17.1>
+- `stockfish-avx2.exe` — `stockfish-windows-x86-64-avx2.zip` of that release
+- `stockfish-popcnt.exe` — `stockfish-windows-x86-64-sse41-popcnt.zip` of that
+  release
+
+The source of that exact build — the commit the release was cut from, with its
+full history — is published by the Stockfish project at
+<https://github.com/official-stockfish/Stockfish/tree/sf_17.1>, and the source
+archive of the same tag is attached to the release page linked above.
 
 Stockfish is free software under the GNU General Public License, version 3.
 **Written offer:** for at least three years from the date these binaries were
