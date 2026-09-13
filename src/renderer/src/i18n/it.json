@@ -7,12 +7,31 @@
     "play": "Gioca",
     "training": "Allenamento",
     "progress": "Progressi",
-    "settings": "Impostazioni"
+    "settings": "Impostazioni",
+    "versionInstalled": "v{{version}}",
+    "versionDev": "Sviluppo · base {{version}}",
+    "versionInstalledHint": "ChessAdvisor {{version}} installata",
+    "versionDevHint": "Build di sviluppo, basata sulla versione {{version}}"
   },
   "play": {
     "title": "Gioca una partita",
     "body": "La scacchiera, l'avversario e la barra di valutazione compaiono qui non appena la partita è pronta.",
-    "action": "Nuova partita"
+    "action": "Nuova partita",
+    "tabGame": "Partita",
+    "tabArchive": "Partite",
+    "noGameTitle": "Nessuna partita in corso",
+    "noGameBody": "Scegli modello, difficoltà e colore: scacchiera, barra di valutazione e lista mosse compaiono qui.",
+    "moves": "Mosse",
+    "noMoves": "Nessuna mossa giocata.",
+    "startPosition": "Posizione iniziale",
+    "browsing": "Stai rivedendo una posizione precedente.",
+    "returnToLive": "Torna alla posizione corrente",
+    "capturedByYou": "Catturati da te",
+    "capturedByOpponent": "Catturati dall’avversario",
+    "you": "Tu",
+    "yourTurn": "Tocca a te",
+    "waitingOpponent": "Turno dell’avversario",
+    "engineUnavailable": "Stockfish non disponibile: la barra di valutazione è nascosta."
   },
   "empty": {
     "note": "disponibile dopo la prima partita analizzata",
@@ -40,7 +59,37 @@
     "languageHint": "Le etichette dell'interfaccia cambiano subito.",
     "languageIt": "Italiano",
     "languageEn": "Inglese",
-    "comingSoon": "Modelli, Codex, motore e aggiornamenti arrivano nelle sezioni successive."
+    "models": "Modelli",
+    "modelsHint": "Preselezione del dialogo Nuova partita; la difficoltà resta indipendente.",
+    "defaultModel": "Modello predefinito",
+    "defaultModelHint": "Usato per l’avversario e, se non separi il coach, anche per il coach.",
+    "defaultEffort": "Impegno predefinito",
+    "defaultEffortHint": "Gli impegni disponibili dipendono dal modello scelto.",
+    "separateCoach": "Impostazioni separate per il coach",
+    "separateCoachHint": "Fai rispondere il coach con un modello o un impegno diversi dall’avversario.",
+    "coachModel": "Modello del coach",
+    "coachEffort": "Impegno del coach",
+    "codex": "Codex",
+    "codexHint": "Le partite passano dalla tua sessione Codex, in una cartella dedicata.",
+    "codexAccount": "Account",
+    "codexPlan": "Piano",
+    "codexCliVersion": "Versione CLI",
+    "codexMismatch": "Versione della CLI diversa da quella verificata con questa build: se qualcosa non funziona, aggiorna Codex.",
+    "codexQuota": "Quota",
+    "codexQuotaUsed": "{{percent}}% usato",
+    "codexQuotaReset": "Si azzera il {{date}}",
+    "codexQuotaUnknown": "Nessun dato di quota disponibile.",
+    "codexBlocked": "Uso ordinario sospeso: attendi il ripristino della quota.",
+    "codexStatus": "Stato",
+    "engine": "Motore",
+    "engineHint": "Stockfish alimenta la barra di valutazione e le analisi.",
+    "engineBinary": "Binario",
+    "engineVersion": "Versione",
+    "engineState": "Stato",
+    "engineAvailable": "Disponibile",
+    "engineUnavailable": "Non disponibile",
+    "engineNote": "Senza motore la barra di valutazione resta nascosta e le analisi non sono disponibili.",
+    "unknown": "—"
   },
   "common": {
     "close": "Chiudi",
@@ -158,29 +207,99 @@
     "retry": "Riprova",
     "starting": {
       "title": "Collegamento a Codex in corso",
-      "body": "Avvio dell’app-server nella cartella dedicata di ChessAdvisor."
+      "body": "Avvio dell’app-server nella cartella dedicata di ChessAdvisor.",
+      "label": "Avvio in corso"
     },
     "notInstalled": {
       "title": "Codex CLI non trovato",
       "body": "ChessAdvisor gioca attraverso la CLI di Codex già installata sul tuo computer. Percorsi cercati:",
-      "download": "Come installare Codex CLI"
+      "download": "Come installare Codex CLI",
+      "label": "CLI non trovata"
     },
     "notAuthenticated": {
       "title": "Sessione Codex non autenticata",
       "body": "Apri un terminale, esegui il comando qui sotto e completa l’accesso nel browser, poi riprova.",
       "command": "codex login",
       "copy": "Copia il comando",
-      "copied": "Comando copiato"
+      "copied": "Comando copiato",
+      "label": "Non autenticato"
     },
     "notIsolated": {
       "title": "Ambiente Codex non isolato",
       "body": "La cartella dedicata non è configurata come previsto: le partite restano bloccate finché non confermi.",
       "problems": "Problemi rilevati",
-      "continueAnyway": "Continua comunque"
+      "continueAnyway": "Continua comunque",
+      "label": "Ambiente non isolato"
     },
     "crashed": {
       "title": "L’app-server di Codex si è interrotto",
-      "body": "Il processo è stato chiuso in modo inatteso. La partita in corso è già salvata su disco."
+      "body": "Il processo è stato chiuso in modo inatteso. La partita in corso è già salvata su disco.",
+      "label": "Interrotto"
+    },
+    "ready": "Pronto"
+  },
+  "opponent": {
+    "title": "Avversario",
+    "thinking": "sta pensando…",
+    "elapsed": "Tempo di riflessione {{time}}",
+    "reasoning": "Ragionamento",
+    "retries": "Ritento {{count}}",
+    "rerouted": "Instradato su {{model}}",
+    "reroutedHint": "Il server ha risposto con un modello diverso da quello scelto.",
+    "fallbackEngine": "Mossa del motore",
+    "fallbackRandom": "Mossa casuale",
+    "lastMove": "Ultima mossa",
+    "comment": "Commento",
+    "unknownModel": "Modello sconosciuto"
+  },
+  "controls": {
+    "newGame": "Nuova partita",
+    "takeback": "Annulla mossa",
+    "resign": "Abbandona",
+    "offerDraw": "Proponi patta",
+    "saveAndExit": "Salva ed esci",
+    "resignTitle": "Abbandonare la partita?",
+    "resignBody": "La partita finisce subito con la tua sconfitta e resta nell’archivio.",
+    "drawPending": "Proposta di patta inviata…",
+    "drawAccepted": "L’avversario ha accettato la patta.",
+    "drawDeclined": "L’avversario ha rifiutato: {{reason}}"
+  },
+  "result": {
+    "title": "Partita conclusa",
+    "win": "Hai vinto",
+    "loss": "Hai perso",
+    "draw": "Patta",
+    "reason": {
+      "checkmate": "per scacco matto",
+      "stalemate": "per stallo",
+      "resign": "per abbandono",
+      "draw_agreed": "per accordo",
+      "repetition": "per ripetizione",
+      "fifty": "per la regola delle 50 mosse",
+      "insufficient": "per materiale insufficiente",
+      "timeout": "per tempo scaduto"
     }
+  },
+  "archive": {
+    "title": "Partite",
+    "subtitle": "Riprendi una partita interrotta o elimina quelle che non ti servono più.",
+    "empty": "Nessuna partita salvata.",
+    "loading": "Caricamento delle partite…",
+    "resume": "Riprendi",
+    "delete": "Elimina",
+    "deleteTitle": "Eliminare la partita?",
+    "deleteBody": "La partita e le sue analisi vengono rimosse dal disco. L’operazione non è reversibile.",
+    "statusInProgress": "In corso",
+    "statusFinished": "Conclusa",
+    "plies": "{{count}} semimosse",
+    "against": "contro {{model}}",
+    "asWhite": "con il Bianco",
+    "asBlack": "con il Nero",
+    "substitutedFrom": "al posto di {{model}}",
+    "failed": "Non è stato possibile riprendere la partita.",
+    "substituteTitle": "Modello non più disponibile",
+    "substituteBody": "La partita usava {{model}}, che non è più nella lista. Scegli il modello con cui continuare.",
+    "substituteModel": "Modello sostitutivo",
+    "substituteConfirm": "Riprendi con questo modello"
   }
 }

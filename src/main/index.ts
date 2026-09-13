@@ -84,8 +84,9 @@ function createWindow(): void {
   mainWindow = new BrowserWindow({
     width: 1320,
     height: 880,
+    // Spec §4.3: the board, the eval bar and the side panel need at least this much room.
     minWidth: 1024,
-    minHeight: 680,
+    minHeight: 720,
     show: false,
     backgroundColor: nativeTheme.shouldUseDarkColors ? '#141517' : '#f6f2ea',
     title: 'ChessAdvisor',

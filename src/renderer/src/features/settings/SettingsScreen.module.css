@@ -1,0 +1,65 @@
+/* Read-only facts of the Codex and engine sections. */
+.grid {
+  display: grid;
+  grid-template-columns: minmax(120px, 200px) minmax(0, 1fr);
+  gap: var(--s-2) var(--s-4);
+  align-items: baseline;
+}
+
+.term {
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+
+.value {
+  font-size: var(--fs-sm);
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.warning {
+  padding: var(--s-2) var(--s-3);
+  border: 1px solid color-mix(in srgb, var(--danger) 40%, var(--border));
+  border-radius: var(--radius-control);
+  background: color-mix(in srgb, var(--danger) 8%, transparent);
+  color: var(--text-2);
+  font-size: var(--fs-xs);
+}
+
+.quotaBlock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.quota {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+.quotaTrack {
+  flex: 1;
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: var(--bg-3);
+  overflow: hidden;
+}
+
+.quotaFill {
+  height: 100%;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  transition: width var(--dur-3) var(--ease);
+}
+
+.quotaValue {
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}

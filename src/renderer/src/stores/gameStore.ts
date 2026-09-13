@@ -221,7 +221,17 @@ export const useGameStore = create<GameStoreState>((set, get) => {
     },
 
     async navigateEval(fen) {
-      await call((api) => api.game.navigateEval(fen))
+      // Deliberately outside `call()`: asking the engine for the score of the position on screen
+      // is a background refresh, not a user action. Routing it through `call()` would raise
+      // `busy` — and so grey out every control — for as long as the engine takes to answer, and
+      // would turn a failed eval into a red alert over the board. Neither belongs here.
+      const api = bridge()
+      if (!api) return
+      try {
+        await api.game.navigateEval(fen)
+      } catch {
+        /* the eval bar simply keeps the last score it had */
+      }
     }
   }
 })

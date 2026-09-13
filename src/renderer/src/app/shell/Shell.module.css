@@ -13,6 +13,65 @@
   border-right: 1px solid var(--border);
 }
 
+/* Brand block (spec §3.4): logo, name and version pill at the top of the rail. */
+.brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: var(--s-2) var(--s-1) var(--s-4);
+}
+
+.brandLogo {
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  box-shadow: var(--shadow-card);
+}
+
+.brandTexts {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.brandName {
+  font-size: var(--fs-md);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+
+.version {
+  display: inline-flex;
+  padding: 2px 7px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--text-2);
+  font: 500 12px/1.4 var(--font-mono);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+/*
+ * The rail is 72 px wide, so name and version have no room: they stay in the accessibility tree
+ * (and in the tooltip of the brand block) but are clipped out of the layout. A wider rail, if
+ * one ever exists, only has to drop this class.
+ */
+.narrowHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 .railList {
   display: flex;
   flex-direction: column;

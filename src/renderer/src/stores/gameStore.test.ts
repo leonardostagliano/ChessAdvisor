@@ -145,6 +145,29 @@ describe('gameStore', () => {
     expect(useGameStore.getState().busy).toBe(false)
   })
 
+  it('never marks the store busy for a browse eval, so the controls stay usable', async () => {
+    // Held in an object so TypeScript cannot narrow the assignment away to `null`.
+    const deferred = { resolve: () => {} }
+    const navigateEval = vi.fn(() => new Promise<void>((resolve) => { deferred.resolve = resolve }))
+    vi.stubGlobal('window', Object.assign(window, { api: { game: { navigateEval } } }))
+
+    const pending = useGameStore.getState().navigateEval(FEN_2)
+    expect(navigateEval).toHaveBeenCalledWith(FEN_2)
+    // The request is still in flight: nothing on the play screen may be disabled because of it.
+    expect(useGameStore.getState().busy).toBe(false)
+    deferred.resolve()
+    await pending
+    expect(useGameStore.getState().busy).toBe(false)
+  })
+
+  it('swallows a failed browse eval instead of raising an alert over the board', async () => {
+    const navigateEval = vi.fn().mockRejectedValue(new Error('ENGINE_UNAVAILABLE: no engine'))
+    vi.stubGlobal('window', Object.assign(window, { api: { game: { navigateEval } } }))
+
+    await expect(useGameStore.getState().navigateEval(FEN_2)).resolves.toBeUndefined()
+    expect(useGameStore.getState().error).toBeNull()
+  })
+
   it('keeps the failure of a call in the store instead of throwing at the caller', async () => {
     const resign = vi.fn().mockRejectedValue(new Error("Error invoking remote method 'game:resign': GameError: NO_GAME: no game is running"))
     vi.stubGlobal('window', Object.assign(window, { api: { game: { resign } } }))

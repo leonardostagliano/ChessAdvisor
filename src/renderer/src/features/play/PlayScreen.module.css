@@ -1,0 +1,495 @@
+/* Play area (spec §4.3): board first, panel second, both readable at 1024×720. */
+.screen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  min-height: 100%;
+  padding: var(--s-5) var(--s-5) var(--s-6);
+}
+
+.head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--s-4);
+  flex-wrap: wrap;
+}
+
+.title {
+  font-size: var(--fs-xl);
+  color: var(--text);
+}
+
+.headActions {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: var(--s-4);
+  align-items: start;
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  min-width: 0;
+}
+
+/* Opponent card */
+.opponent {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  padding: var(--s-4);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+}
+
+.opponentHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s-3);
+  flex-wrap: wrap;
+}
+
+.opponentModel {
+  font-size: var(--fs-lg);
+  color: var(--text);
+}
+
+.chips {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  flex-wrap: wrap;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 9px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+}
+
+.chipAccent {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.chipWarn {
+  border-color: color-mix(in srgb, var(--danger) 45%, var(--border));
+  color: var(--danger);
+}
+
+.opponentStatus {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+
+.thinkingDot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  animation: pulse 1.4s var(--ease) infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.85);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.timer {
+  font-size: var(--fs-sm);
+  color: var(--text);
+}
+
+.reasoning {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  max-height: 132px;
+  overflow: auto;
+  padding: var(--s-3);
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+}
+
+.reasoningText {
+  font-size: var(--fs-xs);
+  line-height: var(--lh-prose);
+  color: var(--text-2);
+  white-space: pre-wrap;
+}
+
+.comment {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-2);
+  font-family: var(--font-serif);
+  font-size: var(--fs-md);
+  line-height: var(--lh-prose);
+  color: var(--text-2);
+}
+
+.moveTag {
+  padding: 1px 7px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: var(--fs-xs);
+}
+
+/* Board + eval bar + captured pieces */
+.boardRow {
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  gap: var(--s-3);
+  min-height: 0;
+}
+
+.captured {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: 22px;
+  padding: 0 var(--s-1);
+  color: var(--text-2);
+}
+
+.capturedPieces {
+  font-size: 18px;
+  line-height: 1;
+  letter-spacing: -2px;
+}
+
+.capturedBalance {
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+
+/* Controls */
+.controls {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.controlButtons {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  flex-wrap: wrap;
+}
+
+.controlNote {
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+}
+
+.modalActions {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+.modalBody {
+  margin-bottom: var(--s-3);
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+
+.note {
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+
+.error {
+  font-size: var(--fs-sm);
+  color: var(--danger);
+}
+
+/* Result banner */
+.result {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-4);
+  padding: var(--s-4);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border-2);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+}
+
+.result_win {
+  border-left-color: var(--eval-good);
+}
+
+.result_loss {
+  border-left-color: var(--eval-bad);
+}
+
+.result_draw {
+  border-left-color: var(--accent);
+}
+
+.resultTitle {
+  font-size: var(--fs-lg);
+  color: var(--text);
+}
+
+.resultScore {
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+
+/* Right panel */
+.panel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  max-height: calc(100vh - 160px);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+
+.tabs {
+  display: flex;
+  gap: var(--s-1);
+  padding: var(--s-2);
+  border-bottom: 1px solid var(--border);
+}
+
+.tab {
+  padding: var(--s-2) var(--s-3);
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+}
+
+.tabActive {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.panelTitle {
+  font-size: var(--fs-md);
+  color: var(--text);
+}
+
+.panelBody {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--s-2);
+}
+
+.panelFoot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2);
+  padding: var(--s-2) var(--s-3);
+  border-top: 1px solid var(--border);
+}
+
+.panelEmpty {
+  padding: var(--s-3);
+  font-size: var(--fs-sm);
+  color: var(--text-3);
+}
+
+/* Move list */
+.moveList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+}
+
+.moveRows {
+  display: flex;
+  flex-direction: column;
+}
+
+.moveRow {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--s-1);
+}
+
+.moveNumber {
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+  text-align: right;
+}
+
+.move {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+  padding: 4px var(--s-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--text);
+  font-size: var(--fs-sm);
+  text-align: left;
+  transition:
+    background var(--dur-1) var(--ease),
+    color var(--dur-1) var(--ease);
+}
+
+.move:hover {
+  background: var(--surface-2);
+}
+
+.moveSelected {
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  color: var(--accent);
+}
+
+.moveEmpty {
+  min-height: 26px;
+}
+
+.moveStart {
+  align-self: flex-start;
+  padding: 4px var(--s-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+}
+
+.moveFlag {
+  padding: 0 5px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--danger);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+/* Archive */
+.archive {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  max-width: 860px;
+  padding: var(--s-5);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+}
+
+.archiveHead {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+}
+
+.archiveSubtitle {
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+
+.archiveError {
+  font-size: var(--fs-sm);
+  color: var(--danger);
+}
+
+.archiveRows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.archiveRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  padding: var(--s-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--bg-2);
+}
+
+.archiveTexts {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.archiveTitle {
+  font-size: var(--fs-sm);
+  color: var(--text);
+}
+
+.archiveMuted {
+  color: var(--text-3);
+}
+
+.archiveMeta {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  flex-wrap: wrap;
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+
+.archiveActions {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+/* Spec §4.3: under 1100 px the panel drops below the board, which keeps its priority. */
+@media (max-width: 1100px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .panel {
+    max-height: 420px;
+  }
+}

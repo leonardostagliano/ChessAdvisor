@@ -7,12 +7,31 @@
     "play": "Play",
     "training": "Training",
     "progress": "Progress",
-    "settings": "Settings"
+    "settings": "Settings",
+    "versionInstalled": "v{{version}}",
+    "versionDev": "Dev · base {{version}}",
+    "versionInstalledHint": "ChessAdvisor {{version}} installed",
+    "versionDevHint": "Development build, based on version {{version}}"
   },
   "play": {
     "title": "Play a game",
     "body": "The board, the opponent card and the eval bar appear here as soon as the game is ready.",
-    "action": "New game"
+    "action": "New game",
+    "tabGame": "Game",
+    "tabArchive": "Games",
+    "noGameTitle": "No game in progress",
+    "noGameBody": "Pick model, difficulty and colour: board, eval bar and move list appear here.",
+    "moves": "Moves",
+    "noMoves": "No move played yet.",
+    "startPosition": "Starting position",
+    "browsing": "You are reviewing an earlier position.",
+    "returnToLive": "Back to the current position",
+    "capturedByYou": "Captured by you",
+    "capturedByOpponent": "Captured by the opponent",
+    "you": "You",
+    "yourTurn": "Your move",
+    "waitingOpponent": "Opponent to move",
+    "engineUnavailable": "Stockfish is unavailable: the eval bar is hidden."
   },
   "empty": {
     "note": "available after your first analysed game",
@@ -40,7 +59,37 @@
     "languageHint": "Interface labels change immediately.",
     "languageIt": "Italian",
     "languageEn": "English",
-    "comingSoon": "Models, Codex, engine and updates arrive in the next sections."
+    "models": "Models",
+    "modelsHint": "Preselection of the New game dialog; difficulty stays independent.",
+    "defaultModel": "Default model",
+    "defaultModelHint": "Used for the opponent and, unless the coach is separate, for the coach too.",
+    "defaultEffort": "Default effort",
+    "defaultEffortHint": "The available efforts depend on the model you pick.",
+    "separateCoach": "Separate settings for the coach",
+    "separateCoachHint": "Let the coach answer with a different model or effort than the opponent.",
+    "coachModel": "Coach model",
+    "coachEffort": "Coach effort",
+    "codex": "Codex",
+    "codexHint": "Games run through your Codex session, in a dedicated folder.",
+    "codexAccount": "Account",
+    "codexPlan": "Plan",
+    "codexCliVersion": "CLI version",
+    "codexMismatch": "The CLI version differs from the one this build was tested with: update Codex if something misbehaves.",
+    "codexQuota": "Quota",
+    "codexQuotaUsed": "{{percent}}% used",
+    "codexQuotaReset": "Resets on {{date}}",
+    "codexQuotaUnknown": "No quota data available.",
+    "codexBlocked": "Ordinary usage is paused: wait for the quota to reset.",
+    "codexStatus": "State",
+    "engine": "Engine",
+    "engineHint": "Stockfish powers the eval bar and the analyses.",
+    "engineBinary": "Binary",
+    "engineVersion": "Version",
+    "engineState": "State",
+    "engineAvailable": "Available",
+    "engineUnavailable": "Unavailable",
+    "engineNote": "Without the engine the eval bar stays hidden and analyses are unavailable.",
+    "unknown": "—"
   },
   "common": {
     "close": "Close",
@@ -158,29 +207,99 @@
     "retry": "Retry",
     "starting": {
       "title": "Connecting to Codex",
-      "body": "Starting the app-server in the dedicated ChessAdvisor folder."
+      "body": "Starting the app-server in the dedicated ChessAdvisor folder.",
+      "label": "Starting"
     },
     "notInstalled": {
       "title": "Codex CLI not found",
       "body": "ChessAdvisor plays through the Codex CLI already installed on your computer. Paths searched:",
-      "download": "How to install the Codex CLI"
+      "download": "How to install the Codex CLI",
+      "label": "CLI not found"
     },
     "notAuthenticated": {
       "title": "Codex session not authenticated",
       "body": "Open a terminal, run the command below, complete the sign-in in your browser, then retry.",
       "command": "codex login",
       "copy": "Copy the command",
-      "copied": "Command copied"
+      "copied": "Command copied",
+      "label": "Not authenticated"
     },
     "notIsolated": {
       "title": "Codex environment is not isolated",
       "body": "The dedicated folder is not configured as expected: games stay blocked until you confirm.",
       "problems": "Problems found",
-      "continueAnyway": "Continue anyway"
+      "continueAnyway": "Continue anyway",
+      "label": "Environment not isolated"
     },
     "crashed": {
       "title": "The Codex app-server stopped",
-      "body": "The process exited unexpectedly. The game in progress is already saved on disk."
+      "body": "The process exited unexpectedly. The game in progress is already saved on disk.",
+      "label": "Stopped"
+    },
+    "ready": "Ready"
+  },
+  "opponent": {
+    "title": "Opponent",
+    "thinking": "is thinking…",
+    "elapsed": "Thinking time {{time}}",
+    "reasoning": "Reasoning",
+    "retries": "Retry {{count}}",
+    "rerouted": "Rerouted to {{model}}",
+    "reroutedHint": "The server answered with a model other than the one you chose.",
+    "fallbackEngine": "Engine move",
+    "fallbackRandom": "Random move",
+    "lastMove": "Last move",
+    "comment": "Comment",
+    "unknownModel": "Unknown model"
+  },
+  "controls": {
+    "newGame": "New game",
+    "takeback": "Take back",
+    "resign": "Resign",
+    "offerDraw": "Offer a draw",
+    "saveAndExit": "Save and exit",
+    "resignTitle": "Resign the game?",
+    "resignBody": "The game ends immediately as a loss and stays in the archive.",
+    "drawPending": "Draw offer sent…",
+    "drawAccepted": "The opponent accepted the draw.",
+    "drawDeclined": "The opponent declined: {{reason}}"
+  },
+  "result": {
+    "title": "Game over",
+    "win": "You won",
+    "loss": "You lost",
+    "draw": "Draw",
+    "reason": {
+      "checkmate": "by checkmate",
+      "stalemate": "by stalemate",
+      "resign": "by resignation",
+      "draw_agreed": "by agreement",
+      "repetition": "by repetition",
+      "fifty": "by the fifty-move rule",
+      "insufficient": "by insufficient material",
+      "timeout": "on time"
     }
+  },
+  "archive": {
+    "title": "Games",
+    "subtitle": "Resume an interrupted game or delete the ones you no longer need.",
+    "empty": "No saved game yet.",
+    "loading": "Loading the games…",
+    "resume": "Resume",
+    "delete": "Delete",
+    "deleteTitle": "Delete the game?",
+    "deleteBody": "The game and its analysis are removed from disk. This cannot be undone.",
+    "statusInProgress": "In progress",
+    "statusFinished": "Finished",
+    "plies": "{{count}} plies",
+    "against": "against {{model}}",
+    "asWhite": "as White",
+    "asBlack": "as Black",
+    "substitutedFrom": "in place of {{model}}",
+    "failed": "The game could not be resumed.",
+    "substituteTitle": "Model no longer available",
+    "substituteBody": "The game used {{model}}, which is no longer listed. Pick the model to continue with.",
+    "substituteModel": "Replacement model",
+    "substituteConfirm": "Resume with this model"
   }
 }
