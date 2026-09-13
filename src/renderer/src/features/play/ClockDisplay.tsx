@@ -44,7 +44,12 @@ export function remainingAt(clock: ClockState, color: 'w' | 'b', now: number): n
   return Math.max(0, base - Math.max(0, now - clock.updatedAt))
 }
 
-export function ClockDisplay({ clock, color, label, className }: ClockDisplayProps): React.JSX.Element | null {
+export function ClockDisplay({
+  clock,
+  color,
+  label,
+  className
+}: ClockDisplayProps): React.JSX.Element | null {
   const { t } = useTranslation()
   const running = clock?.running === color
   const [now, setNow] = useState(() => Date.now())

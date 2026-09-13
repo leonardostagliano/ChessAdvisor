@@ -67,7 +67,12 @@ export const MAX_CLOCK_MINUTES = 180
 export const MAX_INCREMENT_SECONDS = 180
 
 /** The clock the dialog asks for, or `null` for "Nessuno" — which is the default. */
-export function clockOf(preset: ClockPresetId, minutes: number, increment: number, aiClock: boolean): ClockConfig | null {
+export function clockOf(
+  preset: ClockPresetId,
+  minutes: number,
+  increment: number,
+  aiClock: boolean
+): ClockConfig | null {
   if (preset === 'none') return null
   const chosen = CLOCK_PRESETS.find((entry) => entry.id === preset)
   const min = chosen?.minutes ?? minutes
@@ -75,7 +80,9 @@ export function clockOf(preset: ClockPresetId, minutes: number, increment: numbe
   if (!Number.isFinite(min) || min <= 0) return null
   return {
     initialMs: Math.round(Math.min(Math.max(min, 1), MAX_CLOCK_MINUTES) * 60_000),
-    incrementMs: Math.round(Math.min(Math.max(Number.isFinite(inc) ? inc : 0, 0), MAX_INCREMENT_SECONDS) * 1000),
+    incrementMs: Math.round(
+      Math.min(Math.max(Number.isFinite(inc) ? inc : 0, 0), MAX_INCREMENT_SECONDS) * 1000
+    ),
     aiClock
   }
 }
@@ -91,14 +98,20 @@ export function needsClockWarning(clock: ClockConfig | null, effort: string): bo
 }
 
 /** Levels 1-3 answer faster with a small effort; level 6 deserves a big one (spec §4.1). */
-export function effortHintKey(difficulty: DifficultyChoice): 'hintLowEffort' | 'hintHighEffort' | null {
+export function effortHintKey(
+  difficulty: DifficultyChoice
+): 'hintLowEffort' | 'hintHighEffort' | null {
   if (difficulty.mode === 'adaptive') return difficulty.level <= 3 ? 'hintLowEffort' : null
   if (difficulty.level <= 3) return 'hintLowEffort'
   return difficulty.level === 6 ? 'hintHighEffort' : null
 }
 
 /** Effort preselected for `model`: the remembered one, else the model's own default. */
-export function preferredEffort(model: ModelInfo, current: string, remembered: string | null): string {
+export function preferredEffort(
+  model: ModelInfo,
+  current: string,
+  remembered: string | null
+): string {
   const ids = model.efforts.map((effort) => effort.id)
   if (ids.includes(current)) return current
   if (remembered && ids.includes(remembered)) return remembered
@@ -251,7 +264,9 @@ export function NewGameDialog({ open, onClose, onStarted }: NewGameDialogProps):
     return remembered ?? defaultModel(models)
   }, [models, modelId, settings])
 
-  const activeEffort = selected ? preferredEffort(selected, effort, settings?.defaultEffort ?? null) : ''
+  const activeEffort = selected
+    ? preferredEffort(selected, effort, settings?.defaultEffort ?? null)
+    : ''
 
   const modelOptions: SelectOption[] = models.map((model) => ({
     value: model.id,
@@ -264,10 +279,16 @@ export function NewGameDialog({ open, onClose, onStarted }: NewGameDialogProps):
     hint: option.description
   }))
 
-  const adaptiveCaption = adaptive ? t('difficulty.elo', { elo: adaptive.elo }) : t('difficulty.adaptiveStart')
+  const adaptiveCaption = adaptive
+    ? t('difficulty.elo', { elo: adaptive.elo })
+    : t('difficulty.adaptiveStart')
   const hintKey = effortHintKey(difficulty)
   const clock = clockOf(clockPreset, customMinutes, customIncrement, aiClock)
-  const clockLabel = (preset: { id: ClockPresetId; minutes?: number; increment?: number }): string => {
+  const clockLabel = (preset: {
+    id: ClockPresetId
+    minutes?: number
+    increment?: number
+  }): string => {
     if (preset.id === 'none') return t('clock.none')
     if (preset.id === 'custom') return t('clock.custom')
     return t('clock.preset', { minutes: preset.minutes ?? 0, increment: preset.increment ?? 0 })
@@ -294,31 +315,34 @@ export function NewGameDialog({ open, onClose, onStarted }: NewGameDialogProps):
     }
   ]
 
-  const launch = useCallback(async (options: NewGameOptions): Promise<void> => {
-    setWarning(null)
-    setSubmitting(true)
-    setError(null)
-    // Remembering the choice must never keep the game from starting.
-    try {
-      const stored = await window.api?.settings.save({
-        defaultModel: options.model,
-        defaultEffort: options.effort,
-        lastDifficulty: options.difficulty,
-        showReasoning: options.showReasoning
-      })
-      if (stored) setSettings(stored)
-    } catch {
-      /* the settings file is not reachable: play anyway */
-    }
-    const state = await useGameStore.getState().newGame(options)
-    setSubmitting(false)
-    if (!state) {
-      setError(useGameStore.getState().error ?? t('newGame.failed'))
-      return
-    }
-    onStarted?.(state)
-    onClose()
-  }, [onStarted, onClose, t])
+  const launch = useCallback(
+    async (options: NewGameOptions): Promise<void> => {
+      setWarning(null)
+      setSubmitting(true)
+      setError(null)
+      // Remembering the choice must never keep the game from starting.
+      try {
+        const stored = await window.api?.settings.save({
+          defaultModel: options.model,
+          defaultEffort: options.effort,
+          lastDifficulty: options.difficulty,
+          showReasoning: options.showReasoning
+        })
+        if (stored) setSettings(stored)
+      } catch {
+        /* the settings file is not reachable: play anyway */
+      }
+      const state = await useGameStore.getState().newGame(options)
+      setSubmitting(false)
+      if (!state) {
+        setError(useGameStore.getState().error ?? t('newGame.failed'))
+        return
+      }
+      onStarted?.(state)
+      onClose()
+    },
+    [onStarted, onClose, t]
+  )
 
   const start = useCallback((): void => {
     if (!selected || submitting) return
@@ -344,7 +368,19 @@ export function NewGameDialog({ open, onClose, onStarted }: NewGameDialogProps):
       return
     }
     void launch(options)
-  }, [selected, submitting, settings, effort, color, difficulty, language, showReasoning, commentsVisible, clock, launch])
+  }, [
+    selected,
+    submitting,
+    settings,
+    effort,
+    color,
+    difficulty,
+    language,
+    showReasoning,
+    commentsVisible,
+    clock,
+    launch
+  ])
 
   return (
     <Modal
@@ -525,7 +561,11 @@ export function NewGameDialog({ open, onClose, onStarted }: NewGameDialogProps):
               variant="primary"
               onClick={() => {
                 setAiClock(false)
-                if (warning) void launch({ ...warning, clock: warning.clock ? { ...warning.clock, aiClock: false } : null })
+                if (warning)
+                  void launch({
+                    ...warning,
+                    clock: warning.clock ? { ...warning.clock, aiClock: false } : null
+                  })
               }}
             >
               {t('clock.warningKeepMine')}
@@ -548,7 +588,9 @@ export function NewGameDialog({ open, onClose, onStarted }: NewGameDialogProps):
                   increment: Math.round(warning.clock.incrementMs / 1000)
                 })
               : '',
-            effort: t(`newGame.efforts.${warning?.effort ?? ''}`, { defaultValue: warning?.effort ?? '' })
+            effort: t(`newGame.efforts.${warning?.effort ?? ''}`, {
+              defaultValue: warning?.effort ?? ''
+            })
           })}
         </p>
       </Modal>

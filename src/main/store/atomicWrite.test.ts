@@ -6,18 +6,22 @@ import { cleanupTmp, readJson, writeJsonAtomic } from './atomicWrite'
 
 // `rename` is the only step that can fail transiently on Windows; the hook lets a test
 // make it fail without touching the rest of node:fs/promises.
-const hook = vi.hoisted(() => ({ rename: null as null | ((from: string, to: string) => Promise<void>) }))
+const hook = vi.hoisted(() => ({
+  rename: null as null | ((from: string, to: string) => Promise<void>)
+}))
 
 vi.mock('node:fs/promises', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:fs/promises')>()
   return {
     ...actual,
     default: actual,
-    rename: (from: string, to: string) => (hook.rename ? hook.rename(from, to) : actual.rename(from, to))
+    rename: (from: string, to: string) =>
+      hook.rename ? hook.rename(from, to) : actual.rename(from, to)
   }
 })
 
-const { rename: realRename } = await vi.importActual<typeof import('node:fs/promises')>('node:fs/promises')
+const { rename: realRename } =
+  await vi.importActual<typeof import('node:fs/promises')>('node:fs/promises')
 
 let dir = ''
 
@@ -31,7 +35,8 @@ afterEach(async () => {
   await removeTmpDir(dir)
 })
 
-const tmpLeftovers = async (): Promise<string[]> => (await readdir(dir)).filter((f) => f.endsWith('.tmp'))
+const tmpLeftovers = async (): Promise<string[]> =>
+  (await readdir(dir)).filter((f) => f.endsWith('.tmp'))
 
 describe('writeJsonAtomic', () => {
   it('writes a file that reads back identically', async () => {
@@ -75,14 +80,18 @@ describe('writeJsonAtomic', () => {
       throw error
     }
 
-    await expect(writeJsonAtomic(file, { ok: true })).rejects.toThrow(`ATOMIC_WRITE_FAILED: ${file}`)
+    await expect(writeJsonAtomic(file, { ok: true })).rejects.toThrow(
+      `ATOMIC_WRITE_FAILED: ${file}`
+    )
     expect(await tmpLeftovers()).toEqual([])
   })
 })
 
 describe('readJson', () => {
   it('returns the fallback when the file does not exist', async () => {
-    expect(await readJson(join(dir, 'missing.json'), { fallback: true })).toEqual({ fallback: true })
+    expect(await readJson(join(dir, 'missing.json'), { fallback: true })).toEqual({
+      fallback: true
+    })
   })
 
   it('quarantines a corrupt file and returns the fallback', async () => {

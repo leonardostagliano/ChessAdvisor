@@ -44,7 +44,10 @@ const ADAPTIVE_MAX_ELO = 2400
 const ADAPTIVE_START_ELO = 1200
 
 /** The slices of the two services the session uses; the real ones satisfy them as they are. */
-export type SessionCodex = Pick<CodexService, 'startThread' | 'runTurn' | 'interrupt' | 'closeThread' | 'models'>
+export type SessionCodex = Pick<
+  CodexService,
+  'startThread' | 'runTurn' | 'interrupt' | 'closeThread' | 'models'
+>
 export type SessionEngine = Pick<EngineService, 'analyze' | 'state'>
 
 export interface GameFinishedEvent {
@@ -60,7 +63,10 @@ export interface GameSessionDeps {
   /** Adaptive difficulty reads and writes `profile.json` through this store. */
   profile: ProfileStore
   /** `stream` carries the coach deltas straight to the renderer (spec §4.2). */
-  emit(channel: 'game:state' | 'game:finished' | 'stream', payload: SessionState | GameFinishedEvent | StreamEnvelope): void
+  emit(
+    channel: 'game:state' | 'game:finished' | 'stream',
+    payload: SessionState | GameFinishedEvent | StreamEnvelope
+  ): void
   /**
    * M3 hook of `game:finished`: the analysis pipeline starts itself when a match ends (spec §3.1).
    * `game:finished` is an event for the renderer, so the main process needs a call of its own;
@@ -91,7 +97,13 @@ export class GameError extends Error {
   }
 }
 
-const idleAi = (): SessionState['ai'] => ({ thinking: false, startedAt: null, reasoning: '', retries: 0, streamId: null })
+const idleAi = (): SessionState['ai'] => ({
+  thinking: false,
+  startedAt: null,
+  reasoning: '',
+  retries: 0,
+  streamId: null
+})
 
 /** Cap of the "Commenta le mosse saltate" button (spec §4.2). */
 export const MAX_SKIPPED_COMMENTS = 6
@@ -104,7 +116,8 @@ const CLOCK_TICK_MS = 1000
 /** Grace the opponent turn gets on top of its remaining time before it is cut off (spec §4.3). */
 const CLOCK_TURN_GRACE_MS = 2000
 
-const clamp = (value: number, min: number, max: number): number => Math.min(max, Math.max(min, value))
+const clamp = (value: number, min: number, max: number): number =>
+  Math.min(max, Math.max(min, value))
 
 /** The clock a new game is saved with: both sides start on the full initial time. */
 function initialClock(cfg: ClockConfig | null | undefined): Game['clock'] {
@@ -187,7 +200,11 @@ export class GameSession {
       fen,
       legal: this.status === 'playing' ? legalMoves(fen) : [],
       turn,
-      userToMove: this.status === 'playing' && this.game !== null && turn === this.game.userColor && !this.ai.thinking,
+      userToMove:
+        this.status === 'playing' &&
+        this.game !== null &&
+        turn === this.game.userColor &&
+        !this.ai.thinking,
       ai: { ...this.ai },
       liveEval: this.liveEvalValue ? { ...this.liveEvalValue } : null,
       status: this.status,
@@ -235,7 +252,8 @@ export class GameSession {
     await this.close()
 
     const kind = opts.kind ?? 'match'
-    const userColor = opts.userColor === 'random' ? (Math.random() < 0.5 ? 'w' : 'b') : opts.userColor
+    const userColor =
+      opts.userColor === 'random' ? (Math.random() < 0.5 ? 'w' : 'b') : opts.userColor
     const difficulty = this.resolveDifficulty(opts.difficulty, kind)
 
     const game = await this.deps.store.create({
@@ -253,7 +271,11 @@ export class GameSession {
     // see `resolveDifficulty`) and must not overwrite what the user chose for their games.
     if (kind === 'match') {
       await this.deps.settings
-        .save({ defaultModel: opts.model, defaultEffort: opts.effort, lastDifficulty: { ...opts.difficulty } })
+        .save({
+          defaultModel: opts.model,
+          defaultEffort: opts.effort,
+          lastDifficulty: { ...opts.difficulty }
+        })
         .catch((error) => console.error('[game] the new-game choices could not be saved:', error))
     }
 
@@ -317,7 +339,11 @@ export class GameSession {
     const substitute = opts?.substituteModel
     if (substitute && substitute !== game.opponent.model) {
       if (models.length > 0 && !models.some((model) => model.id === substitute)) {
-        throw new GameError('MODEL_UNAVAILABLE', `the model ${substitute} is not available; suggested: ${suggested ?? 'none'}`, suggested)
+        throw new GameError(
+          'MODEL_UNAVAILABLE',
+          `the model ${substitute} is not available; suggested: ${suggested ?? 'none'}`,
+          suggested
+        )
       }
       game.opponent.substitutedFrom = game.opponent.model
       game.opponent.model = substitute
@@ -353,7 +379,10 @@ export class GameSession {
     this.status = 'playing'
     await this.openThread()
     // Codex threads are ephemeral: the coach comes back with a recap of what it already said.
-    await this.openCoach(this.deps.settings.get().language, game.coachLog.slice(-RESUME_RECAP_ENTRIES))
+    await this.openCoach(
+      this.deps.settings.get().language,
+      game.coachLog.slice(-RESUME_RECAP_ENTRIES)
+    )
     this.emitState()
     await this.runEval(this.fen())
     if (!this.state().userToMove) await this.aiMove()
@@ -380,7 +409,9 @@ export class GameSession {
   async close(): Promise<void> {
     this.turnEpoch += 1
     this.pendingComments = []
-    await this.coach.close().catch((error) => console.error('[game] closing the coach failed:', error))
+    await this.coach
+      .close()
+      .catch((error) => console.error('[game] closing the coach failed:', error))
     // The interrupted comment must be given the chance to notice: a write landing after the game
     // has been forgotten would hit the next game's file (or none at all).
     await this.settleComments()
@@ -407,10 +438,12 @@ export class GameSession {
 
   async userMove(uci: string): Promise<SessionState> {
     const game = this.requireGame()
-    if (this.status !== 'playing') throw new GameError('GAME_NOT_PLAYING', `the game is ${this.status}`)
+    if (this.status !== 'playing')
+      throw new GameError('GAME_NOT_PLAYING', `the game is ${this.status}`)
     if (this.ai.thinking) throw new GameError('AI_THINKING', 'the opponent is still thinking')
     const fen = this.fen()
-    if (this.sideToMove(fen) !== game.userColor) throw new GameError('NOT_YOUR_TURN', 'it is not your turn')
+    if (this.sideToMove(fen) !== game.userColor)
+      throw new GameError('NOT_YOUR_TURN', 'it is not your turn')
 
     const applied = applyMove(fen, uci)
     if (!applied) throw new GameError('ILLEGAL_MOVE', `${uci} is not legal in ${fen}`)
@@ -523,8 +556,16 @@ export class GameSession {
   private pushMove(game: Game, move: Omit<Move, 'ply' | 'epdAfter'>): void {
     const ply = game.moves.length + 1
     // The increment belongs to the move that has just been validated, final move included.
-    const clockAfter = this.commitClock(game, move.by === 'user' ? game.userColor : this.aiColor(game))
-    game.moves.push({ ...move, ply, epdAfter: epdOf(move.fenAfter), ...(clockAfter ? { clockAfter } : {}) })
+    const clockAfter = this.commitClock(
+      game,
+      move.by === 'user' ? game.userColor : this.aiColor(game)
+    )
+    game.moves.push({
+      ...move,
+      ply,
+      epdAfter: epdOf(move.fenAfter),
+      ...(clockAfter ? { clockAfter } : {})
+    })
     // Reactivating the comments never comments backwards (spec §4.2): only what is pushed while
     // they are visible is ever queued.
     if (this.commentsVisible) this.pendingComments.push(ply)
@@ -554,7 +595,8 @@ export class GameSession {
   async takeback(): Promise<SessionState> {
     const game = this.requireGame()
     // Nothing of the user's to undo, or a game already over: a no-op, never an error.
-    if (game.status === 'finished' || !game.moves.some((move) => move.by === 'user')) return this.state()
+    if (game.status === 'finished' || !game.moves.some((move) => move.by === 'user'))
+      return this.state()
 
     if (this.ai.thinking) {
       this.turnEpoch += 1
@@ -633,7 +675,8 @@ export class GameSession {
 
   /** Live eval of a position the user is browsing in the move list; the game is not touched. */
   async navigateEval(fen: string): Promise<void> {
-    if (typeof fen !== 'string' || fen.trim().length === 0) throw new GameError('BAD_FEN', 'a FEN string is required')
+    if (typeof fen !== 'string' || fen.trim().length === 0)
+      throw new GameError('BAD_FEN', 'a FEN string is required')
     await this.runEval(fen)
   }
 
@@ -649,7 +692,12 @@ export class GameSession {
     this.expiring = false
     this.clock = game.clock
       ? new GameClock(
-          { initialMs: game.clock.initialMs, incrementMs: game.clock.incrementMs, aiClock: game.clock.aiClock, aiColor: this.aiColor(game) },
+          {
+            initialMs: game.clock.initialMs,
+            incrementMs: game.clock.incrementMs,
+            aiClock: game.clock.aiClock,
+            aiColor: this.aiColor(game)
+          },
           game.clock.remainingMs,
           this.deps.now
         )
@@ -668,7 +716,9 @@ export class GameSession {
   private restoreClock(game: Game): void {
     if (!game.clock) return
     const last = game.moves[game.moves.length - 1]
-    game.clock.remainingMs = last?.clockAfter ? { ...last.clockAfter } : { w: game.clock.initialMs, b: game.clock.initialMs }
+    game.clock.remainingMs = last?.clockAfter
+      ? { ...last.clockAfter }
+      : { w: game.clock.initialMs, b: game.clock.initialMs }
     this.buildClock(game)
   }
 
@@ -763,7 +813,10 @@ export class GameSession {
   private turnTimeoutMs(game: Game): number {
     const base = this.deps.settings.get().turnTimeoutSec * 1000
     if (!this.clock || !game.clock?.aiClock) return base
-    return Math.max(0, Math.min(base, this.clock.remaining()[this.aiColor(game)] + CLOCK_TURN_GRACE_MS))
+    return Math.max(
+      0,
+      Math.min(base, this.clock.remaining()[this.aiColor(game)] + CLOCK_TURN_GRACE_MS)
+    )
   }
 
   // ------------------------------------------------------------------ coach (spec §4.2)
@@ -780,7 +833,11 @@ export class GameSession {
   }
 
   private logCoach(game: Game, entry: Omit<CoachLogEntry, 'id' | 'createdAt'>): void {
-    game.coachLog.push({ ...entry, id: randomUUID(), createdAt: new Date(this.deps.now()).toISOString() })
+    game.coachLog.push({
+      ...entry,
+      id: randomUUID(),
+      createdAt: new Date(this.deps.now()).toISOString()
+    })
   }
 
   /** Shows or hides the comments. Hiding drops what has not been commented yet. */
@@ -888,14 +945,21 @@ export class GameSession {
   /** "Suggerimento": one validated move, drawn as an arrow until the user moves. */
   async requestHint(): Promise<SessionState> {
     const game = this.requireGame()
-    if (this.status !== 'playing') throw new GameError('GAME_NOT_PLAYING', `the game is ${this.status}`)
+    if (this.status !== 'playing')
+      throw new GameError('GAME_NOT_PLAYING', `the game is ${this.status}`)
 
     const language = this.deps.settings.get().language
     const hint = await this.coach.hint(game, { fen: this.fen(), pgn: this.pgnUpTo(game) })
     const current = this.game
     if (!current || current.id !== game.id) return this.state()
     this.coachHint = hint
-    this.logCoach(current, { ply: current.moves.length, kind: 'hint', text: hint.reason, move: hint.move, language })
+    this.logCoach(current, {
+      ply: current.moves.length,
+      kind: 'hint',
+      text: hint.reason,
+      move: hint.move,
+      language
+    })
     await this.autosave(current)
     this.emitState()
     return this.state()
@@ -971,7 +1035,12 @@ export class GameSession {
     const games = adaptive?.games ?? 0
 
     const userWon = result.outcome === (game.userColor === 'w' ? '1-0' : '0-1')
-    const base = result.outcome === '1/2-1/2' ? ADAPTIVE_STEP.draw : userWon ? ADAPTIVE_STEP.win : ADAPTIVE_STEP.loss
+    const base =
+      result.outcome === '1/2-1/2'
+        ? ADAPTIVE_STEP.draw
+        : userWon
+          ? ADAPTIVE_STEP.win
+          : ADAPTIVE_STEP.loss
     const step = games < ADAPTIVE_DOUBLE_UNTIL_GAMES ? base * 2 : base
 
     await this.deps.profile
@@ -1006,7 +1075,8 @@ export class GameSession {
       this.emitState()
     } catch (error) {
       // A live request pre-empted by the next one is normal; anything else is only a missing bar.
-      if ((error as Error)?.name !== 'AbortError') console.error('[game] the live eval failed:', error)
+      if ((error as Error)?.name !== 'AbortError')
+        console.error('[game] the live eval failed:', error)
     }
   }
 }

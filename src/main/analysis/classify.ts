@@ -11,9 +11,19 @@ import type { MoveClassification } from '@shared/types/game'
 export type Classification = MoveClassification
 
 /** Boundaries of the four judged bands, in points of win percentage lost. */
-export const CLASSIFICATION_THRESHOLDS = { excellent: 2, inaccuracy: 10, mistake: 20, blunder: 30 } as const
+export const CLASSIFICATION_THRESHOLDS = {
+  excellent: 2,
+  inaccuracy: 10,
+  mistake: 20,
+  blunder: 30
+} as const
 
-export function classify(p: { loss: number; playedUci: string; bestUci: string; inBook: boolean }): Classification {
+export function classify(p: {
+  loss: number
+  playedUci: string
+  bestUci: string
+  inBook: boolean
+}): Classification {
   if (p.inBook) return 'book'
   // The engine's first choice is the best move even when the two evaluations disagree by a hair.
   if (p.playedUci.length > 0 && p.playedUci === p.bestUci) return 'best'

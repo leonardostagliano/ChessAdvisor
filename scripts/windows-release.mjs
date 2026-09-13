@@ -7,7 +7,8 @@ import { fileURLToPath } from 'node:url'
 const stableVersion = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/
 
 function versionParts(version) {
-  if (!stableVersion.test(version)) throw new Error(`Versione SemVer stabile non valida: ${version}`)
+  if (!stableVersion.test(version))
+    throw new Error(`Versione SemVer stabile non valida: ${version}`)
   return version.split('.').map(Number)
 }
 
@@ -21,7 +22,11 @@ export function getBump(messages) {
   let bump = 'patch'
   for (const message of messages) {
     // Also inspect subsequent lines: squash commits can contain several commit headers.
-    if (/^[a-z][\w-]*(?:\([^\r\n)]+\))?!: .+/im.test(message) || /^BREAKING[ -]CHANGE: .+/m.test(message)) return 'major'
+    if (
+      /^[a-z][\w-]*(?:\([^\r\n)]+\))?!: .+/im.test(message) ||
+      /^BREAKING[ -]CHANGE: .+/m.test(message)
+    )
+      return 'major'
     if (/^feat(?:\([^\r\n)]+\))?: .+/im.test(message)) bump = 'minor'
   }
   return bump
@@ -40,7 +45,8 @@ export function planRelease({ cwd = process.cwd(), releases, sha = 'HEAD' }) {
   const git = (...args) => execFileSync('git', args, { cwd, encoding: 'utf8' }).trim()
   const ancestor = (before, after) => {
     const result = spawnSync('git', ['merge-base', '--is-ancestor', before, after], { cwd })
-    if (result.status !== 0 && result.status !== 1) throw new Error('Impossibile verificare la cronologia Git.')
+    if (result.status !== 0 && result.status !== 1)
+      throw new Error('Impossibile verificare la cronologia Git.')
     return result.status === 0
   }
   const head = git('rev-parse', `${sha}^{commit}`)
@@ -53,7 +59,10 @@ export function planRelease({ cwd = process.cwd(), releases, sha = 'HEAD' }) {
     .sort((a, b) => compareVersions(b.version, a.version))
   const published = candidates
     .filter((release) => !release.draft)
-    .map((release) => ({ ...release, commit: git('rev-parse', `refs/tags/${release.tag_name}^{commit}`) }))
+    .map((release) => ({
+      ...release,
+      commit: git('rev-parse', `refs/tags/${release.tag_name}^{commit}`)
+    }))
 
   // A rerun must never create another version or move Latest back to older code.
   const existing = published.find((release) => ancestor(head, release.commit))
@@ -61,7 +70,9 @@ export function planRelease({ cwd = process.cwd(), releases, sha = 'HEAD' }) {
 
   const previous = published[0]
   if (previous && !ancestor(previous.commit, head)) {
-    throw new Error(`HEAD non discende da ${previous.tag_name}: ripristinare la cronologia di main prima del rilascio.`)
+    throw new Error(
+      `HEAD non discende da ${previous.tag_name}: ripristinare la cronologia di main prima del rilascio.`
+    )
   }
   const range = previous ? `${previous.tag_name}..${head}` : head
   const records = git('log', '--reverse', '--format=%H%x00%B%x00', range).split('\0')
@@ -70,7 +81,10 @@ export function planRelease({ cwd = process.cwd(), releases, sha = 'HEAD' }) {
     commits.push({ sha: records[index].trim(), message: records[index + 1].trim() })
   }
   const bump = getBump(commits.map((commit) => commit.message))
-  const baseVersion = previous && compareVersions(previous.version, packageVersion) > 0 ? previous.version : packageVersion
+  const baseVersion =
+    previous && compareVersions(previous.version, packageVersion) > 0
+      ? previous.version
+      : packageVersion
   const ownDraft = candidates.find((release) => release.draft && release.target_commitish === head)
   let version = ownDraft?.version ?? incrementVersion(baseVersion, bump)
   if (compareVersions(version, baseVersion) <= 0) {
@@ -87,15 +101,30 @@ export function planRelease({ cwd = process.cwd(), releases, sha = 'HEAD' }) {
     throw new Error(`Il tag ${tag} esiste già e non è una bozza recuperabile di questo commit.`)
   }
 
-  return { skip: false, sha: head, version, tag, baseVersion, bump, previousTag: previous?.tag_name ?? null, commits }
+  return {
+    skip: false,
+    sha: head,
+    version,
+    tag,
+    baseVersion,
+    bump,
+    previousTag: previous?.tag_name ?? null,
+    commits
+  }
 }
 
 function gh(...args) {
-  return execFileSync('gh', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 64 * 1024 * 1024 }).trim()
+  return execFileSync('gh', args, {
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+    maxBuffer: 64 * 1024 * 1024
+  }).trim()
 }
 
 function listReleases() {
-  const pages = JSON.parse(gh('api', '--paginate', '--slurp', `repos/${process.env.GH_REPO}/releases?per_page=100`))
+  const pages = JSON.parse(
+    gh('api', '--paginate', '--slurp', `repos/${process.env.GH_REPO}/releases?per_page=100`)
+  )
   return pages.flat()
 }
 
@@ -103,7 +132,10 @@ function prepare() {
   const plan = planRelease({ releases: listReleases(), sha: process.env.GITHUB_SHA || 'HEAD' })
   writeFileSync(process.env.RELEASE_PLAN, `${JSON.stringify(plan, null, 2)}\n`)
   if (process.env.GITHUB_OUTPUT) {
-    appendFileSync(process.env.GITHUB_OUTPUT, `skip=${plan.skip}\ntag=${plan.tag}\nversion=${plan.version ?? ''}\n`)
+    appendFileSync(
+      process.env.GITHUB_OUTPUT,
+      `skip=${plan.skip}\ntag=${plan.tag}\nversion=${plan.version ?? ''}\n`
+    )
   }
   if (plan.skip) {
     console.log(`Commit già incluso in ${plan.tag}; nessun nuovo rilascio.`)
@@ -118,7 +150,9 @@ function prepare() {
     if (name === 'package-lock.json') manifest.packages[''].version = plan.version
     writeFileSync(name, `${JSON.stringify(manifest, null, 2)}\n`)
   }
-  console.log(`${plan.baseVersion} -> ${plan.version} (${plan.bump}, ${plan.commits.length} commit)`)
+  console.log(
+    `${plan.baseVersion} -> ${plan.version} (${plan.bump}, ${plan.commits.length} commit)`
+  )
 }
 
 function publish() {
@@ -148,10 +182,15 @@ function publish() {
     '',
     '## Modifiche',
     '',
-    ...plan.commits.map((commit) => `- ${commit.message.split(/\r?\n/)[0]} (${commit.sha.slice(0, 7)})`),
+    ...plan.commits.map(
+      (commit) => `- ${commit.message.split(/\r?\n/)[0]} (${commit.sha.slice(0, 7)})`
+    ),
     '',
     ...(plan.previousTag
-      ? [`[Confronto completo](https://github.com/${process.env.GH_REPO}/compare/${plan.previousTag}...${plan.tag})`, '']
+      ? [
+          `[Confronto completo](https://github.com/${process.env.GH_REPO}/compare/${plan.previousTag}...${plan.tag})`,
+          ''
+        ]
       : []),
     '## Download',
     '',
@@ -169,7 +208,18 @@ function publish() {
     throw new Error(`${plan.tag} è già pubblicata o appartiene a un altro commit.`)
   }
   if (!existing) {
-    gh('release', 'create', plan.tag, '--draft', '--target', plan.sha, '--title', plan.tag, '--notes-file', notesPath)
+    gh(
+      'release',
+      'create',
+      plan.tag,
+      '--draft',
+      '--target',
+      plan.sha,
+      '--title',
+      plan.tag,
+      '--notes-file',
+      notesPath
+    )
   } else {
     gh('release', 'edit', plan.tag, '--title', plan.tag, '--notes-file', notesPath)
   }
@@ -184,13 +234,15 @@ function publish() {
   }
   gh('release', 'edit', plan.tag, '--draft=false', '--latest')
   const url = `https://github.com/${process.env.GH_REPO}/releases/tag/${plan.tag}`
-  if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, `Release pubblicata: [${plan.tag}](${url})\n`)
+  if (process.env.GITHUB_STEP_SUMMARY)
+    appendFileSync(process.env.GITHUB_STEP_SUMMARY, `Release pubblicata: [${plan.tag}](${url})\n`)
   console.log(url)
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {
-    if (!process.env.GH_REPO || !process.env.RELEASE_PLAN) throw new Error('GH_REPO e RELEASE_PLAN sono obbligatori.')
+    if (!process.env.GH_REPO || !process.env.RELEASE_PLAN)
+      throw new Error('GH_REPO e RELEASE_PLAN sono obbligatori.')
     if (process.argv[2] === 'prepare') prepare()
     else if (process.argv[2] === 'publish') publish()
     else throw new Error('Uso: node scripts/windows-release.mjs prepare|publish')

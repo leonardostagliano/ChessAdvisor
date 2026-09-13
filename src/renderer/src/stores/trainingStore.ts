@@ -30,7 +30,13 @@ import { useUiStore } from './uiStore'
 
 export type TrainingTab = 'own' | 'thematic' | 'openings' | 'endgames' | 'plan'
 
-export const TRAINING_TABS: readonly TrainingTab[] = ['own', 'thematic', 'openings', 'endgames', 'plan']
+export const TRAINING_TABS: readonly TrainingTab[] = [
+  'own',
+  'thematic',
+  'openings',
+  'endgames',
+  'plan'
+]
 
 /** What *this* window asked for; only the button that asked disables itself on it. */
 export interface TrainingRequest {
@@ -94,7 +100,10 @@ function failure(error: unknown): string {
 }
 
 /** Exercises of one kind, in the order the main process listed them (newest first). */
-export function exercisesOfKind(exercises: readonly Exercise[], kind: Exercise['kind']): Exercise[] {
+export function exercisesOfKind(
+  exercises: readonly Exercise[],
+  kind: Exercise['kind']
+): Exercise[] {
   return exercises.filter((exercise) => exercise.kind === kind)
 }
 
@@ -102,7 +111,8 @@ export function exercisesOfKind(exercises: readonly Exercise[], kind: Exercise['
 export function solvedCount(exercises: readonly Exercise[], set: ThematicSet | null): number {
   if (!set) return 0
   const byId = new Map(exercises.map((exercise) => [exercise.id, exercise]))
-  return set.exercises.filter((exercise) => (byId.get(exercise.id) ?? exercise).status === 'solved').length
+  return set.exercises.filter((exercise) => (byId.get(exercise.id) ?? exercise).status === 'solved')
+    .length
 }
 
 export const useTrainingStore = create<TrainingStoreState>((set, get) => {
@@ -110,7 +120,10 @@ export const useTrainingStore = create<TrainingStoreState>((set, get) => {
    * One request that can fail. Like the coach's turns, it is deliberately outside any global busy
    * flag: writing a lesson can take half a minute and must grey out its own button only.
    */
-  async function ask(request: TrainingRequest, run: (api: Window['api']) => Promise<void>): Promise<void> {
+  async function ask(
+    request: TrainingRequest,
+    run: (api: Window['api']) => Promise<void>
+  ): Promise<void> {
     const api = bridge()
     if (!api || get().request) return
     set({ request, error: null })
@@ -175,7 +188,10 @@ export const useTrainingStore = create<TrainingStoreState>((set, get) => {
       const api = bridge()
       if (!api) return
       try {
-        const [exercises, endgames] = await Promise.all([api.training.exercises.list(), api.training.endgames.list()])
+        const [exercises, endgames] = await Promise.all([
+          api.training.exercises.list(),
+          api.training.endgames.list()
+        ])
         set({ exercises, endgames })
       } catch {
         // A refresh that fails leaves the list as it was: the event will come again.
@@ -245,7 +261,9 @@ export const useTrainingStore = create<TrainingStoreState>((set, get) => {
       if (!api) return
       try {
         const exercise = await api.training.exercises.reset(id)
-        set({ exercises: get().exercises.map((entry) => (entry.id === exercise.id ? exercise : entry)) })
+        set({
+          exercises: get().exercises.map((entry) => (entry.id === exercise.id ? exercise : entry))
+        })
       } catch (error) {
         set({ error: failure(error) })
       }
@@ -312,7 +330,11 @@ export const useTrainingStore = create<TrainingStoreState>((set, get) => {
  * The text streaming right now for `kind`/`ref`, or `null` when the turn on the wire is another
  * one. It is what tells an explanation card from a lesson card while both are on screen.
  */
-export function streamingText(state: TrainingStoreState, kind: TrainingActivity['kind'], ref: string | null): string | null {
+export function streamingText(
+  state: TrainingStoreState,
+  kind: TrainingActivity['kind'],
+  ref: string | null
+): string | null {
   const activity = state.activity
   if (!activity || !activity.busy || activity.kind !== kind || activity.ref !== ref) return null
   return state.stream?.streamId === activity.streamId ? state.stream.text : ''

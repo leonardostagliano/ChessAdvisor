@@ -48,7 +48,10 @@ export function CommentCard({
       {move || title || foreign ? (
         <header className={styles.head}>
           {move ? (
-            <span className={cx(styles.move, 'mono')} title={move.by === 'ai' ? t('opponent.title') : t('play.you')}>
+            <span
+              className={cx(styles.move, 'mono')}
+              title={move.by === 'ai' ? t('opponent.title') : t('play.you')}
+            >
               {move.san}
             </span>
           ) : null}

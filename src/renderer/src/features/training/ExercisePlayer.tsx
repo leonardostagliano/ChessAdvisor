@@ -46,7 +46,12 @@ function sideToMove(fen: string): 'w' | 'b' {
   return fen.split(/\s+/)[1] === 'b' ? 'b' : 'w'
 }
 
-export function ExercisePlayer({ exercise, position = null, onSolved, children }: ExercisePlayerProps): React.JSX.Element {
+export function ExercisePlayer({
+  exercise,
+  position = null,
+  onSolved,
+  children
+}: ExercisePlayerProps): React.JSX.Element {
   const { t } = useTranslation()
   const [fen, setFen] = useState(exercise.fen)
   const [feedback, setFeedback] = useState<ExerciseFeedback>('idle')
@@ -56,7 +61,9 @@ export function ExercisePlayer({ exercise, position = null, onSolved, children }
   const [lastMove, setLastMove] = useState<[string, string] | null>(null)
   const [pending, setPending] = useState(false)
   const request = useTrainingStore((state) => state.request)
-  const explanation = useTrainingStore((state) => state.explanations[exercise.id] ?? exercise.explanation ?? '')
+  const explanation = useTrainingStore(
+    (state) => state.explanations[exercise.id] ?? exercise.explanation ?? ''
+  )
   const streaming = useTrainingStore((state) => streamingText(state, 'explain', exercise.id))
   const replyTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -145,8 +152,12 @@ export function ExercisePlayer({ exercise, position = null, onSolved, children }
     [exercise.id, fen, onSolved, pending, revealed, done]
   )
 
-  const solutionLine = numberedLine(exercise.fen, lineInSan(exercise.fen, exercise.solution, exercise.solution.length))
-  const canReveal = !revealed && !done && failures >= REVEAL_AFTER_FAILURES && solutionLine.length > 0
+  const solutionLine = numberedLine(
+    exercise.fen,
+    lineInSan(exercise.fen, exercise.solution, exercise.solution.length)
+  )
+  const canReveal =
+    !revealed && !done && failures >= REVEAL_AFTER_FAILURES && solutionLine.length > 0
   const message =
     feedback === 'solved'
       ? t('training.exercise.solved')
@@ -161,10 +172,17 @@ export function ExercisePlayer({ exercise, position = null, onSolved, children }
               : null
 
   return (
-    <div className={styles.player} data-testid="exercise-player" data-exercise={exercise.id} data-feedback={feedback}>
+    <div
+      className={styles.player}
+      data-testid="exercise-player"
+      data-exercise={exercise.id}
+      data-feedback={feedback}
+    >
       <div className={styles.cardHead}>
         <p className={styles.prompt}>
-          {exercise.sideToMove === 'w' ? t('training.exercise.promptW') : t('training.exercise.promptB')}
+          {exercise.sideToMove === 'w'
+            ? t('training.exercise.promptW')
+            : t('training.exercise.promptB')}
         </p>
         {position ? (
           <span className={cx(styles.chip, 'mono')} data-testid="exercise-position">
@@ -174,16 +192,28 @@ export function ExercisePlayer({ exercise, position = null, onSolved, children }
       </div>
 
       <div className={styles.chips}>
-        <span className={styles.chip}>{t(`themes.${exercise.theme}`, { defaultValue: exercise.theme })}</span>
+        <span className={styles.chip}>
+          {t(`themes.${exercise.theme}`, { defaultValue: exercise.theme })}
+        </span>
         {typeof exercise.rating === 'number' ? (
-          <span className={cx(styles.chip, 'mono')}>{t('training.exercise.rating', { value: exercise.rating })}</span>
+          <span className={cx(styles.chip, 'mono')}>
+            {t('training.exercise.rating', { value: exercise.rating })}
+          </span>
         ) : null}
         <span
-          className={cx(styles.chip, exercise.status === 'solved' && styles.chipSolved, exercise.status === 'failed' && styles.chipFailed)}
+          className={cx(
+            styles.chip,
+            exercise.status === 'solved' && styles.chipSolved,
+            exercise.status === 'failed' && styles.chipFailed
+          )}
         >
           {t(`training.status.${exercise.status}`)}
         </span>
-        {exercise.attempts > 0 ? <span className={styles.chip}>{t('training.attempts', { count: exercise.attempts })}</span> : null}
+        {exercise.attempts > 0 ? (
+          <span className={styles.chip}>
+            {t('training.attempts', { count: exercise.attempts })}
+          </span>
+        ) : null}
       </div>
 
       <div className={styles.board}>
@@ -202,7 +232,8 @@ export function ExercisePlayer({ exercise, position = null, onSolved, children }
         <p
           className={cx(
             styles.feedback,
-            (feedback === 'correct' || feedback === 'alternative' || feedback === 'solved') && styles.feedbackCorrect,
+            (feedback === 'correct' || feedback === 'alternative' || feedback === 'solved') &&
+              styles.feedbackCorrect,
             feedback === 'wrong' && styles.feedbackWrong
           )}
           role="status"
@@ -233,13 +264,21 @@ export function ExercisePlayer({ exercise, position = null, onSolved, children }
         >
           {t('training.exercise.reset')}
         </Button>
-        <Button size="sm" variant="primary" disabled={explaining} onClick={() => void useTrainingStore.getState().explain(exercise.id)}>
+        <Button
+          size="sm"
+          variant="primary"
+          disabled={explaining}
+          onClick={() => void useTrainingStore.getState().explain(exercise.id)}
+        >
           {explaining ? t('training.exercise.explaining') : t('training.exercise.explain')}
         </Button>
         {children}
       </div>
 
-      <ExplanationCard text={streaming !== null ? streaming : explanation} streaming={streaming !== null} />
+      <ExplanationCard
+        text={streaming !== null ? streaming : explanation}
+        streaming={streaming !== null}
+      />
     </div>
   )
 }

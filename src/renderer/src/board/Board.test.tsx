@@ -16,7 +16,11 @@ interface CgConfig {
   check?: boolean | string
   lastMove?: string[]
   viewOnly?: boolean
-  movable?: { color?: string; dests?: Map<string, string[]>; events?: { after?(orig: string, dest: string): void } }
+  movable?: {
+    color?: string
+    dests?: Map<string, string[]>
+    events?: { after?(orig: string, dest: string): void }
+  }
   drawable?: { autoShapes?: { orig: string; dest?: string; brush?: string }[] }
   animation?: { enabled?: boolean; duration?: number }
   premovable?: { enabled?: boolean }
@@ -70,8 +74,10 @@ function installReducedMotion(matches: boolean): { emit(next: boolean): void } {
   const mql = {
     matches,
     media: '(prefers-reduced-motion: reduce)',
-    addEventListener: (_type: string, cb: (event: { matches: boolean }) => void) => void listeners.add(cb),
-    removeEventListener: (_type: string, cb: (event: { matches: boolean }) => void) => void listeners.delete(cb),
+    addEventListener: (_type: string, cb: (event: { matches: boolean }) => void) =>
+      void listeners.add(cb),
+    removeEventListener: (_type: string, cb: (event: { matches: boolean }) => void) =>
+      void listeners.delete(cb),
     addListener: (cb: (event: { matches: boolean }) => void) => void listeners.add(cb),
     removeListener: (cb: (event: { matches: boolean }) => void) => void listeners.delete(cb)
   }
@@ -170,7 +176,15 @@ describe('Board', () => {
   })
 
   it('draws a circle for an arrow without destination', () => {
-    render(<Board fen={START} arrows={[{ from: 'e2', color: 'accent' }, { from: 'e2', to: 'e4', color: 'accent' }]} />)
+    render(
+      <Board
+        fen={START}
+        arrows={[
+          { from: 'e2', color: 'accent' },
+          { from: 'e2', to: 'e4', color: 'accent' }
+        ]}
+      />
+    )
     const shapes = lastConfig().drawable?.autoShapes ?? []
     expect(shapes).toHaveLength(2)
     expect(shapes[0]).toEqual({ orig: 'e2', brush: 'accent' })

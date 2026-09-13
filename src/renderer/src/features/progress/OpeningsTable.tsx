@@ -21,7 +21,11 @@ const score = (row: OpeningStat): number => row.wins + row.draws * 0.5
 
 const text = (value: string): string => value.toLocaleLowerCase()
 
-export function sortOpenings(rows: readonly OpeningStat[], key: OpeningSortKey, direction: SortDirection): OpeningStat[] {
+export function sortOpenings(
+  rows: readonly OpeningStat[],
+  key: OpeningSortKey,
+  direction: SortDirection
+): OpeningStat[] {
   const sign = direction === 'asc' ? 1 : -1
   const compare = (a: OpeningStat, b: OpeningStat): number => {
     switch (key) {
@@ -41,13 +45,14 @@ export function sortOpenings(rows: readonly OpeningStat[], key: OpeningSortKey, 
   return [...rows].sort((a, b) => sign * compare(a, b) || text(a.eco).localeCompare(text(b.eco)))
 }
 
-const COLUMNS: { key: OpeningSortKey; label: string; numeric: boolean; initial: SortDirection }[] = [
-  { key: 'eco', label: 'progress.columnEco', numeric: false, initial: 'asc' },
-  { key: 'name', label: 'progress.columnName', numeric: false, initial: 'asc' },
-  { key: 'games', label: 'progress.columnGames', numeric: true, initial: 'desc' },
-  { key: 'record', label: 'progress.columnRecord', numeric: true, initial: 'desc' },
-  { key: 'accuracy', label: 'progress.columnAccuracy', numeric: true, initial: 'desc' }
-]
+const COLUMNS: { key: OpeningSortKey; label: string; numeric: boolean; initial: SortDirection }[] =
+  [
+    { key: 'eco', label: 'progress.columnEco', numeric: false, initial: 'asc' },
+    { key: 'name', label: 'progress.columnName', numeric: false, initial: 'asc' },
+    { key: 'games', label: 'progress.columnGames', numeric: true, initial: 'desc' },
+    { key: 'record', label: 'progress.columnRecord', numeric: true, initial: 'desc' },
+    { key: 'accuracy', label: 'progress.columnAccuracy', numeric: true, initial: 'desc' }
+  ]
 
 export interface OpeningsTableProps {
   openings: Record<string, OpeningStat> | undefined
@@ -56,7 +61,10 @@ export interface OpeningsTableProps {
 
 export function OpeningsTable({ openings, className }: OpeningsTableProps): React.JSX.Element {
   const { t } = useTranslation()
-  const [sort, setSort] = useState<{ key: OpeningSortKey; direction: SortDirection }>({ key: 'games', direction: 'desc' })
+  const [sort, setSort] = useState<{ key: OpeningSortKey; direction: SortDirection }>({
+    key: 'games',
+    direction: 'desc'
+  })
   const rows = sortOpenings(Object.values(openings ?? {}), sort.key, sort.direction)
 
   const toggle = (key: OpeningSortKey, initial: SortDirection): void =>
@@ -87,7 +95,9 @@ export function OpeningsTable({ openings, className }: OpeningsTableProps): Reac
                     <th
                       key={column.key}
                       scope="col"
-                      aria-sort={active ? (sort.direction === 'asc' ? 'ascending' : 'descending') : 'none'}
+                      aria-sort={
+                        active ? (sort.direction === 'asc' ? 'ascending' : 'descending') : 'none'
+                      }
                     >
                       <button
                         type="button"
@@ -112,8 +122,18 @@ export function OpeningsTable({ openings, className }: OpeningsTableProps): Reac
                   <td className={styles.openingName}>{row.name}</td>
                   <td className={styles.numeric}>{row.games}</td>
                   <td className={styles.numeric}>
-                    <span title={t('progress.recordAria', { wins: row.wins, draws: row.draws, losses: row.losses })}>
-                      {t('progress.recordValue', { wins: row.wins, draws: row.draws, losses: row.losses })}
+                    <span
+                      title={t('progress.recordAria', {
+                        wins: row.wins,
+                        draws: row.draws,
+                        losses: row.losses
+                      })}
+                    >
+                      {t('progress.recordValue', {
+                        wins: row.wins,
+                        draws: row.draws,
+                        losses: row.losses
+                      })}
                     </span>
                   </td>
                   <td className={styles.numeric}>

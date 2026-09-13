@@ -27,13 +27,21 @@ class FakeCodex implements SessionCodex {
   readonly requests: TurnRequest[] = []
   readonly closed: string[] = []
   /** What the theme pick answers; `null` makes the turn fail instead. */
-  themePick: Record<string, unknown> | null = { theme: 'pin', ratingMin: 1000, ratingMax: 1400, motivation: 'motivo finto' }
+  themePick: Record<string, unknown> | null = {
+    theme: 'pin',
+    ratingMin: 1000,
+    ratingMax: 1400,
+    motivation: 'motivo finto'
+  }
   /** Plan items, answered in order: one array per call. */
   planAnswers: unknown[][] = []
   text = 'Spiegazione finta.'
   private threads = 0
 
-  async startThread(role: 'opponent' | 'coach' | 'training', opts: { model: string }): Promise<string> {
+  async startThread(
+    role: 'opponent' | 'coach' | 'training',
+    opts: { model: string }
+  ): Promise<string> {
     this.started.push({ role, model: opts.model })
     this.threads += 1
     return `thread-${this.threads}`
@@ -41,14 +49,28 @@ class FakeCodex implements SessionCodex {
 
   async runTurn(req: TurnRequest): Promise<TurnResult> {
     this.requests.push(req)
-    const properties = (req.outputSchema as { properties?: Record<string, unknown> } | undefined)?.properties ?? {}
+    const properties =
+      (req.outputSchema as { properties?: Record<string, unknown> } | undefined)?.properties ?? {}
     if ('theme' in properties) {
-      if (!this.themePick) return { ok: false, reason: 'failed', message: 'fake failure', turnId: null }
-      return { ok: true, text: JSON.stringify(this.themePick), turnId: 't', effectiveModel: null, durationMs: 1 }
+      if (!this.themePick)
+        return { ok: false, reason: 'failed', message: 'fake failure', turnId: null }
+      return {
+        ok: true,
+        text: JSON.stringify(this.themePick),
+        turnId: 't',
+        effectiveModel: null,
+        durationMs: 1
+      }
     }
     if ('items' in properties) {
       const items = this.planAnswers.shift() ?? []
-      return { ok: true, text: JSON.stringify({ items }), turnId: 't', effectiveModel: null, durationMs: 1 }
+      return {
+        ok: true,
+        text: JSON.stringify({ items }),
+        turnId: 't',
+        effectiveModel: null,
+        durationMs: 1
+      }
     }
     return { ok: true, text: this.text, turnId: 't', effectiveModel: null, durationMs: 1 }
   }
@@ -87,7 +109,12 @@ class FakeEngine implements SessionEngine {
     return {
       bestMove: best.uci,
       lines: [
-        { move: best.uci, pv: reply ? [best.uci, reply.uci] : [best.uci], scoreCp: this.score, depth: 20 },
+        {
+          move: best.uci,
+          pv: reply ? [best.uci, reply.uci] : [best.uci],
+          scoreCp: this.score,
+          depth: 20
+        },
         { move: moves[1]!.uci, pv: [moves[1]!.uci], scoreCp: this.score - 400, depth: 20 }
       ],
       depth: 20,
@@ -107,18 +134,46 @@ const puzzle = (id: string, rating: number, theme: string): Puzzle => ({
 })
 
 const ENDGAMES: EndgamePosition[] = [
-  { id: 'queen_mate', name: { it: 'Matto con la donna', en: 'Queen mate' }, fen: '8/8/8/4k3/8/8/8/3QK3 w - - 0 1', sideToMove: 'w', goal: 'win', difficulty: 1, theme: 'endgame_technique' },
-  { id: 'philidor', name: { it: 'Philidor', en: 'Philidor' }, fen: '8/8/8/8/8/1k6/8/K7 b - - 0 1', sideToMove: 'b', goal: 'draw', difficulty: 2, theme: 'endgame_technique' }
+  {
+    id: 'queen_mate',
+    name: { it: 'Matto con la donna', en: 'Queen mate' },
+    fen: '8/8/8/4k3/8/8/8/3QK3 w - - 0 1',
+    sideToMove: 'w',
+    goal: 'win',
+    difficulty: 1,
+    theme: 'endgame_technique'
+  },
+  {
+    id: 'philidor',
+    name: { it: 'Philidor', en: 'Philidor' },
+    fen: '8/8/8/8/8/1k6/8/K7 b - - 0 1',
+    sideToMove: 'b',
+    goal: 'draw',
+    difficulty: 2,
+    theme: 'endgame_technique'
+  }
 ]
 
 /** A library with a handful of puzzles, so a set can be drawn without the real dataset. */
 class FakeLibrary implements TrainingLibrary {
-  puzzles: Puzzle[] = [puzzle('p1', 1100, 'pin'), puzzle('p2', 1200, 'pin'), puzzle('p3', 900, 'fork')]
+  puzzles: Puzzle[] = [
+    puzzle('p1', 1100, 'pin'),
+    puzzle('p2', 1200, 'pin'),
+    puzzle('p3', 900, 'fork')
+  ]
   readonly picks: PickRequest[] = []
 
   pick(p: PickRequest): Puzzle[] {
     this.picks.push(p)
-    return this.puzzles.filter((entry) => entry.themes.includes(p.theme) && entry.rating >= p.ratingMin && entry.rating <= p.ratingMax && !p.exclude.has(entry.id)).slice(0, p.count)
+    return this.puzzles
+      .filter(
+        (entry) =>
+          entry.themes.includes(p.theme) &&
+          entry.rating >= p.ratingMin &&
+          entry.rating <= p.ratingMax &&
+          !p.exclude.has(entry.id)
+      )
+      .slice(0, p.count)
   }
 
   themes(): { theme: string; count: number }[] {
@@ -138,7 +193,12 @@ class FakeLibrary implements TrainingLibrary {
 }
 
 /** A game with real moves and the evaluations the extraction filters on. */
-function analysedGame(p: { sans: string[]; classifications: (MoveClassification | undefined)[]; eco?: string; result?: Game['result'] }): Omit<Game, 'id' | 'createdAt' | 'updatedAt' | 'status'> {
+function analysedGame(p: {
+  sans: string[]
+  classifications: (MoveClassification | undefined)[]
+  eco?: string
+  result?: Game['result']
+}): Omit<Game, 'id' | 'createdAt' | 'updatedAt' | 'status'> {
   const chess = new Chess()
   const moves: Move[] = p.sans.map((san, index) => {
     const played = chess.move(san)
@@ -159,7 +219,7 @@ function analysedGame(p: { sans: string[]; classifications: (MoveClassification 
         winPercentLoss: 24,
         classification,
         bestMove: 'g1f3',
-        bestLine: ['g1f3'],
+        bestLine: ['g1f3']
       }
     }
     return move
@@ -167,7 +227,11 @@ function analysedGame(p: { sans: string[]; classifications: (MoveClassification 
   return {
     kind: 'match',
     userColor: 'w',
-    opponent: { model: 'gpt-6-astra', effort: 'medium', difficulty: { mode: 'fixed', level: 3, targetElo: 1200 } },
+    opponent: {
+      model: 'gpt-6-astra',
+      effort: 'medium',
+      difficulty: { mode: 'fixed', level: 3, targetElo: 1200 }
+    },
     coach: { model: 'gpt-6-astra', effort: 'medium' },
     clock: null,
     language: 'it',
@@ -175,7 +239,12 @@ function analysedGame(p: { sans: string[]; classifications: (MoveClassification 
     takebacks: 0,
     coachLog: [],
     ...(p.result ? { result: p.result } : {}),
-    analysis: { accuracy: { w: 78, b: 70 }, acpl: { w: 45, b: 60 }, keyMoments: [3], analyzedAt: '2026-03-01T10:40:00.000Z' },
+    analysis: {
+      accuracy: { w: 78, b: 70 },
+      acpl: { w: 45, b: 60 },
+      keyMoments: [3],
+      analyzedAt: '2026-03-01T10:40:00.000Z'
+    },
     ...(p.eco ? { opening: { eco: p.eco, name: 'Partita spagnola', lastBookPly: 4 } } : {})
   } as Omit<Game, 'id' | 'createdAt' | 'updatedAt' | 'status'>
 }
@@ -223,7 +292,12 @@ describe('TrainingService', () => {
       library,
       startGame: async (opts) => {
         started.push(opts)
-        const game = await games.create({ ...analysedGame({ sans: [], classifications: [] }), kind: 'endgame_drill', startFen: opts.startFen, userColor: opts.userColor === 'b' ? 'b' : 'w' })
+        const game = await games.create({
+          ...analysedGame({ sans: [], classifications: [] }),
+          kind: 'endgame_drill',
+          startFen: opts.startFen,
+          userColor: opts.userColor === 'b' ? 'b' : 'w'
+        })
         return { game } as SessionState
       },
       emit: (channel, payload) => {
@@ -238,7 +312,9 @@ describe('TrainingService', () => {
   })
 
   /** `GameStore.create` always starts a game empty: the moves are written by the save that follows. */
-  async function storeGame(init: Omit<Game, 'id' | 'createdAt' | 'updatedAt' | 'status'>): Promise<Game> {
+  async function storeGame(
+    init: Omit<Game, 'id' | 'createdAt' | 'updatedAt' | 'status'>
+  ): Promise<Game> {
     const created = await games.create(init)
     const game: Game = { ...created, moves: init.moves, status: 'finished' }
     await games.save(game)
@@ -248,7 +324,12 @@ describe('TrainingService', () => {
   // ───────────────────────────────────────────────────── own-game exercises
 
   it('builds the exercises of an analysed game and never rebuilds them', async () => {
-    const game = await storeGame(analysedGame({ sans: ['e4', 'e5', 'Nf3'], classifications: [undefined, undefined, 'blunder'] }))
+    const game = await storeGame(
+      analysedGame({
+        sans: ['e4', 'e5', 'Nf3'],
+        classifications: [undefined, undefined, 'blunder']
+      })
+    )
     await service.onGameAnalyzed(game)
     const built = service.list('own_game')
     expect(built).toHaveLength(1)
@@ -264,7 +345,12 @@ describe('TrainingService', () => {
 
   it('builds nothing without an engine, and nothing for a drill', async () => {
     engine.available = false
-    const game = await storeGame(analysedGame({ sans: ['e4', 'e5', 'Nf3'], classifications: [undefined, undefined, 'blunder'] }))
+    const game = await storeGame(
+      analysedGame({
+        sans: ['e4', 'e5', 'Nf3'],
+        classifications: [undefined, undefined, 'blunder']
+      })
+    )
     await service.onGameAnalyzed(game)
     expect(service.list('own_game')).toEqual([])
 
@@ -289,7 +375,10 @@ describe('TrainingService', () => {
     })
     const solution = service.get('tac-1')!.solution
 
-    const wrong = await service.attempt('tac-1', legalMoves(MIDDLEGAME).find((move) => move.uci !== solution[0])!.uci)
+    const wrong = await service.attempt(
+      'tac-1',
+      legalMoves(MIDDLEGAME).find((move) => move.uci !== solution[0])!.uci
+    )
     expect(wrong.correct).toBe(false)
     expect(service.get('tac-1')?.status).toBe('failed')
     expect(service.get('tac-1')?.attempts).toBe(1)
@@ -316,11 +405,18 @@ describe('TrainingService', () => {
   it('refuses to play an endgame as an exercise and an unknown id', async () => {
     await expect(service.attempt('nothing', 'e2e4')).rejects.toThrow(/no exercise/)
     await service.startEndgame('queen_mate')
-    await expect(service.attempt(endgameExerciseId('queen_mate'), 'd1d5')).rejects.toThrow(/played as a game/)
+    await expect(service.attempt(endgameExerciseId('queen_mate'), 'd1d5')).rejects.toThrow(
+      /played as a game/
+    )
   })
 
   it('asks the coach for an explanation and keeps it on the exercise', async () => {
-    const game = await storeGame(analysedGame({ sans: ['e4', 'e5', 'Nf3'], classifications: [undefined, undefined, 'blunder'] }))
+    const game = await storeGame(
+      analysedGame({
+        sans: ['e4', 'e5', 'Nf3'],
+        classifications: [undefined, undefined, 'blunder']
+      })
+    )
     await service.onGameAnalyzed(game)
     const id = `og-${game.id}-3`
 
@@ -351,12 +447,17 @@ describe('TrainingService', () => {
   })
 
   it('asks the coach once the profile has something to read, and excludes the solved puzzles', async () => {
-    await profile.update({ themeStats: { pin: { occurrences: 4, lastSeen: '2026-03-01T10:00:00.000Z' } } })
+    await profile.update({
+      themeStats: { pin: { occurrences: 4, lastSeen: '2026-03-01T10:00:00.000Z' } }
+    })
     const first = await service.nextThematicSet()
     expect(first.fallback).toBe(false)
     expect(first.theme).toBe('pin')
     expect(first.motivation).toBe('motivo finto')
-    expect(first.exercises.map((exercise) => exercise.id)).toEqual([thematicExerciseId('p1'), thematicExerciseId('p2')])
+    expect(first.exercises.map((exercise) => exercise.id)).toEqual([
+      thematicExerciseId('p1'),
+      thematicExerciseId('p2')
+    ])
 
     await exercises.update(thematicExerciseId('p1'), { status: 'solved' })
     const second = await service.nextThematicSet()
@@ -365,12 +466,19 @@ describe('TrainingService', () => {
   })
 
   it('falls back to the rotation when the coach turn fails or draws nothing', async () => {
-    await profile.update({ themeStats: { pin: { occurrences: 4, lastSeen: '2026-03-01T10:00:00.000Z' } } })
+    await profile.update({
+      themeStats: { pin: { occurrences: 4, lastSeen: '2026-03-01T10:00:00.000Z' } }
+    })
     codex.themePick = null
     const failed = await service.nextThematicSet()
     expect(failed.fallback).toBe(true)
 
-    codex.themePick = { theme: 'pin', ratingMin: 2000, ratingMax: 2200, motivation: 'niente in quella fascia' }
+    codex.themePick = {
+      theme: 'pin',
+      ratingMin: 2000,
+      ratingMax: 2200,
+      motivation: 'niente in quella fascia'
+    }
     const empty = await service.nextThematicSet()
     expect(empty.fallback).toBe(true)
     expect(empty.exercises.length).toBeGreaterThan(0)
@@ -379,8 +487,26 @@ describe('TrainingService', () => {
   // ───────────────────────────────────────────────────────────────── openings
 
   it('builds the openings overview and the mini-lesson of one of them', async () => {
-    await profile.update({ openingStats: { C60: { eco: 'C60', name: 'Partita spagnola', games: 2, wins: 1, draws: 0, losses: 1, avgAccuracyFirst10: 80 } } })
-    await storeGame(analysedGame({ sans: ['e4', 'e5', 'Nf3'], classifications: [undefined, undefined, 'mistake'], eco: 'C60' }))
+    await profile.update({
+      openingStats: {
+        C60: {
+          eco: 'C60',
+          name: 'Partita spagnola',
+          games: 2,
+          wins: 1,
+          draws: 0,
+          losses: 1,
+          avgAccuracyFirst10: 80
+        }
+      }
+    })
+    await storeGame(
+      analysedGame({
+        sans: ['e4', 'e5', 'Nf3'],
+        classifications: [undefined, undefined, 'mistake'],
+        eco: 'C60'
+      })
+    )
 
     const overview = await service.openingsOverview()
     expect(overview).toHaveLength(1)
@@ -408,19 +534,34 @@ describe('TrainingService', () => {
     expect(record.attempts).toBe(1)
     expect(record.sourceGameId).toBe(state.game!.id)
 
-    await service.onGameFinished({ ...state.game!, kind: 'endgame_drill', userColor: 'w', result: { outcome: '1-0', reason: 'checkmate' } })
+    await service.onGameFinished({
+      ...state.game!,
+      kind: 'endgame_drill',
+      userColor: 'w',
+      result: { outcome: '1-0', reason: 'checkmate' }
+    })
     expect(service.get(endgameExerciseId('queen_mate'))?.status).toBe('solved')
     expect(service.endgames()[0]?.status).toBe('solved')
   })
 
   it('marks a drill failed when the goal was not reached, and a draw goal as reached', async () => {
     const won = await service.startEndgame('queen_mate')
-    await service.onGameFinished({ ...won.game!, kind: 'endgame_drill', userColor: 'w', result: { outcome: '1/2-1/2', reason: 'stalemate' } })
+    await service.onGameFinished({
+      ...won.game!,
+      kind: 'endgame_drill',
+      userColor: 'w',
+      result: { outcome: '1/2-1/2', reason: 'stalemate' }
+    })
     expect(service.get(endgameExerciseId('queen_mate'))?.status).toBe('failed')
 
     const drawn = await service.startEndgame('philidor')
     expect(started.at(-1)?.userColor).toBe('b')
-    await service.onGameFinished({ ...drawn.game!, kind: 'endgame_drill', userColor: 'b', result: { outcome: '1/2-1/2', reason: 'repetition' } })
+    await service.onGameFinished({
+      ...drawn.game!,
+      kind: 'endgame_drill',
+      userColor: 'b',
+      result: { outcome: '1/2-1/2', reason: 'repetition' }
+    })
     expect(service.get(endgameExerciseId('philidor'))?.status).toBe('solved')
   })
 
@@ -431,18 +572,40 @@ describe('TrainingService', () => {
   // ─────────────────────────────────────────────────────────────── study plan
 
   it('drops the invented references and saves what is left', async () => {
-    await profile.update({ openingStats: { C60: { eco: 'C60', name: 'Spagnola', games: 2, wins: 1, draws: 0, losses: 1, avgAccuracyFirst10: 80 } }, gamesSincePlan: 7 })
+    await profile.update({
+      openingStats: {
+        C60: {
+          eco: 'C60',
+          name: 'Spagnola',
+          games: 2,
+          wins: 1,
+          draws: 0,
+          losses: 1,
+          avgAccuracyFirst10: 80
+        }
+      },
+      gamesSincePlan: 7
+    })
     codex.planAnswers = [
       [
         { title: 'Tattica', why: 'perché', activity: { type: 'thematic', ref: 'fork' } },
-        { title: 'Esercizio inventato', why: 'perché', activity: { type: 'own_game', ref: 'og-nope-1' } },
+        {
+          title: 'Esercizio inventato',
+          why: 'perché',
+          activity: { type: 'own_game', ref: 'og-nope-1' }
+        },
         { title: 'Apertura', why: 'perché', activity: { type: 'opening', ref: 'C60' } },
         { title: 'Finale', why: 'perché', activity: { type: 'endgame', ref: 'queen_mate' } },
         { title: 'Gioca', why: 'perché', activity: { type: 'play', ref: null } }
       ]
     ]
     const view = await service.generatePlan()
-    expect(view.plan?.items.map((item) => item.activity.ref)).toEqual(['fork', 'C60', 'queen_mate', null])
+    expect(view.plan?.items.map((item) => item.activity.ref)).toEqual([
+      'fork',
+      'C60',
+      'queen_mate',
+      null
+    ])
     expect(view.gamesSincePlan).toBe(0)
     expect(profile.get().gamesSincePlan).toBe(0)
     expect(view.suggestRegenerate).toBe(false)
@@ -470,7 +633,12 @@ describe('TrainingService', () => {
   })
 
   it('marks the dangling references at read time and proposes a new plan', async () => {
-    const game = await storeGame(analysedGame({ sans: ['e4', 'e5', 'Nf3'], classifications: [undefined, undefined, 'blunder'] }))
+    const game = await storeGame(
+      analysedGame({
+        sans: ['e4', 'e5', 'Nf3'],
+        classifications: [undefined, undefined, 'blunder']
+      })
+    )
     await service.onGameAnalyzed(game)
     const exerciseId = `og-${game.id}-3`
     codex.planAnswers = [
@@ -512,7 +680,12 @@ describe('TrainingService', () => {
   })
 
   it('answers an empty view while there is no plan at all', () => {
-    expect(service.plan()).toEqual({ plan: null, suggestRegenerate: false, invalidRefs: 0, gamesSincePlan: 0 })
+    expect(service.plan()).toEqual({
+      plan: null,
+      suggestRegenerate: false,
+      invalidRefs: 0,
+      gamesSincePlan: 0
+    })
   })
 })
 

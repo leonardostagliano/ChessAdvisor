@@ -27,7 +27,14 @@ const MODELS: ModelInfo[] = [
       { id: 'high', description: '' }
     ]
   },
-  { id: 'gpt-5.5', displayName: 'GPT-5.5', description: '', isDefault: false, defaultEffort: 'medium', efforts: [{ id: 'medium', description: '' }] }
+  {
+    id: 'gpt-5.5',
+    displayName: 'GPT-5.5',
+    description: '',
+    isDefault: false,
+    defaultEffort: 'medium',
+    efforts: [{ id: 'medium', description: '' }]
+  }
 ]
 
 function fenOf(text: string): string {
@@ -40,7 +47,8 @@ function fenOf(text: string): string {
  * deterministic. `hold()` freezes the next turn until `interrupt` or `release` resolves it.
  */
 class FakeCodex implements SessionCodex {
-  readonly started: { role: string; model: string; baseInstructions: string; gameId?: string }[] = []
+  readonly started: { role: string; model: string; baseInstructions: string; gameId?: string }[] =
+    []
   readonly interrupted: string[] = []
   readonly closed: string[] = []
   readonly requests: TurnRequest[] = []
@@ -54,7 +62,10 @@ class FakeCodex implements SessionCodex {
   private pendingCoach: ((result: TurnResult) => void) | null = null
   private threads = 0
 
-  async startThread(role: 'opponent' | 'coach' | 'training', opts: { model: string; baseInstructions: string; gameId?: string }): Promise<string> {
+  async startThread(
+    role: 'opponent' | 'coach' | 'training',
+    opts: { model: string; baseInstructions: string; gameId?: string }
+  ): Promise<string> {
     this.started.push({ role, ...opts })
     this.threads += 1
     return `thread-${this.threads}`
@@ -82,7 +93,12 @@ class FakeCodex implements SessionCodex {
     this.interrupted.push(threadId)
     const pending = this.pending
     this.pending = null
-    pending?.({ ok: false, reason: 'interrupted', message: 'interrupted by the user', turnId: 't-held' })
+    pending?.({
+      ok: false,
+      reason: 'interrupted',
+      message: 'interrupted by the user',
+      turnId: 't-held'
+    })
   }
 
   async closeThread(threadId: string): Promise<void> {
@@ -122,13 +138,24 @@ class FakeCodex implements SessionCodex {
           : req.text.includes('Domanda:')
             ? 'Risposta finta.'
             : 'Commento finto.'
-    return { ok: true, text, turnId: `t-${this.requests.length}`, effectiveModel: null, durationMs: 5 }
+    return {
+      ok: true,
+      text,
+      turnId: `t-${this.requests.length}`,
+      effectiveModel: null,
+      durationMs: 5
+    }
   }
 }
 
 function fakeEngine(available = true): SessionEngine {
   return {
-    state: (): EngineState => ({ available, binary: available ? 'avx2' : 'none', version: 'fake 17', message: null }),
+    state: (): EngineState => ({
+      available,
+      binary: available ? 'avx2' : 'none',
+      version: 'fake 17',
+      message: null
+    }),
     analyze: async (fen: string): Promise<Analysis> => ({
       bestMove: legalMoves(fen)[0]?.uci ?? null,
       lines: [{ move: legalMoves(fen)[0]?.uci ?? 'e2e4', pv: [], scoreCp: 30, depth: 14 }],
@@ -228,10 +255,14 @@ describe('GameSession', () => {
     expect(state.ai.thinking).toBe(false)
     // One write for the user move, one for the AI answer.
     expect(save).toHaveBeenCalledTimes(2)
-    expect(await store.get(state.game!.id)).toMatchObject({ moves: [expect.anything(), expect.anything()] })
+    expect(await store.get(state.game!.id)).toMatchObject({
+      moves: [expect.anything(), expect.anything()]
+    })
 
     // The turn text carries the position the model has to answer from.
-    expect(codex.requests[0]!.text).toContain('FEN: rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1')
+    expect(codex.requests[0]!.text).toContain(
+      'FEN: rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1'
+    )
     expect(codex.requests[0]!.text).toContain('PGN: 1. e4')
   })
 
@@ -267,7 +298,9 @@ describe('GameSession', () => {
     expect(session.state().game!.moves).toHaveLength(0)
     // The opponent is told about it in its next turn text.
     await session.userMove('d2d4')
-    expect(codex.requests[codex.requests.length - 1]!.text).toContain('semimosse sono state annullate')
+    expect(codex.requests[codex.requests.length - 1]!.text).toContain(
+      'semimosse sono state annullate'
+    )
   })
 
   it('removes both plies when the AI already answered, and only once', async () => {
@@ -289,8 +322,14 @@ describe('GameSession', () => {
     expect(state.game!.status).toBe('finished')
     expect(state.game!.result).toEqual({ outcome: '1-0', reason: 'checkmate' })
     expect(codex.closed).toEqual(['thread-1'])
-    expect(emit).toHaveBeenCalledWith('game:finished', { gameId: state.game!.id, result: { outcome: '1-0', reason: 'checkmate' } })
-    expect((await store.get(state.game!.id))!.result).toEqual({ outcome: '1-0', reason: 'checkmate' })
+    expect(emit).toHaveBeenCalledWith('game:finished', {
+      gameId: state.game!.id,
+      result: { outcome: '1-0', reason: 'checkmate' }
+    })
+    expect((await store.get(state.game!.id))!.result).toEqual({
+      outcome: '1-0',
+      reason: 'checkmate'
+    })
   })
 
   it('records a resignation as a loss for the user', async () => {
@@ -328,7 +367,10 @@ describe('GameSession', () => {
 
     expect(finished).toEqual([{ id: started.game!.id, status: 'finished' }])
     // The game is already on disk when the hook fires: the pipeline reads it back by id.
-    expect((await store.get(started.game!.id))!.result).toEqual({ outcome: '1-0', reason: 'resign' })
+    expect((await store.get(started.game!.id))!.result).toEqual({
+      outcome: '1-0',
+      reason: 'resign'
+    })
   })
 
   it('never lets a failing analysis hook break the end of a game', async () => {
@@ -358,7 +400,10 @@ describe('GameSession', () => {
 
     const state = await session.resign()
     expect(state.game!.result).toEqual({ outcome: '1-0', reason: 'checkmate' })
-    expect((await store.get(state.game!.id))!.result).toEqual({ outcome: '1-0', reason: 'checkmate' })
+    expect((await store.get(state.game!.id))!.result).toEqual({
+      outcome: '1-0',
+      reason: 'checkmate'
+    })
     expect(emit.mock.calls.filter(([channel]) => channel === 'game:finished')).toHaveLength(1)
   })
 
@@ -371,7 +416,15 @@ describe('GameSession', () => {
 
   it('agrees to a draw when the opponent accepts', async () => {
     await session.newGame(options())
-    codex.script = [{ ok: true, text: JSON.stringify({ accept: true, reason: 'posizione morta' }), turnId: 'd1', effectiveModel: null, durationMs: 1 }]
+    codex.script = [
+      {
+        ok: true,
+        text: JSON.stringify({ accept: true, reason: 'posizione morta' }),
+        turnId: 'd1',
+        effectiveModel: null,
+        durationMs: 1
+      }
+    ]
     const answer = await session.offerDraw()
     expect(answer.accepted).toBe(true)
     expect(session.state().game!.result).toEqual({ outcome: '1/2-1/2', reason: 'draw_agreed' })
@@ -404,13 +457,24 @@ describe('GameSession', () => {
       const game = await store.create({
         kind: 'match',
         userColor: 'w',
-        opponent: { model: 'gpt-6-astra', effort: 'medium', difficulty: { mode: 'fixed', level: 3, targetElo: 1200 } },
+        opponent: {
+          model: 'gpt-6-astra',
+          effort: 'medium',
+          difficulty: { mode: 'fixed', level: 3, targetElo: 1200 }
+        },
         coach: { model: 'gpt-6-astra', effort: 'medium' },
         clock: null,
         language: 'it'
       })
       const applied = applyMove(START_FEN, 'e2e4')!
-      const move: Move = { ply: 1, san: applied.san, uci: 'e2e4', fenAfter: applied.fen, epdAfter: epdOf(applied.fen), by: 'user' }
+      const move: Move = {
+        ply: 1,
+        san: applied.san,
+        uci: 'e2e4',
+        fenAfter: applied.fen,
+        epdAfter: epdOf(applied.fen),
+        by: 'user'
+      }
       Object.assign(game, patch)
       game.moves.push(move)
       await store.save(game)
@@ -429,8 +493,17 @@ describe('GameSession', () => {
     })
 
     it('refuses a game whose model is gone and proposes the default one', async () => {
-      const game = await saved({ opponent: { model: 'ghost-1', effort: 'medium', difficulty: { mode: 'fixed', level: 3, targetElo: 1200 } } })
-      await expect(session.resume(game.id)).rejects.toMatchObject({ code: 'MODEL_UNAVAILABLE', suggested: 'gpt-6-astra' })
+      const game = await saved({
+        opponent: {
+          model: 'ghost-1',
+          effort: 'medium',
+          difficulty: { mode: 'fixed', level: 3, targetElo: 1200 }
+        }
+      })
+      await expect(session.resume(game.id)).rejects.toMatchObject({
+        code: 'MODEL_UNAVAILABLE',
+        suggested: 'gpt-6-astra'
+      })
       expect(codex.started).toHaveLength(0)
       expect(session.state().status).toBe('idle')
 
@@ -441,7 +514,13 @@ describe('GameSession', () => {
     })
 
     it('falls back to the default effort when the saved one is gone', async () => {
-      const game = await saved({ opponent: { model: 'gpt-5.5', effort: 'xhigh', difficulty: { mode: 'fixed', level: 3, targetElo: 1200 } } })
+      const game = await saved({
+        opponent: {
+          model: 'gpt-5.5',
+          effort: 'xhigh',
+          difficulty: { mode: 'fixed', level: 3, targetElo: 1200 }
+        }
+      })
       const state = await session.resume(game.id)
       expect(state.game!.opponent.effort).toBe('medium')
     })
@@ -456,7 +535,11 @@ describe('GameSession', () => {
 
     it('starts at 1200 and doubles the first steps after a win', async () => {
       const state = await session.newGame({ ...adaptive, startFen: MATE_IN_ONE })
-      expect(state.game!.opponent.difficulty).toEqual({ mode: 'adaptive', level: 3, targetElo: 1200 })
+      expect(state.game!.opponent.difficulty).toEqual({
+        mode: 'adaptive',
+        level: 3,
+        targetElo: 1200
+      })
 
       await session.userMove('f7g7')
       expect(profile.get().adaptive).toMatchObject({ elo: 1350, games: 1 })
@@ -464,14 +547,18 @@ describe('GameSession', () => {
     })
 
     it('takes 75 points off a loss once the rating has settled', async () => {
-      await profile.update({ adaptive: { elo: 1350, games: 3, updatedAt: '2026-01-01T00:00:00.000Z' } })
+      await profile.update({
+        adaptive: { elo: 1350, games: 3, updatedAt: '2026-01-01T00:00:00.000Z' }
+      })
       await session.newGame(adaptive)
       await session.resign()
       expect(profile.get().adaptive).toMatchObject({ elo: 1275, games: 4 })
     })
 
     it('moves the rating once even if the resignation is sent twice', async () => {
-      await profile.update({ adaptive: { elo: 1200, games: 5, updatedAt: '2026-01-01T00:00:00.000Z' } })
+      await profile.update({
+        adaptive: { elo: 1200, games: 5, updatedAt: '2026-01-01T00:00:00.000Z' }
+      })
       await session.newGame(adaptive)
       await session.resign()
       await session.resign()
@@ -479,21 +566,31 @@ describe('GameSession', () => {
     })
 
     it('clamps the rating to 500–2400', async () => {
-      await profile.update({ adaptive: { elo: 2400, games: 9, updatedAt: '2026-01-01T00:00:00.000Z' } })
+      await profile.update({
+        adaptive: { elo: 2400, games: 9, updatedAt: '2026-01-01T00:00:00.000Z' }
+      })
       await session.newGame({ ...adaptive, startFen: MATE_IN_ONE })
       await session.userMove('f7g7')
       expect(profile.get().adaptive!.elo).toBe(2400)
 
-      await profile.update({ adaptive: { elo: 500, games: 11, updatedAt: '2026-01-01T00:00:00.000Z' } })
+      await profile.update({
+        adaptive: { elo: 500, games: 11, updatedAt: '2026-01-01T00:00:00.000Z' }
+      })
       await session.newGame(adaptive)
       await session.resign()
       expect(profile.get().adaptive!.elo).toBe(500)
     })
 
     it('uses the persona nearest to the current rating', async () => {
-      await profile.update({ adaptive: { elo: 1700, games: 5, updatedAt: '2026-01-01T00:00:00.000Z' } })
+      await profile.update({
+        adaptive: { elo: 1700, games: 5, updatedAt: '2026-01-01T00:00:00.000Z' }
+      })
       const state = await session.newGame(adaptive)
-      expect(state.game!.opponent.difficulty).toEqual({ mode: 'adaptive', level: 5, targetElo: 1700 })
+      expect(state.game!.opponent.difficulty).toEqual({
+        mode: 'adaptive',
+        level: 5,
+        targetElo: 1700
+      })
       expect(codex.started[0]!.baseInstructions).toContain('1700')
       expect(codex.started[0]!.baseInstructions).toContain('Forte')
     })
@@ -505,7 +602,13 @@ describe('GameSession', () => {
     })
 
     it('always plays an endgame drill at the maximum level', async () => {
-      const state = await session.newGame(options({ kind: 'endgame_drill', difficulty: { mode: 'adaptive', level: 2 }, startFen: MATE_IN_ONE }))
+      const state = await session.newGame(
+        options({
+          kind: 'endgame_drill',
+          difficulty: { mode: 'adaptive', level: 2 },
+          startFen: MATE_IN_ONE
+        })
+      )
       expect(state.game!.opponent.difficulty).toEqual({ mode: 'fixed', level: 6, targetElo: null })
       await session.userMove('f7g7')
       // Drills are not matches: they never move the adaptive rating.
@@ -523,7 +626,13 @@ describe('GameSession', () => {
       // The training screen starts drills with a difficulty and a model of its own: the dialog
       // must still reopen on what the user chose for their games (spec §4.3).
       await session.newGame(
-        options({ kind: 'endgame_drill', difficulty: { mode: 'fixed', level: 6 }, model: 'gpt-5.5', effort: 'xhigh', startFen: MATE_IN_ONE })
+        options({
+          kind: 'endgame_drill',
+          difficulty: { mode: 'fixed', level: 6 },
+          model: 'gpt-5.5',
+          effort: 'xhigh',
+          startFen: MATE_IN_ONE
+        })
       )
       expect(settings.get()).toMatchObject({
         defaultModel: 'gpt-6-astra',
@@ -535,7 +644,8 @@ describe('GameSession', () => {
 
   describe('coach', () => {
     /** The coach describe block is the only one that wants a comment after every move. */
-    const seen = (over: Partial<NewGameOptions> = {}): NewGameOptions => options({ commentsVisible: true, ...over })
+    const seen = (over: Partial<NewGameOptions> = {}): NewGameOptions =>
+      options({ commentsVisible: true, ...over })
 
     const commented = (ply: number): Promise<void> =>
       vi.waitFor(() => expect(session.state().game!.moves[ply - 1]!.coachComment).toBeTruthy())
@@ -546,7 +656,13 @@ describe('GameSession', () => {
       expect(codex.started[1]!.model).toBe('gpt-6-astra')
       expect(codex.started[1]!.gameId).toBe(session.state().game!.id)
       expect(codex.started[1]!.baseInstructions).toMatch(/allenatore/)
-      expect(session.state().coach).toEqual({ commentsVisible: true, busy: false, streamId: null, hint: null, lastAnswer: null })
+      expect(session.state().coach).toEqual({
+        commentsVisible: true,
+        busy: false,
+        streamId: null,
+        hint: null,
+        lastAnswer: null
+      })
     })
 
     it('comments both moves and saves them on the move and in the log', async () => {
@@ -607,7 +723,8 @@ describe('GameSession', () => {
 
     it('comments at most six skipped moves, in order', async () => {
       await session.newGame(seen({ commentsVisible: false }))
-      for (let move = 0; move < 4; move += 1) await session.userMove(legalMoves(session.state().fen)[0]!.uci)
+      for (let move = 0; move < 4; move += 1)
+        await session.userMove(legalMoves(session.state().fen)[0]!.uci)
       expect(session.state().game!.moves).toHaveLength(8)
 
       session.commentSkipped()
@@ -615,7 +732,9 @@ describe('GameSession', () => {
       await vi.waitFor(() => expect(session.state().game!.coachLog).toHaveLength(6))
 
       const moves = session.state().game!.moves
-      expect(moves.filter((move) => move.coachComment).map((move) => move.ply)).toEqual([3, 4, 5, 6, 7, 8])
+      expect(moves.filter((move) => move.coachComment).map((move) => move.ply)).toEqual([
+        3, 4, 5, 6, 7, 8
+      ])
       expect(session.state().game!.coachLog.map((entry) => entry.ply)).toEqual([3, 4, 5, 6, 7, 8])
     })
 
@@ -623,7 +742,11 @@ describe('GameSession', () => {
       await session.newGame(seen({ commentsVisible: false }))
       const state = await session.askCoach('  che piano ho?  ')
 
-      expect(state.coach.lastAnswer).toEqual({ question: 'che piano ho?', text: 'Risposta finta.', ply: 0 })
+      expect(state.coach.lastAnswer).toEqual({
+        question: 'che piano ho?',
+        text: 'Risposta finta.',
+        ply: 0
+      })
       expect(state.game!.coachLog.map((entry) => entry.kind)).toEqual(['question', 'answer'])
       expect(state.game!.coachLog[0]!.text).toBe('che piano ho?')
       expect(codex.requests[0]!.text).toContain('Domanda: che piano ho?')
@@ -636,7 +759,11 @@ describe('GameSession', () => {
       const state = await session.requestHint()
 
       expect(state.coach.hint).toEqual({ move: 'Na3', uci: 'b1a3', reason: 'occupa il centro' })
-      expect(state.game!.coachLog[0]).toMatchObject({ kind: 'hint', move: 'Na3', text: 'occupa il centro' })
+      expect(state.game!.coachLog[0]).toMatchObject({
+        kind: 'hint',
+        move: 'Na3',
+        text: 'occupa il centro'
+      })
       expect(codex.requests[0]!.outputSchema).toMatchObject({ required: ['move', 'reason'] })
 
       const moved = await session.userMove('e2e4')
@@ -659,15 +786,40 @@ describe('GameSession', () => {
       const game = await store.create({
         kind: 'match',
         userColor: 'w',
-        opponent: { model: 'gpt-6-astra', effort: 'medium', difficulty: { mode: 'fixed', level: 3, targetElo: 1200 } },
+        opponent: {
+          model: 'gpt-6-astra',
+          effort: 'medium',
+          difficulty: { mode: 'fixed', level: 3, targetElo: 1200 }
+        },
         coach: { model: 'gpt-6-astra', effort: 'medium' },
         clock: null,
         language: 'it'
       })
       const applied = applyMove(START_FEN, 'e2e4')!
-      game.moves.push({ ply: 1, san: applied.san, uci: 'e2e4', fenAfter: applied.fen, epdAfter: epdOf(applied.fen), by: 'user' })
-      game.coachLog.push({ id: 'c1', ply: 1, kind: 'question', text: 'che piano ho?', language: 'it', createdAt: '2026-01-01T00:00:00.000Z' })
-      game.coachLog.push({ id: 'c2', ply: 1, kind: 'answer', text: 'sviluppa i pezzi', language: 'it', createdAt: '2026-01-01T00:00:00.000Z' })
+      game.moves.push({
+        ply: 1,
+        san: applied.san,
+        uci: 'e2e4',
+        fenAfter: applied.fen,
+        epdAfter: epdOf(applied.fen),
+        by: 'user'
+      })
+      game.coachLog.push({
+        id: 'c1',
+        ply: 1,
+        kind: 'question',
+        text: 'che piano ho?',
+        language: 'it',
+        createdAt: '2026-01-01T00:00:00.000Z'
+      })
+      game.coachLog.push({
+        id: 'c2',
+        ply: 1,
+        kind: 'answer',
+        text: 'sviluppa i pezzi',
+        language: 'it',
+        createdAt: '2026-01-01T00:00:00.000Z'
+      })
       await store.save(game)
 
       await session.resume(game.id)
@@ -682,7 +834,13 @@ describe('GameSession', () => {
     it('keeps playing when the coach cannot answer', async () => {
       await session.newGame(seen())
       codex.script = [
-        { ok: true, text: JSON.stringify({ move: 'Na6', shortComment: 'ok' }), turnId: 'm1', effectiveModel: null, durationMs: 1 },
+        {
+          ok: true,
+          text: JSON.stringify({ move: 'Na6', shortComment: 'ok' }),
+          turnId: 'm1',
+          effectiveModel: null,
+          durationMs: 1
+        },
         { ok: false, reason: 'failed', message: 'coach down', turnId: null },
         { ok: false, reason: 'failed', message: 'coach down', turnId: null }
       ]
@@ -700,13 +858,26 @@ describe('GameSession', () => {
     /** The wall clock of these tests moves only when a test says so. */
     let at = 0
 
-    const timed = (clock: NewGameOptions['clock'] = { initialMs: FIVE_MINUTES, incrementMs: 3_000, aiClock: false }): NewGameOptions =>
-      options({ clock })
+    const timed = (
+      clock: NewGameOptions['clock'] = {
+        initialMs: FIVE_MINUTES,
+        incrementMs: 3_000,
+        aiClock: false
+      }
+    ): NewGameOptions => options({ clock })
 
     /** A session whose `now()` is frozen: nothing but the test advances the clocks. */
     const buildFrozen = (): void => {
       at = 1_700_000_000_000
-      session = new GameSession({ codex, engine: fakeEngine(), store, settings, profile, emit, now: () => at })
+      session = new GameSession({
+        codex,
+        engine: fakeEngine(),
+        store,
+        settings,
+        profile,
+        emit,
+        now: () => at
+      })
     }
 
     beforeEach(() => buildFrozen())
@@ -721,16 +892,32 @@ describe('GameSession', () => {
 
     it('runs the user clock and credits the increment to whoever has moved', async () => {
       const state = await session.newGame(timed())
-      expect(state.game!.clock).toEqual({ initialMs: FIVE_MINUTES, incrementMs: 3_000, aiClock: false, remainingMs: { w: FIVE_MINUTES, b: FIVE_MINUTES } })
-      expect(state.clock).toEqual({ remainingMs: { w: FIVE_MINUTES, b: FIVE_MINUTES }, running: 'w', updatedAt: at })
+      expect(state.game!.clock).toEqual({
+        initialMs: FIVE_MINUTES,
+        incrementMs: 3_000,
+        aiClock: false,
+        remainingMs: { w: FIVE_MINUTES, b: FIVE_MINUTES }
+      })
+      expect(state.clock).toEqual({
+        remainingMs: { w: FIVE_MINUTES, b: FIVE_MINUTES },
+        running: 'w',
+        updatedAt: at
+      })
 
       at += 10_000
       const moved = await session.userMove('e2e4')
       // 10 s burned, 3 s of increment credited right after the move was validated.
       expect(moved.game!.moves[0]!.clockAfter).toEqual({ w: 293_000, b: FIVE_MINUTES })
-      expect(moved.clock).toEqual({ remainingMs: { w: 293_000, b: FIVE_MINUTES }, running: 'w', updatedAt: at })
+      expect(moved.clock).toEqual({
+        remainingMs: { w: 293_000, b: FIVE_MINUTES },
+        running: 'w',
+        updatedAt: at
+      })
       expect(moved.game!.clock!.remainingMs).toEqual({ w: 293_000, b: FIVE_MINUTES })
-      expect((await store.get(moved.game!.id))!.clock!.remainingMs).toEqual({ w: 293_000, b: FIVE_MINUTES })
+      expect((await store.get(moved.game!.id))!.clock!.remainingMs).toEqual({
+        w: 293_000,
+        b: FIVE_MINUTES
+      })
     })
 
     it('never runs the AI clock in "solo il mio tempo"', async () => {
@@ -773,14 +960,19 @@ describe('GameSession', () => {
     })
 
     it('finishes the game on time when the user flag falls', async () => {
-      const started = await session.newGame(timed({ initialMs: 5_000, incrementMs: 0, aiClock: false }))
+      const started = await session.newGame(
+        timed({ initialMs: 5_000, incrementMs: 0, aiClock: false })
+      )
       at += 6_000
       const state = await session.checkClock()
 
       expect(state.status).toBe('finished')
       expect(state.game!.result).toEqual({ outcome: '0-1', reason: 'timeout' })
       expect(state.clock).toEqual({ remainingMs: { w: 0, b: 5_000 }, running: null, updatedAt: at })
-      expect(emit).toHaveBeenCalledWith('game:finished', { gameId: started.game!.id, result: { outcome: '0-1', reason: 'timeout' } })
+      expect(emit).toHaveBeenCalledWith('game:finished', {
+        gameId: started.game!.id,
+        result: { outcome: '0-1', reason: 'timeout' }
+      })
       expect((await store.get(started.game!.id))!.clock!.remainingMs.w).toBe(0)
     })
 
@@ -827,9 +1019,18 @@ describe('GameSession', () => {
       const game = await store.create({
         kind: 'match',
         userColor: 'w',
-        opponent: { model: 'gpt-6-astra', effort: 'medium', difficulty: { mode: 'fixed', level: 3, targetElo: 1200 } },
+        opponent: {
+          model: 'gpt-6-astra',
+          effort: 'medium',
+          difficulty: { mode: 'fixed', level: 3, targetElo: 1200 }
+        },
         coach: { model: 'gpt-6-astra', effort: 'medium' },
-        clock: { initialMs: FIVE_MINUTES, incrementMs: 3_000, aiClock: false, remainingMs: { w: 123_000, b: FIVE_MINUTES } },
+        clock: {
+          initialMs: FIVE_MINUTES,
+          incrementMs: 3_000,
+          aiClock: false,
+          remainingMs: { w: 123_000, b: FIVE_MINUTES }
+        },
         language: 'it'
       })
       const applied = applyMove(START_FEN, 'e2e4')!
@@ -847,7 +1048,11 @@ describe('GameSession', () => {
       const state = await session.resume(game.id)
       // The AI answered on resume; the user's remaining time is the one that was saved.
       expect(state.game!.moves).toHaveLength(2)
-      expect(state.clock).toEqual({ remainingMs: { w: 123_000, b: FIVE_MINUTES }, running: 'w', updatedAt: at })
+      expect(state.clock).toEqual({
+        remainingMs: { w: 123_000, b: FIVE_MINUTES },
+        running: 'w',
+        updatedAt: at
+      })
     })
 
     it('republishes the state once a second while a clock runs', async () => {
@@ -860,7 +1065,11 @@ describe('GameSession', () => {
 
         const published = emit.mock.calls.filter(([channel]) => channel === 'game:state')
         expect(published).toHaveLength(1)
-        expect((published[0]![1] as SessionState).clock).toEqual({ remainingMs: { w: 299_000, b: FIVE_MINUTES }, running: 'w', updatedAt: at })
+        expect((published[0]![1] as SessionState).clock).toEqual({
+          remainingMs: { w: 299_000, b: FIVE_MINUTES },
+          running: 'w',
+          updatedAt: at
+        })
 
         // A finished game stops the ticker.
         await session.resign()

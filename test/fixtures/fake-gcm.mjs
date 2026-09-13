@@ -16,6 +16,7 @@ process.stdin.on('end', () => {
   const code = Number(process.env.FAKE_GCM_EXIT_CODE ?? 0)
   if (code !== 0) process.exit(code)
   const output =
-    process.env.FAKE_GCM_OUTPUT ?? 'protocol=https\nhost=github.com\nusername=octocat\npassword=gho_fake_token_123\n'
+    process.env.FAKE_GCM_OUTPUT ??
+    'protocol=https\nhost=github.com\nusername=octocat\npassword=gho_fake_token_123\n'
   process.stdout.write(output, () => process.exit(0))
 })

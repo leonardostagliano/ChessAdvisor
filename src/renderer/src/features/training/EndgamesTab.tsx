@@ -47,12 +47,21 @@ export function EndgamesTab(): React.JSX.Element {
           const starting = request?.kind === 'endgame' && request.ref === endgame.id
           const gameId = endgame.gameId
           return (
-            <li key={endgame.id} className={styles.card} data-endgame={endgame.id} data-status={endgame.status}>
+            <li
+              key={endgame.id}
+              className={styles.card}
+              data-endgame={endgame.id}
+              data-status={endgame.status}
+            >
               <h3 className={styles.rowTitle}>{endgame.name[language]}</h3>
               <div className={styles.chips}>
                 <span className={styles.chip}>{t(`training.endgames.goal.${endgame.goal}`)}</span>
-                <span className={styles.chip}>{t(`training.endgames.difficulty.${endgame.difficulty}`)}</span>
-                <span className={styles.chip}>{t(`themes.${endgame.theme}`, { defaultValue: endgame.theme })}</span>
+                <span className={styles.chip}>
+                  {t(`training.endgames.difficulty.${endgame.difficulty}`)}
+                </span>
+                <span className={styles.chip}>
+                  {t(`themes.${endgame.theme}`, { defaultValue: endgame.theme })}
+                </span>
                 <span
                   className={cx(
                     styles.chip,
@@ -62,7 +71,11 @@ export function EndgamesTab(): React.JSX.Element {
                 >
                   {t(`training.status.${endgame.status}`)}
                 </span>
-                {endgame.attempts > 0 ? <span className={styles.chip}>{t('training.attempts', { count: endgame.attempts })}</span> : null}
+                {endgame.attempts > 0 ? (
+                  <span className={styles.chip}>
+                    {t('training.attempts', { count: endgame.attempts })}
+                  </span>
+                ) : null}
               </div>
               <div className={styles.actions}>
                 <Button
@@ -74,7 +87,11 @@ export function EndgamesTab(): React.JSX.Element {
                   {starting ? t('training.endgames.starting') : t('training.endgames.play')}
                 </Button>
                 {gameId ? (
-                  <Button size="sm" variant="ghost" onClick={() => useUiStore.getState().openReview(gameId, null)}>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => useUiStore.getState().openReview(gameId, null)}
+                  >
                     {t('training.own.openReview')}
                   </Button>
                 ) : null}

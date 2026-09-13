@@ -74,7 +74,13 @@ export function positionsOf(game: Game): string[] {
  * Fills `game.moves[].eval`, `game.analysis` and `game.opening` in place and returns the same
  * object. It never writes anything to disk: persisting the result is the caller's job.
  */
-export async function analyzeGame(game: Game, engine: AnalysisEngine, openings: OpeningBook = EMPTY_BOOK, onProgress?: (p: AnalysisProgress) => void, opts?: AnalyzeGameOptions): Promise<Game> {
+export async function analyzeGame(
+  game: Game,
+  engine: AnalysisEngine,
+  openings: OpeningBook = EMPTY_BOOK,
+  onProgress?: (p: AnalysisProgress) => void,
+  opts?: AnalyzeGameOptions
+): Promise<Game> {
   const now = opts?.now ?? Date.now
   const fens = positionsOf(game)
   const total = game.moves.length
@@ -88,14 +94,24 @@ export async function analyzeGame(game: Game, engine: AnalysisEngine, openings: 
    * Ruy Lopez Morphy line has none of 4. Ba4 and 4… Nf6 but does have 5. O-O), so a real blunder
    * played inside theory must still be judged and still reach the key moments.
    */
-  const inBookAt = (ply: number): boolean => ply <= MAX_BOOK_PLIES && openings.byEpd.has(epdOf(fens[ply] ?? ''))
+  const inBookAt = (ply: number): boolean =>
+    ply <= MAX_BOOK_PLIES && openings.byEpd.has(epdOf(fens[ply] ?? ''))
 
   const search = async (fen: string): Promise<Searched> => {
-    const analysis = await engine.analyze(fen, 'review', opts?.signal ? { signal: opts.signal } : undefined)
+    const analysis = await engine.analyze(
+      fen,
+      'review',
+      opts?.signal ? { signal: opts.signal } : undefined
+    )
     const line = analysis.lines[0]
     const bestUci = analysis.bestMove ?? line?.move ?? ''
     const pv = line && line.pv.length > 0 ? line.pv : bestUci ? [bestUci] : []
-    return { fen, bestUci, bestLine: pv.slice(0, BEST_LINE_PLIES), score: whiteScore(analysis, fen) }
+    return {
+      fen,
+      bestUci,
+      bestLine: pv.slice(0, BEST_LINE_PLIES),
+      score: whiteScore(analysis, fen)
+    }
   }
 
   /** Per move, in ply order: what the accuracy and ACPL formulas need. */
@@ -108,14 +124,22 @@ export async function analyzeGame(game: Game, engine: AnalysisEngine, openings: 
     const after = await search(fens[ply]!)
     const mover = sideToMove(before.fen)
 
-    const cpLoss = Math.max(0, (mover === 'b' ? -1 : 1) * (internalCp(before.score) - internalCp(after.score)))
+    const cpLoss = Math.max(
+      0,
+      (mover === 'b' ? -1 : 1) * (internalCp(before.score) - internalCp(after.score))
+    )
     const loss = winPercentLoss(before.score, after.score, mover)
     const evaluation: NonNullable<Move['eval']> = {
       before: fromMover(before.score, mover),
       after: fromMover(after.score, mover),
       cpLoss,
       winPercentLoss: loss,
-      classification: classify({ loss, playedUci: move.uci, bestUci: before.bestUci, inBook: inBookAt(ply) }),
+      classification: classify({
+        loss,
+        playedUci: move.uci,
+        bestUci: before.bestUci,
+        inBook: inBookAt(ply)
+      }),
       bestMove: before.bestUci,
       bestLine: [...before.bestLine]
     }
@@ -129,13 +153,21 @@ export async function analyzeGame(game: Game, engine: AnalysisEngine, openings: 
   }
 
   const byColor = (color: 'w' | 'b'): { cpLossInternal: number; evalBeforeCp: number }[] =>
-    losses.filter((entry) => entry.color === color).map(({ cpLossInternal, evalBeforeCp }) => ({ cpLossInternal, evalBeforeCp }))
+    losses
+      .filter((entry) => entry.color === color)
+      .map(({ cpLossInternal, evalBeforeCp }) => ({ cpLossInternal, evalBeforeCp }))
 
   game.analysis = {
     accuracy: { w: round(gameAccuracy(perMove, 'w'), 1), b: round(gameAccuracy(perMove, 'b'), 1) },
     acpl: { w: Math.round(acpl(byColor('w'))), b: Math.round(acpl(byColor('b'))) },
     // Rule 8: only the user's own mistakes are worth reviewing.
-    keyMoments: game.moves.filter((move) => move.by === 'user' && (move.eval?.classification === 'mistake' || move.eval?.classification === 'blunder')).map((move) => move.ply),
+    keyMoments: game.moves
+      .filter(
+        (move) =>
+          move.by === 'user' &&
+          (move.eval?.classification === 'mistake' || move.eval?.classification === 'blunder')
+      )
+      .map((move) => move.ply),
     ...(game.analysis?.lesson ? { lesson: game.analysis.lesson } : {}),
     analyzedAt: new Date(now()).toISOString()
   }

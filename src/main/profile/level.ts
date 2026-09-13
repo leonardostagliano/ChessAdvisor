@@ -115,21 +115,29 @@ function standardDeviation(values: number[]): number {
  * The estimate of spec §6.1 over the most recent {@link LEVEL_WINDOW} samples of `history`
  * (oldest first). An empty history has no level at all: `estimate 0`, `confidence 0`.
  */
-export function estimateLevel(history: { acpl: number; accuracy: number; weight: number }[]): LevelEstimate {
+export function estimateLevel(
+  history: { acpl: number; accuracy: number; weight: number }[]
+): LevelEstimate {
   const samples = history
-    .filter((sample) => Number.isFinite(sample.acpl) && Number.isFinite(sample.accuracy) && sample.weight > 0)
+    .filter(
+      (sample) =>
+        Number.isFinite(sample.acpl) && Number.isFinite(sample.accuracy) && sample.weight > 0
+    )
     .slice(-LEVEL_WINDOW)
   if (samples.length === 0) return { estimate: 0, band: 'beginner', confidence: 0 }
 
   const acpl = weightedMean(samples, (sample) => Math.max(0, sample.acpl))
   const accuracy = weightedMean(samples, (sample) => Math.max(0, Math.min(100, sample.accuracy)))
-  const estimate = Math.round(ACPL_SHARE * acplToElo(acpl) + ACCURACY_SHARE * accuracyToElo(accuracy))
+  const estimate = Math.round(
+    ACPL_SHARE * acplToElo(acpl) + ACCURACY_SHARE * accuracyToElo(accuracy)
+  )
 
   const acpls = samples.map((sample) => Math.max(0, sample.acpl))
   const mean = acpls.reduce((sum, value) => sum + value, 0) / acpls.length
   // A perfectly flat (or perfect) window has no dispersion to punish.
   const dispersion = mean > 0 ? Math.min(0.5, standardDeviation(acpls) / mean) : 0
-  const confidence = Math.round(Math.min(1, samples.length / LEVEL_WINDOW) * (1 - dispersion) * 100) / 100
+  const confidence =
+    Math.round(Math.min(1, samples.length / LEVEL_WINDOW) * (1 - dispersion) * 100) / 100
 
   return { estimate, band: bandOf(estimate), confidence }
 }

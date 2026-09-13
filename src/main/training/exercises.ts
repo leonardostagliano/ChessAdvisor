@@ -81,7 +81,8 @@ export function extractCandidates(game: Game): ExerciseCandidate[] {
     const before = internalCp(evaluation.before)
     const lossCp = before - internalCp(evaluation.after)
     if (lossCp < MIN_CANDIDATE_LOSS_CP) continue
-    const mateSequence = typeof evaluation.before.mate === 'number' || typeof evaluation.after.mate === 'number'
+    const mateSequence =
+      typeof evaluation.before.mate === 'number' || typeof evaluation.after.mate === 'number'
     if (!mateSequence && Math.abs(before) > MAX_CANDIDATE_EVAL_CP) continue
 
     candidates.push({
@@ -201,7 +202,11 @@ async function resolveReply(
   return played ? { uci: chosen.uci, fen: played.fen } : null
 }
 
-async function searchReply(fen: string, engine: ExerciseEngine, signal: { signal: AbortSignal } | undefined): Promise<{ uci: string } | null> {
+async function searchReply(
+  fen: string,
+  engine: ExerciseEngine,
+  signal: { signal: AbortSignal } | undefined
+): Promise<{ uci: string } | null> {
   try {
     const analysis = await engine.analyze(fen, 'review', signal)
     const uci = analysis.lines[0]?.move || analysis.bestMove || ''
@@ -235,9 +240,21 @@ export function startProgress(exercise: Exercise): ExerciseProgress {
  * the app has no verified continuation to answer with. A wrong move leaves the position where it
  * was, so the user simply tries again.
  */
-export function judgeAttempt(exercise: Exercise, progress: ExerciseProgress, uci: string): { result: AttemptResult; progress: ExerciseProgress } {
-  const stay = (result: AttemptResult): { result: AttemptResult; progress: ExerciseProgress } => ({ result, progress })
-  const wrong: AttemptResult = { correct: false, done: false, fen: progress.fen, alternativesAccepted: false }
+export function judgeAttempt(
+  exercise: Exercise,
+  progress: ExerciseProgress,
+  uci: string
+): { result: AttemptResult; progress: ExerciseProgress } {
+  const stay = (result: AttemptResult): { result: AttemptResult; progress: ExerciseProgress } => ({
+    result,
+    progress
+  })
+  const wrong: AttemptResult = {
+    correct: false,
+    done: false,
+    fen: progress.fen,
+    alternativesAccepted: false
+  }
 
   const expected = exercise.solution[progress.index]
   if (!expected) {

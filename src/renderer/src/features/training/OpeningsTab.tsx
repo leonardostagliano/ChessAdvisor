@@ -24,7 +24,9 @@ export function OpeningsTab(): React.JSX.Element {
   const lessons = useTrainingStore((state) => state.lessons)
   const entry = openings.find((row) => row.eco === selected) ?? null
   // The plan turn is announced as a lesson with no reference: only a row that is open follows one.
-  const streaming = useTrainingStore((state) => (entry ? streamingText(state, 'lesson', entry.eco) : null))
+  const streaming = useTrainingStore((state) =>
+    entry ? streamingText(state, 'lesson', entry.eco) : null
+  )
 
   // The overview is read once per window; `training:changed` never touches it, because it only
   // moves when a game is analysed — and that reopens the section anyway.
@@ -74,18 +76,32 @@ export function OpeningsTab(): React.JSX.Element {
             </thead>
             <tbody>
               {openings.map((row) => (
-                <tr key={row.eco} data-eco={row.eco} className={cx(row.eco === entry?.eco && styles.rowSelected)}>
+                <tr
+                  key={row.eco}
+                  data-eco={row.eco}
+                  className={cx(row.eco === entry?.eco && styles.rowSelected)}
+                >
                   <td className="mono">{row.eco}</td>
                   <td>{row.name}</td>
                   <td className={styles.numeric}>{row.games}</td>
-                  <td className={styles.numeric}>{t('training.openings.percentValue', { value: row.score.toFixed(0) })}</td>
-                  <td className={styles.numeric}>{t('training.openings.percentValue', { value: row.avgAccuracyFirst10.toFixed(1) })}</td>
+                  <td className={styles.numeric}>
+                    {t('training.openings.percentValue', { value: row.score.toFixed(0) })}
+                  </td>
+                  <td className={styles.numeric}>
+                    {t('training.openings.percentValue', {
+                      value: row.avgAccuracyFirst10.toFixed(1)
+                    })}
+                  </td>
                   <td>
                     <Button
                       size="sm"
                       aria-label={t('training.openings.select', { name: row.name })}
                       aria-pressed={row.eco === entry?.eco}
-                      onClick={() => useTrainingStore.getState().selectOpening(row.eco === entry?.eco ? null : row.eco)}
+                      onClick={() =>
+                        useTrainingStore
+                          .getState()
+                          .selectOpening(row.eco === entry?.eco ? null : row.eco)
+                      }
                     >
                       {t('training.openings.details')}
                     </Button>
@@ -117,16 +133,25 @@ export function OpeningsTab(): React.JSX.Element {
           ) : (
             <ul className={styles.deviations}>
               {entry.deviations.map((deviation) => (
-                <li key={`${deviation.epd}-${deviation.san}`} className={styles.deviation} data-epd={deviation.epd}>
+                <li
+                  key={`${deviation.epd}-${deviation.san}`}
+                  className={styles.deviation}
+                  data-epd={deviation.epd}
+                >
                   <span className={styles.deviationMove}>{deviation.san}</span>
                   <span>{t('training.openings.deviationCount', { count: deviation.count })}</span>
-                  {deviation.bestSan ? <span>{t('training.openings.deviationBest', { san: deviation.bestSan })}</span> : null}
+                  {deviation.bestSan ? (
+                    <span>{t('training.openings.deviationBest', { san: deviation.bestSan })}</span>
+                  ) : null}
                 </li>
               ))}
             </ul>
           )}
 
-          <ExplanationCard text={streaming !== null ? streaming : lesson} streaming={streaming !== null} />
+          <ExplanationCard
+            text={streaming !== null ? streaming : lesson}
+            streaming={streaming !== null}
+          />
         </section>
       ) : null}
     </div>

@@ -18,14 +18,27 @@ export type CredentialRead =
   | { ok: true; token: string; account: string }
   | {
       ok: false
-      reason: 'failed' | 'spawn-failed' | 'timeout' | 'cancelled' | 'oversize' | 'missing-token' | 'missing-account' | 'invalid-scope'
+      reason:
+        | 'failed'
+        | 'spawn-failed'
+        | 'timeout'
+        | 'cancelled'
+        | 'oversize'
+        | 'missing-token'
+        | 'missing-account'
+        | 'invalid-scope'
       exitCode?: number
     }
 
 const validToken = (value: unknown): value is string =>
-  typeof value === 'string' && value.length > 0 && value.length <= 8192 && !/[\s\x00-\x1f\x7f]/.test(value)
-const validAccount = (value: unknown): value is string => typeof value === 'string' && /^[a-z\d_-]{1,100}$/i.test(value)
-const record = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value)
+  typeof value === 'string' &&
+  value.length > 0 &&
+  value.length <= 8192 &&
+  !/[\s\x00-\x1f\x7f]/.test(value)
+const validAccount = (value: unknown): value is string =>
+  typeof value === 'string' && /^[a-z\d_-]{1,100}$/i.test(value)
+const record = (value: unknown): value is Record<string, unknown> =>
+  !!value && typeof value === 'object' && !Array.isArray(value)
 
 export const sessionPath = (): string => join(app.getPath('userData'), 'updates-auth.json')
 const cancelled = (): UpdateError => new UpdateError('UPDATES_AUTH_CANCELLED', m().authCancelled)
@@ -63,12 +76,16 @@ export async function updateCredential(): Promise<UpdateCredential> {
     }
     const plain = safeStorage.decryptString(Buffer.from(saved.data, 'base64'))
     const session: unknown = JSON.parse(plain)
-    if (!record(session) || !validToken(session.token) || !validAccount(session.account)) throw new Error('Invalid session')
+    if (!record(session) || !validToken(session.token) || !validAccount(session.account))
+      throw new Error('Invalid session')
     return { source: 'github-app', token: session.token, account: session.account }
   } catch (error) {
     return {
       source: 'anonymous',
-      failure: (error as NodeJS.ErrnoException).code === 'ENOENT' ? 'not-connected' : 'stored-credential-unavailable'
+      failure:
+        (error as NodeJS.ErrnoException).code === 'ENOENT'
+          ? 'not-connected'
+          : 'stored-credential-unavailable'
     }
   }
 }
@@ -88,7 +105,9 @@ export async function findGitExe(): Promise<string | undefined> {
     ...[process.env.ProgramW6432, process.env.ProgramFiles, process.env['ProgramFiles(x86)']]
       .filter((path): path is string => !!path)
       .map((path) => join(path, 'Git', 'cmd', 'git.exe')),
-    ...(process.env.LOCALAPPDATA ? [join(process.env.LOCALAPPDATA, 'Programs', 'Git', 'cmd', 'git.exe')] : [])
+    ...(process.env.LOCALAPPDATA
+      ? [join(process.env.LOCALAPPDATA, 'Programs', 'Git', 'cmd', 'git.exe')]
+      : [])
   ]
   for (const path of [...new Set(candidates)]) {
     if (!isAbsolute(path) || !/\.exe$/i.test(path)) continue
@@ -102,7 +121,9 @@ export async function findGitExe(): Promise<string | undefined> {
 }
 
 /** Resolve only the GCM executable belonging to the resolved Git installation. */
-export async function credentialManagerPath(gitPath: string | undefined): Promise<string | undefined> {
+export async function credentialManagerPath(
+  gitPath: string | undefined
+): Promise<string | undefined> {
   if (!gitPath || !isAbsolute(gitPath) || !/\.exe$/i.test(gitPath)) return undefined
   const directory = dirname(gitPath)
   const candidates = [
@@ -124,8 +145,12 @@ export function oauthEnvironment(): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = { ...process.env }
   for (const key of Object.keys(env)) {
     if (
-      /^(?:GIT_TRACE|GCM_TRACE|GIT_CURL_VERBOSE|GIT_CONFIG_(?:COUNT|KEY_|VALUE_|PARAMETERS)|DESKTOP_)/i.test(key) ||
-      /^(?:GIT_DIR|GIT_COMMON_DIR|GIT_WORK_TREE|GIT_INDEX_FILE|GIT_EXEC_PATH|GCM_NAMESPACE|GCM_CREDENTIAL_STORE|GCM_PROVIDER|GCM_GITHUB_AUTHMODES|GCM_DEBUG)$/i.test(key)
+      /^(?:GIT_TRACE|GCM_TRACE|GIT_CURL_VERBOSE|GIT_CONFIG_(?:COUNT|KEY_|VALUE_|PARAMETERS)|DESKTOP_)/i.test(
+        key
+      ) ||
+      /^(?:GIT_DIR|GIT_COMMON_DIR|GIT_WORK_TREE|GIT_INDEX_FILE|GIT_EXEC_PATH|GCM_NAMESPACE|GCM_CREDENTIAL_STORE|GCM_PROVIDER|GCM_GITHUB_AUTHMODES|GCM_DEBUG)$/i.test(
+        key
+      )
     ) {
       delete env[key]
     }
@@ -152,7 +177,10 @@ export function oauthEnvironment(): NodeJS.ProcessEnv {
 
 export function parseCredential(output: Buffer): CredentialRead {
   const fields = new Map<string, string>()
-  for (const line of output.toString('utf8').replace(/^\uFEFF/, '').split(/\r?\n/)) {
+  for (const line of output
+    .toString('utf8')
+    .replace(/^\uFEFF/, '')
+    .split(/\r?\n/)) {
     const at = line.indexOf('=')
     if (at > 0) fields.set(line.slice(0, at), line.slice(at + 1))
   }
@@ -213,7 +241,11 @@ export function browserCredential(manager: string, signal: AbortSignal): Promise
     child.once('close', (code) => {
       if (finished) return
       if (code !== 0) {
-        finish({ ok: false, reason: 'failed', ...(typeof code === 'number' ? { exitCode: code } : {}) })
+        finish({
+          ok: false,
+          reason: 'failed',
+          ...(typeof code === 'number' ? { exitCode: code } : {})
+        })
         return
       }
       finish(parseCredential(output))
@@ -226,18 +258,25 @@ export function browserCredential(manager: string, signal: AbortSignal): Promise
 }
 
 /** Explicit app connection only: fresh browser OAuth, then encrypted app-owned storage. */
-export async function authenticateGithub(signal: AbortSignal, credentialReady?: () => void): Promise<UpdateCredential> {
+export async function authenticateGithub(
+  signal: AbortSignal,
+  credentialReady?: () => void
+): Promise<UpdateCredential> {
   if (signal.aborted) throw cancelled()
-  if (process.platform !== 'win32') throw new UpdateError('UPDATES_AUTH_UNAVAILABLE', m().authPlatform)
-  if (!safeStorage.isEncryptionAvailable()) throw new UpdateError('UPDATES_AUTH_SAVE', m().authStorageUnavailable)
+  if (process.platform !== 'win32')
+    throw new UpdateError('UPDATES_AUTH_UNAVAILABLE', m().authPlatform)
+  if (!safeStorage.isEncryptionAvailable())
+    throw new UpdateError('UPDATES_AUTH_SAVE', m().authStorageUnavailable)
   const manager = await credentialManagerPath(await findGitExe())
   if (!manager) throw new UpdateError('UPDATES_AUTH_UNAVAILABLE', m().gcmMissing)
   const result = await browserCredential(manager, signal)
   if (signal.aborted || (!result.ok && result.reason === 'cancelled')) throw cancelled()
   if (!result.ok) {
     if (result.reason === 'timeout') throw new UpdateError('UPDATES_AUTH_TIMEOUT', m().authTimeout)
-    if (result.reason === 'spawn-failed') throw new UpdateError('UPDATES_AUTH_UNAVAILABLE', m().authSpawnFailed)
-    if (result.reason === 'failed') throw new UpdateError('UPDATES_AUTH_PROCESS', m().authProcessFailed(result.exitCode))
+    if (result.reason === 'spawn-failed')
+      throw new UpdateError('UPDATES_AUTH_UNAVAILABLE', m().authSpawnFailed)
+    if (result.reason === 'failed')
+      throw new UpdateError('UPDATES_AUTH_PROCESS', m().authProcessFailed(result.exitCode))
     const detail =
       result.reason === 'missing-account'
         ? m().detailMissingAccount
@@ -251,7 +290,9 @@ export async function authenticateGithub(signal: AbortSignal, credentialReady?: 
   credentialReady?.()
   if (signal.aborted) throw cancelled()
   try {
-    const data = safeStorage.encryptString(JSON.stringify({ token: result.token, account: result.account })).toString('base64')
+    const data = safeStorage
+      .encryptString(JSON.stringify({ token: result.token, account: result.account }))
+      .toString('base64')
     await writeJsonAtomic(sessionPath(), { version: 1, cipher: 'electron-safe-storage', data })
   } catch {
     throw new UpdateError('UPDATES_AUTH_SAVE', m().authSaveFailed)

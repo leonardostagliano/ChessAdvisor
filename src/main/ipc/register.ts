@@ -44,7 +44,10 @@ export class IpcError extends Error {
 
 export function serializeError(error: unknown): SerializedError {
   if (error instanceof Error) {
-    const code = typeof (error as NodeJS.ErrnoException).code === 'string' ? String((error as NodeJS.ErrnoException).code) : 'E_UNEXPECTED'
+    const code =
+      typeof (error as NodeJS.ErrnoException).code === 'string'
+        ? String((error as NodeJS.ErrnoException).code)
+        : 'E_UNEXPECTED'
     const data = errorData(error)
     return { code, message: error.message, ...(data ? { data } : {}) }
   }
@@ -102,7 +105,8 @@ export function registerIpc(ctx: IpcContext): void {
   handle('app:openExternal', async (url: string) => {
     // Only real web links leave the app: a file:// or custom scheme here would be an escape hatch.
     const parsed = new URL(String(url))
-    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') throw new IpcError('E_BAD_URL', `unsupported protocol ${parsed.protocol}`)
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:')
+      throw new IpcError('E_BAD_URL', `unsupported protocol ${parsed.protocol}`)
     await shell.openExternal(parsed.toString())
   })
   handle('app:showWindow', async () => {
@@ -128,8 +132,10 @@ export function registerIpc(ctx: IpcContext): void {
   if (engine) {
     handle('engine:state', async () => engine.state())
     handle('engine:analyze', async (fen: string, profile: AnalysisProfile) => {
-      if (typeof fen !== 'string' || fen.trim().length === 0) throw new IpcError('E_BAD_FEN', 'a FEN string is required')
-      if (!ANALYSIS_PROFILES.includes(profile)) throw new IpcError('E_BAD_PROFILE', `unknown analysis profile ${String(profile)}`)
+      if (typeof fen !== 'string' || fen.trim().length === 0)
+        throw new IpcError('E_BAD_FEN', 'a FEN string is required')
+      if (!ANALYSIS_PROFILES.includes(profile))
+        throw new IpcError('E_BAD_PROFILE', `unknown analysis profile ${String(profile)}`)
       return engine.analyze(fen, profile)
     })
   }
@@ -171,7 +177,9 @@ function resolveGames(ctx: IpcContext): Promise<GameStore> {
 }
 
 export function registerGamesIpc(ctx: IpcContext): void {
-  handle('games:list', async (filter?: GameFilter) => (await resolveGames(ctx)).list(filter ?? undefined))
+  handle('games:list', async (filter?: GameFilter) =>
+    (await resolveGames(ctx)).list(filter ?? undefined)
+  )
   handle('games:get', async (id: string) => (await resolveGames(ctx)).get(String(id)))
   handle('games:delete', async (id: string) => {
     await (await resolveGames(ctx)).delete(String(id))
@@ -186,7 +194,10 @@ async function readNotices(): Promise<string> {
   try {
     return await readFile(join(app.getAppPath(), 'THIRD-PARTY-NOTICES.md'), 'utf8')
   } catch (error) {
-    throw new IpcError('E_NOTICES', `third-party notices unavailable: ${String((error as Error).message)}`)
+    throw new IpcError(
+      'E_NOTICES',
+      `third-party notices unavailable: ${String((error as Error).message)}`
+    )
   }
 }
 

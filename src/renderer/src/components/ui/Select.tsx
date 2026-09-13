@@ -112,7 +112,12 @@ export function Select<T extends string = string>({
 
   const onTriggerKeyDown = (event: KeyboardEvent<HTMLButtonElement>): void => {
     if (open) return
-    if (event.key === 'ArrowDown' || event.key === 'ArrowUp' || event.key === 'Enter' || event.key === ' ') {
+    if (
+      event.key === 'ArrowDown' ||
+      event.key === 'ArrowUp' ||
+      event.key === 'Enter' ||
+      event.key === ' '
+    ) {
       event.preventDefault()
       setOpen(true)
     }
@@ -173,7 +178,11 @@ export function Select<T extends string = string>({
         <span className={cx(styles.value, !selected && styles.placeholder)}>
           {selected?.label ?? placeholder ?? t('common.select')}
         </span>
-        <Icon name="chevronDown" size={16} className={cx(styles.chevron, open && styles.chevronOpen)} />
+        <Icon
+          name="chevronDown"
+          size={16}
+          className={cx(styles.chevron, open && styles.chevronOpen)}
+        />
       </button>
 
       {open && rect ? (

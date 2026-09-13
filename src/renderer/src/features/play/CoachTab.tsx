@@ -31,7 +31,12 @@ export function coachDialogue(
 ): CoachLogEntry[] {
   const entries = (game?.coachLog ?? []).filter((entry) => entry.kind !== 'comment')
   const last = entries[entries.length - 1]
-  if (activeHint && last?.kind === 'hint' && last.move === activeHint.move && last.text === activeHint.reason) {
+  if (
+    activeHint &&
+    last?.kind === 'hint' &&
+    last.move === activeHint.move &&
+    last.text === activeHint.reason
+  ) {
     return entries.slice(0, -1)
   }
   return entries
@@ -126,7 +131,9 @@ export function CoachTab({ session, engineAvailable }: CoachTabProps): React.JSX
           </div>
         ) : null}
 
-        {answering ? <CommentCard text={stream?.text ?? ''} title={t('coach.name')} streaming /> : null}
+        {answering ? (
+          <CommentCard text={stream?.text ?? ''} title={t('coach.name')} streaming />
+        ) : null}
       </div>
 
       <form className={styles.ask} onSubmit={submit}>
@@ -143,7 +150,11 @@ export function CoachTab({ session, engineAvailable }: CoachTabProps): React.JSX
             disabled={!game || pending}
             onChange={(event) => setDraft(event.target.value)}
           />
-          <Button type="submit" variant="primary" disabled={!game || pending || draft.trim().length === 0}>
+          <Button
+            type="submit"
+            variant="primary"
+            disabled={!game || pending || draft.trim().length === 0}
+          >
             {t('coach.send')}
           </Button>
         </div>

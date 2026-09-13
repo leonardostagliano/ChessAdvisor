@@ -80,7 +80,12 @@ export const LABELS_SCHEMA = {
  * Every moment is written on a line that starts with `- <ply>.` so the answer can be matched back
  * to the move even when the model renumbers things.
  */
-export function labelsText(p: { moments: LabelMoment[]; language: Language; userColor: 'w' | 'b'; opening?: { eco: string; name: string } | null }): string {
+export function labelsText(p: {
+  moments: LabelMoment[]
+  language: Language
+  userColor: 'w' | 'b'
+  opening?: { eco: string; name: string } | null
+}): string {
   const it = p.language === 'it'
   const lines: string[] = [
     it
@@ -93,10 +98,13 @@ export function labelsText(p: { moments: LabelMoment[]; language: Language; user
     const parts: string[] = [`- ${moment.ply}. ${moment.san} (${moment.uci})`]
     if (moment.classification) parts.push(CLASSIFICATION_NAME[p.language][moment.classification])
     if (typeof moment.winPercentLoss === 'number') {
-      parts.push(`${it ? 'probabilità di vittoria persa' : 'winning chance lost'}: ${moment.winPercentLoss.toFixed(1)}`)
+      parts.push(
+        `${it ? 'probabilità di vittoria persa' : 'winning chance lost'}: ${moment.winPercentLoss.toFixed(1)}`
+      )
     }
     if (moment.bestSan) {
-      const line = moment.bestLine && moment.bestLine.length > 0 ? ` — ${moment.bestLine.join(' ')}` : ''
+      const line =
+        moment.bestLine && moment.bestLine.length > 0 ? ` — ${moment.bestLine.join(' ')}` : ''
       parts.push(`${it ? 'migliore' : 'best'}: ${moment.bestSan}${line}`)
     }
     parts.push(`FEN: ${moment.fenBefore}`)
@@ -104,7 +112,9 @@ export function labelsText(p: { moments: LabelMoment[]; language: Language; user
   }
 
   lines.push(
-    it ? 'Etichette ammesse (usa esattamente una di queste stringhe):' : 'Allowed labels (use exactly one of these strings):',
+    it
+      ? 'Etichette ammesse (usa esattamente una di queste stringhe):'
+      : 'Allowed labels (use exactly one of these strings):',
     THEMES.join(', '),
     it
       ? 'Rispondi soltanto con il JSON richiesto: un elemento di "labels" per ogni momento elencato, con lo stesso "ply", il "theme" scelto fra le etichette ammesse e una "note" di una frase che spiega perché quel tema. Niente altri temi e niente momenti inventati.'
@@ -133,8 +143,20 @@ const TOP_OPENINGS = 5
 const RECENT_GAMES = 10
 
 const BAND_NAME: Record<Language, Record<Profile['level']['band'], string>> = {
-  it: { beginner: 'principiante', novice: 'base', intermediate: 'intermedio', advanced: 'avanzato', expert: 'esperto' },
-  en: { beginner: 'beginner', novice: 'novice', intermediate: 'intermediate', advanced: 'advanced', expert: 'expert' }
+  it: {
+    beginner: 'principiante',
+    novice: 'base',
+    intermediate: 'intermedio',
+    advanced: 'avanzato',
+    expert: 'esperto'
+  },
+  en: {
+    beginner: 'beginner',
+    novice: 'novice',
+    intermediate: 'intermediate',
+    advanced: 'advanced',
+    expert: 'expert'
+  }
 }
 
 /** "Valutazione qualitativa" (spec §6.1): the aggregated profile in, strengths and weaknesses out. */
@@ -152,8 +174,15 @@ export function qualitativeText(p: { profile: Profile; language: Language }): st
 
   const recent = profile.history.slice(-RECENT_GAMES)
   if (recent.length > 0) {
-    lines.push(it ? `Ultime ${recent.length} partite analizzate (accuratezza · ACPL):` : `Last ${recent.length} analysed games (accuracy · ACPL):`)
-    for (const entry of recent) lines.push(`- ${entry.date.slice(0, 10)}: ${entry.accuracy.toFixed(1)}% · ${Math.round(entry.acpl)}`)
+    lines.push(
+      it
+        ? `Ultime ${recent.length} partite analizzate (accuratezza · ACPL):`
+        : `Last ${recent.length} analysed games (accuracy · ACPL):`
+    )
+    for (const entry of recent)
+      lines.push(
+        `- ${entry.date.slice(0, 10)}: ${entry.accuracy.toFixed(1)}% · ${Math.round(entry.acpl)}`
+      )
   } else {
     lines.push(it ? 'Non ci sono ancora partite analizzate.' : 'There are no analysed games yet.')
   }
@@ -162,7 +191,11 @@ export function qualitativeText(p: { profile: Profile; language: Language }): st
     .sort((a, b) => b[1].occurrences - a[1].occurrences || a[0].localeCompare(b[0]))
     .slice(0, TOP_THEMES)
   if (themes.length > 0) {
-    lines.push(it ? 'Temi ricorrenti nei suoi errori (tema · occorrenze):' : 'Recurring themes in their mistakes (theme · occurrences):')
+    lines.push(
+      it
+        ? 'Temi ricorrenti nei suoi errori (tema · occorrenze):'
+        : 'Recurring themes in their mistakes (theme · occurrences):'
+    )
     for (const [theme, stat] of themes) lines.push(`- ${theme} · ${stat.occurrences}`)
   }
 
@@ -170,9 +203,15 @@ export function qualitativeText(p: { profile: Profile; language: Language }): st
     .sort((a, b) => b.games - a.games || a.eco.localeCompare(b.eco))
     .slice(0, TOP_OPENINGS)
   if (openings.length > 0) {
-    lines.push(it ? 'Aperture giocate (codice, nome, partite, V/P/S, accuratezza nelle prime 10 semimosse):' : 'Openings played (code, name, games, W/D/L, accuracy over the first ten plies):')
+    lines.push(
+      it
+        ? 'Aperture giocate (codice, nome, partite, V/P/S, accuratezza nelle prime 10 semimosse):'
+        : 'Openings played (code, name, games, W/D/L, accuracy over the first ten plies):'
+    )
     for (const opening of openings) {
-      lines.push(`- ${opening.eco} ${opening.name} · ${opening.games} · ${opening.wins}/${opening.draws}/${opening.losses} · ${opening.avgAccuracyFirst10.toFixed(1)}%`)
+      lines.push(
+        `- ${opening.eco} ${opening.name} · ${opening.games} · ${opening.wins}/${opening.draws}/${opening.losses} · ${opening.avgAccuracyFirst10.toFixed(1)}%`
+      )
     }
   }
 

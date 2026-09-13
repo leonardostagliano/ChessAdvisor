@@ -22,7 +22,12 @@ export interface KeyMomentsProps {
   analysed?: boolean
 }
 
-export function KeyMoments({ game, cursor, onSelect, analysed = true }: KeyMomentsProps): React.JSX.Element {
+export function KeyMoments({
+  game,
+  cursor,
+  onSelect,
+  analysed = true
+}: KeyMomentsProps): React.JSX.Element {
   const { t } = useTranslation()
   const plies = game.analysis?.keyMoments ?? []
   const moments = plies
@@ -36,7 +41,9 @@ export function KeyMoments({ game, cursor, onSelect, analysed = true }: KeyMomen
     <section className={styles.card} aria-label={t('review.keyMoments')}>
       <header className={styles.cardHead}>
         <h3 className={styles.cardTitle}>{t('review.keyMoments')}</h3>
-        <span className={styles.note}>{t('review.keyMomentsCount', { count: moments.length })}</span>
+        <span className={styles.note}>
+          {t('review.keyMomentsCount', { count: moments.length })}
+        </span>
       </header>
 
       {!analysed ? (
@@ -47,7 +54,10 @@ export function KeyMoments({ game, cursor, onSelect, analysed = true }: KeyMomen
         <ul className={styles.moments}>
           {moments.map(({ index, move }) => {
             const evaluation = move.eval
-            const best = evaluation ? (lineInSan(fenBeforeOf(game, index), [evaluation.bestMove], 1)[0] ?? evaluation.bestMove) : ''
+            const best = evaluation
+              ? (lineInSan(fenBeforeOf(game, index), [evaluation.bestMove], 1)[0] ??
+                evaluation.bestMove)
+              : ''
             return (
               <li key={move.ply}>
                 <button
@@ -59,15 +69,28 @@ export function KeyMoments({ game, cursor, onSelect, analysed = true }: KeyMomen
                   <span className={styles.momentTexts}>
                     <span className={styles.momentTitle}>
                       <span className="mono">{`${move.ply}. ${move.san}`}</span>
-                      {best ? <span className={styles.momentMeta}>{t('review.insteadOf', { move: best })}</span> : null}
+                      {best ? (
+                        <span className={styles.momentMeta}>
+                          {t('review.insteadOf', { move: best })}
+                        </span>
+                      ) : null}
                     </span>
                     <span className={styles.momentMeta}>
-                      {evaluation ? <span>{t('review.loss', { value: evaluation.winPercentLoss.toFixed(1) })}</span> : null}
+                      {evaluation ? (
+                        <span>
+                          {t('review.loss', { value: evaluation.winPercentLoss.toFixed(1) })}
+                        </span>
+                      ) : null}
                       {move.coachComment ? <span>{t('review.commented')}</span> : null}
                     </span>
                   </span>
                   {evaluation ? (
-                    <span className={cx(styles.chip, styles[`mark_${evaluation.classification}` as const])}>
+                    <span
+                      className={cx(
+                        styles.chip,
+                        styles[`mark_${evaluation.classification}` as const]
+                      )}
+                    >
                       {t(`review.classification.${evaluation.classification}`)}
                     </span>
                   ) : null}

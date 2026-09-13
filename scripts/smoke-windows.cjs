@@ -15,17 +15,25 @@ function nonEmptyFile(file) {
 }
 
 try {
-  if (process.platform !== 'win32' || !process.versions.electron || process.env.ELECTRON_RUN_AS_NODE !== '1') {
+  if (
+    process.platform !== 'win32' ||
+    !process.versions.electron ||
+    process.env.ELECTRON_RUN_AS_NODE !== '1'
+  ) {
     throw new Error('Run the packaged Windows executable with ELECTRON_RUN_AS_NODE=1.')
   }
   if (!process.argv[2] || !process.env.RELEASE_VERSION) {
-    throw new Error('Usage: <packaged.exe> scripts/smoke-windows.cjs <unpacked-dir>; set RELEASE_VERSION.')
+    throw new Error(
+      'Usage: <packaged.exe> scripts/smoke-windows.cjs <unpacked-dir>; set RELEASE_VERSION.'
+    )
   }
 
   const resources = path.resolve(process.argv[2], 'resources')
   const manifest = require(path.join(resources, 'app.asar', 'package.json'))
   if (manifest.version !== process.env.RELEASE_VERSION) {
-    throw new Error(`Packaged version ${manifest.version} differs from RELEASE_VERSION ${process.env.RELEASE_VERSION}.`)
+    throw new Error(
+      `Packaged version ${manifest.version} differs from RELEASE_VERSION ${process.env.RELEASE_VERSION}.`
+    )
   }
   if (manifest.name !== 'chessadvisor') {
     throw new Error(`Packaged manifest name ${manifest.name} is not chessadvisor.`)
@@ -35,7 +43,9 @@ try {
 
   for (const name of DATASETS) nonEmptyFile(path.join(resources, 'data', name))
 
-  console.log(`Windows package ${process.env.RELEASE_VERSION}: manifest, Stockfish binaries and datasets OK`)
+  console.log(
+    `Windows package ${process.env.RELEASE_VERSION}: manifest, Stockfish binaries and datasets OK`
+  )
   process.exit(0)
 } catch (error) {
   console.error(`Windows package smoke failed: ${error.message}`)

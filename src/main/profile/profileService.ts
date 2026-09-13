@@ -11,7 +11,14 @@ import type { GameStore } from '../store/gameStore'
 import type { ProfileStore } from '../store/profileStore'
 import type { SettingsStore } from '../store/settingsStore'
 import { estimateLevel, levelSample, LEVEL_WINDOW, type LevelSample } from './level'
-import { LABELS_SCHEMA, QUALITATIVE_SCHEMA, labelsText, profileBaseInstructions, qualitativeText, type LabelMoment } from './profilePrompts'
+import {
+  LABELS_SCHEMA,
+  QUALITATIVE_SCHEMA,
+  labelsText,
+  profileBaseInstructions,
+  qualitativeText,
+  type LabelMoment
+} from './profilePrompts'
 import { normalizeTheme, type Theme } from './themes'
 
 /**
@@ -79,7 +86,9 @@ function parseObject(text: string): Record<string, unknown> | null {
   } catch {
     return null
   }
-  return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : null
+  return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
+    ? (parsed as Record<string, unknown>)
+    : null
 }
 
 /** UCI moves rendered in SAN from `fen`; an unplayable tail is simply dropped. */
@@ -146,11 +155,13 @@ export class ProfileService {
    */
   private resolveModel(game?: Game): { model: string; effort: string } {
     const settings = this.deps.settings.get()
-    const fallbackEffort = settings.defaultEffort ?? game?.coach.effort ?? game?.opponent.effort ?? 'medium'
+    const fallbackEffort =
+      settings.defaultEffort ?? game?.coach.effort ?? game?.opponent.effort ?? 'medium'
     if (settings.separateCoach && settings.coachModel) {
       return { model: settings.coachModel, effort: settings.coachEffort ?? fallbackEffort }
     }
-    if (game && game.coach.model) return { model: game.coach.model, effort: game.coach.effort || fallbackEffort }
+    if (game && game.coach.model)
+      return { model: game.coach.model, effort: game.coach.effort || fallbackEffort }
     if (settings.defaultModel) return { model: settings.defaultModel, effort: fallbackEffort }
     if (game) return { model: game.opponent.model, effort: game.opponent.effort }
     return { model: '', effort: fallbackEffort }
@@ -160,7 +171,12 @@ export class ProfileService {
    * One structured turn in a `training` thread of its own (spec §6.1/§6.3 are not a conversation:
    * every call carries all of its data). The thread is always closed, failure or not.
    */
-  private async runTurn(p: { text: string; outputSchema: object; language: Language; game?: Game }): Promise<Record<string, unknown> | null> {
+  private async runTurn(p: {
+    text: string
+    outputSchema: object
+    language: Language
+    game?: Game
+  }): Promise<Record<string, unknown> | null> {
     const { model, effort } = this.resolveModel(p.game)
     if (!model) throw new ProfileError('PROFILE_NO_MODEL', 'no model is configured for the coach')
 
@@ -196,18 +212,27 @@ export class ProfileService {
   }
 
   private momentsOf(game: Game): { move: Move; moment: LabelMoment }[] {
-    const plies = (game.analysis?.keyMoments ?? []).filter((ply) => Boolean(game.moves[ply - 1])).slice(0, MAX_LABELLED_MOMENTS)
+    const plies = (game.analysis?.keyMoments ?? [])
+      .filter((ply) => Boolean(game.moves[ply - 1]))
+      .slice(0, MAX_LABELLED_MOMENTS)
     return plies.map((ply) => {
       const move = game.moves[ply - 1]!
       const fenBefore = this.fenBefore(game, ply)
       const evaluation = move.eval
-      const line = evaluation ? sanLine(fenBefore, evaluation.bestLine.length > 0 ? evaluation.bestLine : [evaluation.bestMove]) : []
+      const line = evaluation
+        ? sanLine(
+            fenBefore,
+            evaluation.bestLine.length > 0 ? evaluation.bestLine : [evaluation.bestMove]
+          )
+        : []
       const moment: LabelMoment = {
         ply,
         san: move.san,
         uci: move.uci,
         fenBefore,
-        ...(evaluation ? { classification: evaluation.classification, winPercentLoss: evaluation.winPercentLoss } : {}),
+        ...(evaluation
+          ? { classification: evaluation.classification, winPercentLoss: evaluation.winPercentLoss }
+          : {}),
         ...(line.length > 0 ? { bestSan: line[0]!, bestLine: line } : {})
       }
       return { move, moment }
@@ -247,7 +272,8 @@ export class ProfileService {
       labels.set(ply, normalizeTheme(record.theme))
     }
     // A moment the model skipped is still a mistake we know about: it keeps the fallback theme.
-    for (const entry of moments) if (!labels.has(entry.moment.ply)) labels.set(entry.moment.ply, normalizeTheme(null))
+    for (const entry of moments)
+      if (!labels.has(entry.moment.ply)) labels.set(entry.moment.ply, normalizeTheme(null))
     return labels
   }
 
@@ -284,7 +310,9 @@ export class ProfileService {
       avgAccuracyFirst10:
         accuracy === null
           ? current.avgAccuracyFirst10
-          : Math.round(((current.avgAccuracyFirst10 * current.games + accuracy) / (current.games + 1)) * 10) / 10
+          : Math.round(
+              ((current.avgAccuracyFirst10 * current.games + accuracy) / (current.games + 1)) * 10
+            ) / 10
     }
     const result = game.result
     if (result) {
@@ -322,7 +350,9 @@ export class ProfileService {
       acpl: analysis.acpl[game.userColor]
     }
     const rest = history.filter((row) => row.gameId !== game.id)
-    return [...rest, entry].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0)).slice(-HISTORY_LIMIT)
+    return [...rest, entry]
+      .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
+      .slice(-HISTORY_LIMIT)
   }
 
   // ------------------------------------------------------------------ entry points
@@ -353,7 +383,11 @@ export class ProfileService {
             const move = game.moves[ply - 1]
             if (move) move.theme = theme
           }
-          await this.deps.games.save(game).catch((error) => console.error('[profile] the labelled game could not be saved:', error))
+          await this.deps.games
+            .save(game)
+            .catch((error) =>
+              console.error('[profile] the labelled game could not be saved:', error)
+            )
         }
       }
 
@@ -382,26 +416,39 @@ export class ProfileService {
       // Spec §6.1: the qualitative assessment is rewritten every third analysed match.
       const analysed = this.analysedMatches()
       if (!known && analysed > 0 && analysed % QUALITATIVE_EVERY === 0) {
-        await this.writeQualitative().catch((error) => console.error('[profile] the qualitative assessment failed:', error))
+        await this.writeQualitative().catch((error) =>
+          console.error('[profile] the qualitative assessment failed:', error)
+        )
       }
     })
   }
 
   /** Analysed matches known to the archive: what spec §6.1 counts to every third game. */
   private analysedMatches(): number {
-    return this.deps.games.list({ kind: 'match', status: 'finished' }).filter((row) => Boolean(row.accuracy)).length
+    return this.deps.games
+      .list({ kind: 'match', status: 'finished' })
+      .filter((row) => Boolean(row.accuracy)).length
   }
 
   /** The call itself; it assumes the queue is already held by the caller. */
   private async writeQualitative(): Promise<Profile> {
     const language = this.language()
-    const parsed = await this.runTurn({ text: qualitativeText({ profile: this.deps.profile.get(), language }), outputSchema: QUALITATIVE_SCHEMA, language })
+    const parsed = await this.runTurn({
+      text: qualitativeText({ profile: this.deps.profile.get(), language }),
+      outputSchema: QUALITATIVE_SCHEMA,
+      language
+    })
     const strengths = trimStrings(parsed?.strengths, QUALITATIVE_ITEMS)
     const weaknesses = trimStrings(parsed?.weaknesses, QUALITATIVE_ITEMS)
     if (strengths.length === 0 && weaknesses.length === 0) {
-      throw new ProfileError('PROFILE_QUALITATIVE_EMPTY', 'the qualitative assessment came back empty')
+      throw new ProfileError(
+        'PROFILE_QUALITATIVE_EMPTY',
+        'the qualitative assessment came back empty'
+      )
     }
-    const updated = await this.deps.profile.update({ qualitative: { strengths, weaknesses, updatedAt: this.stamp() } })
+    const updated = await this.deps.profile.update({
+      qualitative: { strengths, weaknesses, updatedAt: this.stamp() }
+    })
     this.deps.emit('profile:changed', updated)
     return updated
   }
@@ -423,5 +470,7 @@ export interface RegisterProfileIpcDeps {
 /** Binds the `profile` namespace of `window.api`. */
 export function registerProfileIpc(deps: RegisterProfileIpcDeps): void {
   deps.handle('profile:get', async (): Promise<Profile> => deps.service.get())
-  deps.handle('profile:refreshQualitative', async (): Promise<Profile> => deps.service.refreshQualitative())
+  deps.handle('profile:refreshQualitative', async (): Promise<Profile> =>
+    deps.service.refreshQualitative()
+  )
 }

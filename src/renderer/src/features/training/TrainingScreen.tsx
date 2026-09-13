@@ -2,7 +2,12 @@ import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { tabStripKeyDown } from '../../app/keyboard'
 import { cx } from '../../components/ui/cx'
-import { initTrainingStore, TRAINING_TABS, useTrainingStore, type TrainingTab } from '../../stores/trainingStore'
+import {
+  initTrainingStore,
+  TRAINING_TABS,
+  useTrainingStore,
+  type TrainingTab
+} from '../../stores/trainingStore'
 import { EndgamesTab } from './EndgamesTab'
 import { OpeningsTab } from './OpeningsTab'
 import { OwnGamesTab } from './OwnGamesTab'
@@ -19,7 +24,10 @@ import styles from './Training.module.css'
  * can send the user straight to the material it points at.
  */
 
-const TABS: { id: TrainingTab; key: string }[] = TRAINING_TABS.map((id) => ({ id, key: `training.tab.${id}` }))
+const TABS: { id: TrainingTab; key: string }[] = TRAINING_TABS.map((id) => ({
+  id,
+  key: `training.tab.${id}`
+}))
 
 export function TrainingScreen(): React.JSX.Element {
   const { t } = useTranslation()
@@ -40,7 +48,11 @@ export function TrainingScreen(): React.JSX.Element {
         className={styles.tabs}
         role="tablist"
         aria-label={t('training.areas')}
-        onKeyDown={(event) => tabStripKeyDown(event, TRAINING_TABS, tab, (next) => useTrainingStore.getState().setTab(next))}
+        onKeyDown={(event) =>
+          tabStripKeyDown(event, TRAINING_TABS, tab, (next) =>
+            useTrainingStore.getState().setTab(next)
+          )
+        }
       >
         {TABS.map((entry) => (
           <button
@@ -65,7 +77,12 @@ export function TrainingScreen(): React.JSX.Element {
         </p>
       ) : null}
 
-      <div className={styles.panel} role="tabpanel" id={`training-panel-${tab}`} aria-labelledby={`training-tab-${tab}`}>
+      <div
+        className={styles.panel}
+        role="tabpanel"
+        id={`training-panel-${tab}`}
+        aria-labelledby={`training-tab-${tab}`}
+      >
         {tab === 'own' ? (
           <OwnGamesTab />
         ) : tab === 'thematic' ? (

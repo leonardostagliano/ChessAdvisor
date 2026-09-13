@@ -1,6 +1,14 @@
 import type { Game } from '@shared/types/game'
 import { describe, expect, it } from 'vitest'
-import { accuracyToElo, acplToElo, bandOf, estimateLevel, isAiTimeout, levelSample, TAKEBACK_WEIGHT } from './level'
+import {
+  accuracyToElo,
+  acplToElo,
+  bandOf,
+  estimateLevel,
+  isAiTimeout,
+  levelSample,
+  TAKEBACK_WEIGHT
+} from './level'
 
 /** A finished, analysed match of the user with White. */
 function game(patch: Partial<Game> = {}): Game {
@@ -11,7 +19,11 @@ function game(patch: Partial<Game> = {}): Game {
     kind: 'match',
     status: 'finished',
     userColor: 'w',
-    opponent: { model: 'gpt-6-astra', effort: 'medium', difficulty: { mode: 'fixed', level: 3, targetElo: 1200 } },
+    opponent: {
+      model: 'gpt-6-astra',
+      effort: 'medium',
+      difficulty: { mode: 'fixed', level: 3, targetElo: 1200 }
+    },
     coach: { model: 'gpt-6-astra', effort: 'medium' },
     clock: null,
     language: 'it',
@@ -19,7 +31,12 @@ function game(patch: Partial<Game> = {}): Game {
     takebacks: 0,
     coachLog: [],
     result: { outcome: '1-0', reason: 'resign' },
-    analysis: { accuracy: { w: 88, b: 70 }, acpl: { w: 30, b: 80 }, keyMoments: [], analyzedAt: '2026-03-01T10:35:00.000Z' },
+    analysis: {
+      accuracy: { w: 88, b: 70 },
+      acpl: { w: 30, b: 80 },
+      keyMoments: [],
+      analyzedAt: '2026-03-01T10:35:00.000Z'
+    },
     ...patch
   }
 }
@@ -103,7 +120,11 @@ describe('estimateLevel', () => {
     // Half a window of identical games: min(1, 5/10) × (1 − 0) = 0.5.
     expect(estimateLevel(steady.slice(0, 5)).confidence).toBe(0.5)
     // Same window, wildly different games: the dispersion is capped at 0.5, so 1 × (1 − 0.5).
-    const noisy = Array.from({ length: 10 }, (_, index) => ({ acpl: index % 2 === 0 ? 5 : 140, accuracy: 70, weight: 1 }))
+    const noisy = Array.from({ length: 10 }, (_, index) => ({
+      acpl: index % 2 === 0 ? 5 : 140,
+      accuracy: 70,
+      weight: 1
+    }))
     expect(estimateLevel(noisy).confidence).toBe(0.5)
   })
 })
@@ -127,7 +148,11 @@ describe('levelSample', () => {
   it('excludes a game the AI lost on time, and keeps one the user lost on time', () => {
     expect(levelSample(game({ result: { outcome: '1-0', reason: 'timeout' } }))).toBeNull()
     expect(levelSample(game({ result: { outcome: '0-1', reason: 'timeout' } }))).not.toBeNull()
-    expect(isAiTimeout({ userColor: 'b', result: { outcome: '0-1', reason: 'timeout' } })).toBe(true)
-    expect(isAiTimeout({ userColor: 'w', result: { outcome: '1-0', reason: 'checkmate' } })).toBe(false)
+    expect(isAiTimeout({ userColor: 'b', result: { outcome: '0-1', reason: 'timeout' } })).toBe(
+      true
+    )
+    expect(isAiTimeout({ userColor: 'w', result: { outcome: '1-0', reason: 'checkmate' } })).toBe(
+      false
+    )
   })
 })

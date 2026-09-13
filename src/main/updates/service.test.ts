@@ -38,14 +38,24 @@ const { updateCredential } = await import('./credentials')
 const { downloadReleaseAsset, readReleaseBytes, readReleaseJson } = await import('./transport')
 const { AppUpdateService, installation } = await import('./service')
 
-const SESSION: UpdateCredential = { source: 'github-app', token: 'gho_fake_token', account: 'octocat' }
+const SESSION: UpdateCredential = {
+  source: 'github-app',
+  token: 'gho_fake_token',
+  account: 'octocat'
+}
 const NO_SESSION: UpdateCredential = { source: 'anonymous', failure: 'not-connected' }
 
 const INSTALLER_SIZE = 1024
-const INSTALLER_BYTES = Buffer.concat([Buffer.from('MZ', 'ascii'), Buffer.alloc(INSTALLER_SIZE - 2, 0x41)])
+const INSTALLER_BYTES = Buffer.concat([
+  Buffer.from('MZ', 'ascii'),
+  Buffer.alloc(INSTALLER_SIZE - 2, 0x41)
+])
 const INSTALLER_SHA256 = createHash('sha256').update(INSTALLER_BYTES).digest('hex')
 
-function release(version: string, options: { checksums?: boolean; id?: number } = {}): Record<string, unknown> {
+function release(
+  version: string,
+  options: { checksums?: boolean; id?: number } = {}
+): Record<string, unknown> {
   const id = options.id ?? 500
   return {
     id,
@@ -55,9 +65,21 @@ function release(version: string, options: { checksums?: boolean; id?: number } 
     published_at: '2026-09-01T10:00:00Z',
     body: `Release ${version}`,
     assets: [
-      { id: id + 1, state: 'uploaded', name: `ChessAdvisor-${version}-x64.exe`, size: INSTALLER_SIZE },
-      { id: id + 2, state: 'uploaded', name: `ChessAdvisor-${version}-portable.exe`, size: INSTALLER_SIZE },
-      ...(options.checksums === false ? [] : [{ id: id + 3, state: 'uploaded', name: 'SHA256SUMS.txt', size: 200 }])
+      {
+        id: id + 1,
+        state: 'uploaded',
+        name: `ChessAdvisor-${version}-x64.exe`,
+        size: INSTALLER_SIZE
+      },
+      {
+        id: id + 2,
+        state: 'uploaded',
+        name: `ChessAdvisor-${version}-portable.exe`,
+        size: INSTALLER_SIZE
+      },
+      ...(options.checksums === false
+        ? []
+        : [{ id: id + 3, state: 'uploaded', name: 'SHA256SUMS.txt', size: 200 }])
     ]
   }
 }
@@ -129,7 +151,9 @@ describe('installation', () => {
   })
 
   it('reports an installed build for a packaged Windows x64 app', () => {
-    expect(installation()).toBe(process.platform === 'win32' && process.arch === 'x64' ? 'installed' : 'unsupported')
+    expect(installation()).toBe(
+      process.platform === 'win32' && process.arch === 'x64' ? 'installed' : 'unsupported'
+    )
   })
 })
 
@@ -191,7 +215,8 @@ describe('check', () => {
 })
 
 describe('download', () => {
-  const manifest = (hash: string): string => `${hash}  ChessAdvisor-1.1.0-x64.exe\n0${'f'.repeat(63)}  SHA256SUMS.txt\n`
+  const manifest = (hash: string): string =>
+    `${hash}  ChessAdvisor-1.1.0-x64.exe\n0${'f'.repeat(63)}  SHA256SUMS.txt\n`
 
   beforeEach(() => {
     vi.mocked(readReleaseJson).mockImplementation(async (path: string) =>
@@ -246,7 +271,9 @@ describe('savePreferences', () => {
     const status = await service.savePreferences({ autoCheck: false })
     expect(status.preferences.autoCheck).toBe(false)
     expect(preferences.autoCheck).toBe(false)
-    expect(await codeOf(service.savePreferences({ autoCheck: true, other: 1 } as UpdatePreferences))).toBe('UPDATES_PREFERENCES')
+    expect(
+      await codeOf(service.savePreferences({ autoCheck: true, other: 1 } as UpdatePreferences))
+    ).toBe('UPDATES_PREFERENCES')
     expect(statuses.length).toBeGreaterThan(0)
     service.dispose()
   })

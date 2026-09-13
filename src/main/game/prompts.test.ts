@@ -1,7 +1,17 @@
 import { legalMoves } from '@shared/chess/notation'
-import { DIFFICULTY_LEVELS, nearestLevel, type DifficultyLevel, type OpponentDifficulty } from '@shared/types/session'
+import {
+  DIFFICULTY_LEVELS,
+  nearestLevel,
+  type DifficultyLevel,
+  type OpponentDifficulty
+} from '@shared/types/session'
 import { describe, expect, it } from 'vitest'
-import { DRAW_OFFER_SCHEMA, OPPONENT_MOVE_SCHEMA, opponentBaseInstructions, opponentTurnText } from './prompts'
+import {
+  DRAW_OFFER_SCHEMA,
+  OPPONENT_MOVE_SCHEMA,
+  opponentBaseInstructions,
+  opponentTurnText
+} from './prompts'
 
 const START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
 
@@ -41,7 +51,11 @@ describe('opponentBaseInstructions', () => {
       6: /Massimo/
     }
     for (const level of [1, 2, 3, 4, 5] as DifficultyLevel[]) {
-      const text = opponentBaseInstructions({ color: 'b', difficulty: fixed(level), language: 'it' })
+      const text = opponentBaseInstructions({
+        color: 'b',
+        difficulty: fixed(level),
+        language: 'it'
+      })
       expect(text).toMatch(personas[level])
       expect(text).toContain(String(DIFFICULTY_LEVELS[level].elo))
       expect(text).toContain(`Non calcolare oltre ${level} semimosse`)
@@ -51,9 +65,15 @@ describe('opponentBaseInstructions', () => {
 
   it('forbids giving material away from level 3 up only', () => {
     const give = 'Non regalare mai materiale'
-    expect(opponentBaseInstructions({ color: 'b', difficulty: fixed(2), language: 'it' })).not.toContain(give)
-    expect(opponentBaseInstructions({ color: 'b', difficulty: fixed(3), language: 'it' })).toContain(give)
-    expect(opponentBaseInstructions({ color: 'b', difficulty: fixed(5), language: 'it' })).toContain(give)
+    expect(
+      opponentBaseInstructions({ color: 'b', difficulty: fixed(2), language: 'it' })
+    ).not.toContain(give)
+    expect(
+      opponentBaseInstructions({ color: 'b', difficulty: fixed(3), language: 'it' })
+    ).toContain(give)
+    expect(
+      opponentBaseInstructions({ color: 'b', difficulty: fixed(5), language: 'it' })
+    ).toContain(give)
   })
 
   it('asks level 6 for the best play it can find, with no Elo and no depth limit', () => {
@@ -76,14 +96,20 @@ describe('opponentBaseInstructions', () => {
   })
 
   it('states the colour the model plays, in both languages', () => {
-    expect(opponentBaseInstructions({ color: 'w', difficulty: fixed(4), language: 'it' })).toContain('il Bianco')
-    expect(opponentBaseInstructions({ color: 'b', difficulty: fixed(4), language: 'en' })).toContain('Black')
+    expect(
+      opponentBaseInstructions({ color: 'w', difficulty: fixed(4), language: 'it' })
+    ).toContain('il Bianco')
+    expect(
+      opponentBaseInstructions({ color: 'b', difficulty: fixed(4), language: 'en' })
+    ).toContain('Black')
   })
 
   it('never mentions the engine or its evaluations', () => {
     for (const language of ['it', 'en'] as const) {
       for (const level of [1, 2, 3, 4, 5, 6] as DifficultyLevel[]) {
-        expect(opponentBaseInstructions({ color: 'w', difficulty: fixed(level), language })).not.toMatch(ORACLE_WORDS)
+        expect(
+          opponentBaseInstructions({ color: 'w', difficulty: fixed(level), language })
+        ).not.toMatch(ORACLE_WORDS)
       }
     }
   })
@@ -113,7 +139,9 @@ describe('opponentTurnText', () => {
     const base = { lastUserMove: 'e4', fen: START_FEN, pgn: '', legal, language: 'it' as const }
     expect(opponentTurnText({ ...base, takebackNotice: null })).not.toMatch(/annullate/)
     expect(opponentTurnText({ ...base, takebackNotice: 0 })).not.toMatch(/annullate/)
-    expect(opponentTurnText({ ...base, takebackNotice: 2 })).toContain('le ultime 2 semimosse sono state annullate')
+    expect(opponentTurnText({ ...base, takebackNotice: 2 })).toContain(
+      'le ultime 2 semimosse sono state annullate'
+    )
   })
 
   it('keeps the FEN on one parsable line even when the PGN spans several', () => {

@@ -35,7 +35,12 @@ class FakeEngine implements ExerciseEngine {
     const after = applyMove(fen, best.uci)
     const reply = after ? legalMoves(after.fen)[0] : undefined
     const lines = [
-      { move: best.uci, pv: reply ? [best.uci, reply.uci] : [best.uci], scoreCp: step.score, depth: 20 },
+      {
+        move: best.uci,
+        pv: reply ? [best.uci, reply.uci] : [best.uci],
+        scoreCp: step.score,
+        depth: 20
+      },
       ...(step.gaps ?? []).map((gap, index) => {
         const other = moves[index + 1] ?? best
         return { move: other.uci, pv: [other.uci], scoreCp: step.score - gap, depth: 20 }
@@ -62,7 +67,15 @@ function candidateOf(fen: string, patch: Partial<ExerciseCandidate> = {}): Exerc
 }
 
 /** A game whose plies carry exactly the evaluations the test wants to filter on. */
-function gameWith(specs: { by: 'user' | 'ai'; classification?: MoveClassification; before?: number; after?: number; mate?: boolean }[]): Game {
+function gameWith(
+  specs: {
+    by: 'user' | 'ai'
+    classification?: MoveClassification
+    before?: number
+    after?: number
+    mate?: boolean
+  }[]
+): Game {
   const chess = new Chess()
   const moves: Move[] = specs.map((spec, index) => {
     const played = chess.move(chess.moves()[0]!)
@@ -94,7 +107,11 @@ function gameWith(specs: { by: 'user' | 'ai'; classification?: MoveClassificatio
     kind: 'match',
     status: 'finished',
     userColor: 'w',
-    opponent: { model: 'gpt-6-astra', effort: 'medium', difficulty: { mode: 'fixed', level: 3, targetElo: 1200 } },
+    opponent: {
+      model: 'gpt-6-astra',
+      effort: 'medium',
+      difficulty: { mode: 'fixed', level: 3, targetElo: 1200 }
+    },
     coach: { model: 'gpt-6-astra', effort: 'medium' },
     clock: null,
     language: 'it',
@@ -135,7 +152,9 @@ describe('extractCandidates', () => {
 
   it('starts an exercise from the position the move was played in, not from the one it reached', () => {
     const game = gameWith([{ by: 'user', classification: 'mistake', before: 0, after: -300 }])
-    expect(extractCandidates(game)[0]?.fen).toBe('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1')
+    expect(extractCandidates(game)[0]?.fen).toBe(
+      'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
+    )
   })
 })
 
@@ -153,7 +172,10 @@ describe('buildExercise', () => {
   })
 
   it('records an equally good second line as an alternative', async () => {
-    const engine = new FakeEngine([{ score: 300, gaps: [40] }, { score: 300, gaps: [400] }])
+    const engine = new FakeEngine([
+      { score: 300, gaps: [40] },
+      { score: 300, gaps: [400] }
+    ])
     const exercise = await buildExercise(candidateOf(MIDDLEGAME), engine, { now: () => 0 })
     expect(exercise!.alternatives).toHaveLength(1)
     expect(exercise!.alternatives![0]).toHaveLength(1)
@@ -175,14 +197,20 @@ describe('buildExercise', () => {
   })
 
   it('answers null when the engine has nothing to say', async () => {
-    const engine: ExerciseEngine = { analyze: async (fen) => ({ bestMove: null, lines: [], depth: 0, fen }) }
+    const engine: ExerciseEngine = {
+      analyze: async (fen) => ({ bestMove: null, lines: [], depth: 0, fen })
+    }
     expect(await buildExercise(candidateOf(MIDDLEGAME), engine, { now: () => 0 })).toBeNull()
   })
 
   it('answers null when the solution is the move the user actually played', async () => {
     const best = legalMoves(MIDDLEGAME)[0]!
     const engine = new FakeEngine([{ score: 300, gaps: [250] }])
-    expect(await buildExercise(candidateOf(MIDDLEGAME, { playedUci: best.uci }), engine, { now: () => 0 })).toBeNull()
+    expect(
+      await buildExercise(candidateOf(MIDDLEGAME, { playedUci: best.uci }), engine, {
+        now: () => 0
+      })
+    ).toBeNull()
   })
 })
 
@@ -214,7 +242,12 @@ describe('judgeAttempt', () => {
     const current = exercise()
     const other = legalMoves(MIDDLEGAME).find((move) => move.uci !== current.solution[0])!
     const { result, progress } = judgeAttempt(current, startProgress(current), other.uci)
-    expect(result).toEqual({ correct: false, done: false, fen: MIDDLEGAME, alternativesAccepted: false })
+    expect(result).toEqual({
+      correct: false,
+      done: false,
+      fen: MIDDLEGAME,
+      alternativesAccepted: false
+    })
     expect(progress.index).toBe(0)
   })
 
@@ -232,7 +265,9 @@ describe('judgeAttempt', () => {
   })
 
   it('accepts an alternative at its own ply and ends the exercise there', () => {
-    const alternative = legalMoves(MIDDLEGAME).find((move) => move.uci !== buildLine(MIDDLEGAME, 1)[0])!
+    const alternative = legalMoves(MIDDLEGAME).find(
+      (move) => move.uci !== buildLine(MIDDLEGAME, 1)[0]
+    )!
     const current = exercise({ alternatives: [[alternative.uci]] })
     const { result, progress } = judgeAttempt(current, startProgress(current), alternative.uci)
     expect(result.correct).toBe(true)

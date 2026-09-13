@@ -24,7 +24,8 @@ export function registerUpdates(deps: RegisterUpdatesDeps): AppUpdateService {
     changed: (status) => {
       for (const window of BrowserWindow.getAllWindows()) {
         try {
-          if (!window.isDestroyed() && !window.webContents.isDestroyed()) window.webContents.send(UPDATES_IPC.changed, status)
+          if (!window.isDestroyed() && !window.webContents.isDestroyed())
+            window.webContents.send(UPDATES_IPC.changed, status)
         } catch {
           /* A window can close while the process emits download progress. */
         }
@@ -63,7 +64,9 @@ export function registerUpdates(deps: RegisterUpdatesDeps): AppUpdateService {
   })
 
   deps.handle(UPDATES_IPC.status, () => service.status())
-  deps.handle(UPDATES_IPC.preferences, (preferences: UpdatePreferences) => service.savePreferences(preferences))
+  deps.handle(UPDATES_IPC.preferences, (preferences: UpdatePreferences) =>
+    service.savePreferences(preferences)
+  )
   deps.handle(UPDATES_IPC.check, () => service.check())
   deps.handle(UPDATES_IPC.authenticate, () => service.authenticate())
   deps.handle(UPDATES_IPC.cancelAuthentication, () => service.cancelAuthentication())

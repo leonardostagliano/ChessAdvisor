@@ -25,7 +25,11 @@ export function resultTone(result: GameResult, userColor: 'w' | 'b'): ResultTone
   return winner === userColor ? 'win' : 'loss'
 }
 
-export function ResultBanner({ game, onNewGame, onReview }: ResultBannerProps): React.JSX.Element | null {
+export function ResultBanner({
+  game,
+  onNewGame,
+  onReview
+}: ResultBannerProps): React.JSX.Element | null {
   const { t } = useTranslation()
   if (!game.result) return null
 

@@ -94,12 +94,18 @@ describe('ManagedProcess', () => {
     const firstPid = h.proc.pid
 
     h.proc.write('exit 3\n')
-    await h.waitFor((l) => l.filter((x) => x === 'ready').length === 2, 'the ready line of the first restart')
+    await h.waitFor(
+      (l) => l.filter((x) => x === 'ready').length === 2,
+      'the ready line of the first restart'
+    )
     expect(h.exits[0]).toEqual({ code: 3, restarting: true })
     expect(h.proc.pid).not.toBe(firstPid)
 
     h.proc.write('exit 4\n')
-    await h.waitFor((l) => l.filter((x) => x === 'ready').length === 3, 'the ready line of the second restart')
+    await h.waitFor(
+      (l) => l.filter((x) => x === 'ready').length === 3,
+      'the ready line of the second restart'
+    )
     expect(h.exits[1]).toEqual({ code: 4, restarting: true })
 
     h.proc.write('exit 5\n')
@@ -124,7 +130,11 @@ describe('ManagedProcess', () => {
   })
 
   it('rejects start() when the executable does not exist', async () => {
-    const proc = new ManagedProcess({ name: 'missing', exe: 'C:/definitely/not/here.exe', args: [] })
+    const proc = new ManagedProcess({
+      name: 'missing',
+      exe: 'C:/definitely/not/here.exe',
+      args: []
+    })
     await expect(proc.start()).rejects.toThrow()
     expect(proc.alive).toBe(false)
   })

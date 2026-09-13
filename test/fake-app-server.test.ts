@@ -192,7 +192,12 @@ const HINT_SCHEMA = {
 }
 
 /** One turn with an arbitrary text and an optional schema; returns the final message. */
-async function runTextTurn(harness: Harness, threadId: string, text: string, outputSchema?: object): Promise<string> {
+async function runTextTurn(
+  harness: Harness,
+  threadId: string,
+  text: string,
+  outputSchema?: object
+): Promise<string> {
   const response = await harness.client.request<{ turn: { id: string } }>('turn/start', {
     threadId,
     input: [{ type: 'text', text, text_elements: [] }],
@@ -201,7 +206,9 @@ async function runTextTurn(harness: Harness, threadId: string, text: string, out
     ...(outputSchema ? { outputSchema } : {})
   })
   const completed = await harness.waitFor('turn/completed', (p) => p.turn.id === response.turn.id)
-  const message = [...completed.turn.items].reverse().find((item: any) => item.type === 'agentMessage')
+  const message = [...completed.turn.items]
+    .reverse()
+    .find((item: any) => item.type === 'agentMessage')
   return message?.text ?? ''
 }
 
@@ -413,8 +420,13 @@ describe('fake app-server', () => {
       capabilities: null
     })
     const threadId = await startThread(harness)
-    const text = await runTextTurn(harness, threadId, `Suggerisci una mossa.
-FEN: ${OPENING_FEN}`, HINT_SCHEMA)
+    const text = await runTextTurn(
+      harness,
+      threadId,
+      `Suggerisci una mossa.
+FEN: ${OPENING_FEN}`,
+      HINT_SCHEMA
+    )
     const hint = JSON.parse(text) as { move: string; reason: string }
     expect(hint.reason).toBe('fake hint')
     expect(new Chess(OPENING_FEN).moves()).toContain(hint.move)
@@ -429,7 +441,9 @@ FEN: ${OPENING_FEN}`, HINT_SCHEMA)
       capabilities: null
     })
     const threadId = await startThread(harness)
-    expect(await runTextTurn(harness, threadId, 'Commenta la mossa appena giocata.')).toBe('Commento finto sulla mossa 1.')
+    expect(await runTextTurn(harness, threadId, 'Commenta la mossa appena giocata.')).toBe(
+      'Commento finto sulla mossa 1.'
+    )
     expect(await runTextTurn(harness, threadId, 'Domanda: che piano ho?')).toBe('Risposta finta.')
   })
 
@@ -441,14 +455,19 @@ FEN: ${OPENING_FEN}`, HINT_SCHEMA)
     })
     const threadId = await startThread(harness)
     // A review turn is recognised even though its text also asks to comment (spec §4.4).
-    expect(await runTextTurn(harness, threadId, 'Rivedi la mossa 7 di una partita già conclusa.')).toBe('Commento finto in revisione.')
+    expect(
+      await runTextTurn(harness, threadId, 'Rivedi la mossa 7 di una partita già conclusa.')
+    ).toBe('Commento finto in revisione.')
 
     const lesson = JSON.parse(
       await runTextTurn(harness, threadId, 'Ricava la lezione di questa partita.', {
         type: 'object',
         required: ['takeaways', 'summary'],
         additionalProperties: false,
-        properties: { takeaways: { type: 'array', items: { type: 'string' } }, summary: { type: 'string' } }
+        properties: {
+          takeaways: { type: 'array', items: { type: 'string' } },
+          summary: { type: 'string' }
+        }
       })
     ) as { takeaways: string[]; summary: string }
     expect(lesson.takeaways).toHaveLength(3)
@@ -464,22 +483,31 @@ FEN: ${OPENING_FEN}`, HINT_SCHEMA)
     const threadId = await startThread(harness)
 
     const labelled = JSON.parse(
-      await runTextTurn(harness, threadId, ['Etichetta i momenti chiave.', '- 7. Nxe5 (f3e5)', '- 12. Qh5 (d1h5)'].join('\n'), {
-        type: 'object',
-        required: ['labels'],
-        additionalProperties: false,
-        properties: {
-          labels: {
-            type: 'array',
-            items: {
-              type: 'object',
-              required: ['ply', 'theme', 'note'],
-              additionalProperties: false,
-              properties: { ply: { type: 'number' }, theme: { type: 'string' }, note: { type: 'string' } }
+      await runTextTurn(
+        harness,
+        threadId,
+        ['Etichetta i momenti chiave.', '- 7. Nxe5 (f3e5)', '- 12. Qh5 (d1h5)'].join('\n'),
+        {
+          type: 'object',
+          required: ['labels'],
+          additionalProperties: false,
+          properties: {
+            labels: {
+              type: 'array',
+              items: {
+                type: 'object',
+                required: ['ply', 'theme', 'note'],
+                additionalProperties: false,
+                properties: {
+                  ply: { type: 'number' },
+                  theme: { type: 'string' },
+                  note: { type: 'string' }
+                }
+              }
             }
           }
         }
-      })
+      )
     ) as { labels: { ply: number; theme: string; note: string }[] }
     expect(labelled.labels.map((label) => label.ply)).toEqual([7, 12])
     expect(labelled.labels[0]!.theme).toBe('fork')
@@ -490,7 +518,10 @@ FEN: ${OPENING_FEN}`, HINT_SCHEMA)
         type: 'object',
         required: ['strengths', 'weaknesses'],
         additionalProperties: false,
-        properties: { strengths: { type: 'array', items: { type: 'string' } }, weaknesses: { type: 'array', items: { type: 'string' } } }
+        properties: {
+          strengths: { type: 'array', items: { type: 'string' } },
+          weaknesses: { type: 'array', items: { type: 'string' } }
+        }
       })
     ) as { strengths: string[]; weaknesses: string[] }
     expect(assessment.strengths).toHaveLength(2)
@@ -505,7 +536,9 @@ FEN: ${OPENING_FEN}`, HINT_SCHEMA)
     })
     const threadId = await startThread(harness)
 
-    const pick = JSON.parse(await runTextTurn(harness, threadId, 'Scegli il tema.', THEME_PICK_SCHEMA as object)) as {
+    const pick = JSON.parse(
+      await runTextTurn(harness, threadId, 'Scegli il tema.', THEME_PICK_SCHEMA as object)
+    ) as {
       theme: string
       ratingMin: number
       ratingMax: number
@@ -513,16 +546,28 @@ FEN: ${OPENING_FEN}`, HINT_SCHEMA)
     }
     expect(pick).toEqual({ theme: 'fork', ratingMin: 800, ratingMax: 1200, motivation: 'fake' })
 
-    const catalogue = { themes: ['fork', 'pin', 'back_rank'], exercises: ['og-g1-7'], openings: ['C60'], endgames: ['queen_mate'] }
+    const catalogue = {
+      themes: ['fork', 'pin', 'back_rank'],
+      exercises: ['og-g1-7'],
+      openings: ['C60'],
+      endgames: ['queen_mate']
+    }
     const plan = JSON.parse(
-      await runTextTurn(harness, threadId, planText({ catalogue, profile: EMPTY_PROFILE, language: 'it' }), planSchema(catalogue))
+      await runTextTurn(
+        harness,
+        threadId,
+        planText({ catalogue, profile: EMPTY_PROFILE, language: 'it' }),
+        planSchema(catalogue)
+      )
     ) as { items: { activity: { type: string; ref: string | null } }[] }
     expect(plan.items.length).toBeGreaterThanOrEqual(5)
     expect(plan.items.map((item) => item.activity.ref)).toContain('og-g1-7')
     expect(plan.items.map((item) => item.activity.ref)).toContain('queen_mate')
     expect(plan.items.at(-1)?.activity).toEqual({ type: 'play', ref: null })
 
-    expect(await runTextTurn(harness, threadId, 'Spiega la soluzione di questo esercizio.')).toBe('Spiegazione finta.')
+    expect(await runTextTurn(harness, threadId, 'Spiega la soluzione di questo esercizio.')).toBe(
+      'Spiegazione finta.'
+    )
   })
 
   it('reports a logged-out account when FAKE_CODEX_LOGGED_OUT=1', async () => {

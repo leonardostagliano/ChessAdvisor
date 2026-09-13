@@ -17,7 +17,10 @@ export interface ClassificationBarsProps {
   className?: string
 }
 
-export function ClassificationBars({ distribution, className }: ClassificationBarsProps): React.JSX.Element {
+export function ClassificationBars({
+  distribution,
+  className
+}: ClassificationBarsProps): React.JSX.Element {
   const { t } = useTranslation()
   const { games, moves, share, perGame } = distribution
 
@@ -25,7 +28,9 @@ export function ClassificationBars({ distribution, className }: ClassificationBa
     <section className={cx(styles.card, className)} aria-label={t('progress.classifications')}>
       <header className={styles.cardHead}>
         <h3 className={styles.cardTitle}>{t('progress.classifications')}</h3>
-        {moves > 0 ? <span className={styles.note}>{t('progress.classificationsHint', { count: games })}</span> : null}
+        {moves > 0 ? (
+          <span className={styles.note}>{t('progress.classificationsHint', { count: games })}</span>
+        ) : null}
       </header>
 
       {moves === 0 ? (
@@ -51,10 +56,15 @@ export function ClassificationBars({ distribution, className }: ClassificationBa
                     value: perGame[classification].toFixed(1)
                   })}
                 >
-                  <span className={styles.barFill} style={{ width: `${Math.min(100, percent)}%` }} />
+                  <span
+                    className={styles.barFill}
+                    style={{ width: `${Math.min(100, percent)}%` }}
+                  />
                 </span>
                 <span className={styles.barValue}>
-                  <span className={styles.barPrimary}>{t('progress.percentValue', { value: percent.toFixed(1) })}</span>
+                  <span className={styles.barPrimary}>
+                    {t('progress.percentValue', { value: percent.toFixed(1) })}
+                  </span>
                   <span className={styles.barSecondary}>
                     {t('progress.perGame', { value: perGame[classification].toFixed(1) })}
                   </span>

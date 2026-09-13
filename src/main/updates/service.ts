@@ -17,7 +17,13 @@ import {
   UPDATE_REPOSITORY,
   UPDATE_REPOSITORY_URL
 } from './source'
-import { downloadReleaseAsset, readReleaseBytes, readReleaseJson, UpdateAccessError, UpdateError } from './transport'
+import {
+  downloadReleaseAsset,
+  readReleaseBytes,
+  readReleaseJson,
+  UpdateAccessError,
+  UpdateError
+} from './transport'
 
 interface ReleaseAsset {
   id: number
@@ -58,9 +64,12 @@ export interface AppUpdateServiceDeps {
   isBusy(): boolean
 }
 
-const record = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value)
+const record = (value: unknown): value is Record<string, unknown> =>
+  !!value && typeof value === 'object' && !Array.isArray(value)
 const text = (value: unknown, max: number): string =>
-  typeof value === 'string' ? value.replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, '').slice(0, max) : ''
+  typeof value === 'string'
+    ? value.replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, '').slice(0, max)
+    : ''
 
 function asset(value: unknown): ReleaseAsset | undefined {
   if (
@@ -78,17 +87,30 @@ function asset(value: unknown): ReleaseAsset | undefined {
     id: Number(value.id),
     name: value.name,
     size: Number(value.size),
-    ...(typeof value.digest === 'string' && /^sha256:[a-f0-9]{64}$/i.test(value.digest) ? { digest: value.digest.slice(7).toLowerCase() } : {})
+    ...(typeof value.digest === 'string' && /^sha256:[a-f0-9]{64}$/i.test(value.digest)
+      ? { digest: value.digest.slice(7).toLowerCase() }
+      : {})
   }
 }
 
 /** Stable SemVer and the exact installer name emitted by scripts/windows-release.mjs. */
 function candidate(value: unknown): ReleaseCandidate | undefined {
-  if (!record(value) || value.draft !== false || value.prerelease !== false || !Number.isSafeInteger(value.id) || Number(value.id) <= 0) return undefined
+  if (
+    !record(value) ||
+    value.draft !== false ||
+    value.prerelease !== false ||
+    !Number.isSafeInteger(value.id) ||
+    Number(value.id) <= 0
+  )
+    return undefined
   const version = stableVersion(value.tag_name)
   if (!version || !Array.isArray(value.assets) || value.assets.length > 1000) return undefined
   const assets = value.assets.map(asset).filter((entry): entry is ReleaseAsset => !!entry)
-  const installers = assets.filter((entry) => entry.name === `${UPDATE_PACKAGE_NAME}-${version}-x64.exe` && entry.size <= MAX_INSTALLER_BYTES)
+  const installers = assets.filter(
+    (entry) =>
+      entry.name === `${UPDATE_PACKAGE_NAME}-${version}-x64.exe` &&
+      entry.size <= MAX_INSTALLER_BYTES
+  )
   if (installers.length !== 1) return undefined
   const checksumAssets = assets.filter((entry) => entry.name === 'SHA256SUMS.txt')
   if (checksumAssets.length > 1 || checksumAssets.some((entry) => entry.size > 1024 * 1024)) {
@@ -117,7 +139,9 @@ function candidate(value: unknown): ReleaseCandidate | undefined {
 export function installation(): UpdateStatus['installation'] {
   if (!app.isPackaged) return 'development'
   if (process.platform !== 'win32' || process.arch !== 'x64') return 'unsupported'
-  return process.env.PORTABLE_EXECUTABLE_DIR || process.env.PORTABLE_EXECUTABLE_FILE ? 'portable' : 'installed'
+  return process.env.PORTABLE_EXECUTABLE_DIR || process.env.PORTABLE_EXECUTABLE_FILE
+    ? 'portable'
+    : 'installed'
 }
 
 async function fileHash(path: string, expectedSize: number): Promise<string> {
@@ -128,7 +152,10 @@ async function fileHash(path: string, expectedSize: number): Promise<string> {
   const hash = createHash('sha256')
   let size = 0
   const stream = createReadStream(path)
-  const timer = setTimeout(() => stream.destroy(new UpdateError('UPDATES_INTEGRITY', m().localVerifyTimeout)), 60_000)
+  const timer = setTimeout(
+    () => stream.destroy(new UpdateError('UPDATES_INTEGRITY', m().localVerifyTimeout)),
+    60_000
+  )
   try {
     for await (const bytes of stream) {
       size += (bytes as Buffer).length
@@ -189,7 +216,8 @@ export class AppUpdateService {
       this.cleanupTimer.unref?.()
     }
     // Without a saved session an automatic check could only fail: wait for the explicit connection.
-    if (this.state.preferences.autoCheck && this.state.authSource === 'github-app') this.schedule(FIRST_CHECK_DELAY_MS)
+    if (this.state.preferences.autoCheck && this.state.authSource === 'github-app')
+      this.schedule(FIRST_CHECK_DELAY_MS)
   }
 
   private load(): Promise<void> {
@@ -215,7 +243,10 @@ export class AppUpdateService {
   private snapshot(): UpdateStatus {
     const installSupported = this.state.installation === 'installed'
     const busy =
-      this.disposed || !!this.checking || !!this.authenticating || ['authenticating', 'checking', 'downloading', 'installing'].includes(this.state.phase)
+      this.disposed ||
+      !!this.checking ||
+      !!this.authenticating ||
+      ['authenticating', 'checking', 'downloading', 'installing'].includes(this.state.phase)
     return {
       ...this.state,
       preferences: { ...this.state.preferences },
@@ -242,7 +273,11 @@ export class AppUpdateService {
 
   async savePreferences(value: UpdatePreferences): Promise<UpdateStatus> {
     if (this.authenticating) throw new UpdateError('UPDATES_BUSY', m().busyAuth)
-    if (!record(value) || typeof value.autoCheck !== 'boolean' || Object.keys(value).some((key) => key !== 'autoCheck')) {
+    if (
+      !record(value) ||
+      typeof value.autoCheck !== 'boolean' ||
+      Object.keys(value).some((key) => key !== 'autoCheck')
+    ) {
       throw new UpdateError('UPDATES_PREFERENCES', m().preferenceInvalid)
     }
     const autoCheck = value.autoCheck
@@ -267,10 +302,20 @@ export class AppUpdateService {
 
   private schedule(delay = CHECK_INTERVAL_MS): void {
     if (this.timer) clearTimeout(this.timer)
-    if (this.disposed || !this.state.preferences.autoCheck || this.state.authSource !== 'github-app') return
+    if (
+      this.disposed ||
+      !this.state.preferences.autoCheck ||
+      this.state.authSource !== 'github-app'
+    )
+      return
     this.timer = setTimeout(() => {
       this.timer = undefined
-      if (this.authenticating || this.state.phase === 'downloading' || this.state.phase === 'installing' || this.staged) {
+      if (
+        this.authenticating ||
+        this.state.phase === 'downloading' ||
+        this.state.phase === 'installing' ||
+        this.staged
+      ) {
         this.schedule()
         return
       }
@@ -280,7 +325,8 @@ export class AppUpdateService {
   }
 
   private fail(error: unknown): UpdateError {
-    const safe = error instanceof UpdateError ? error : new UpdateError('UPDATES_ERROR', m().genericFailure)
+    const safe =
+      error instanceof UpdateError ? error : new UpdateError('UPDATES_ERROR', m().genericFailure)
     this.update({ phase: 'error', message: safe.message, errorCode: safe.code })
     return safe
   }
@@ -296,14 +342,19 @@ export class AppUpdateService {
     if (!credentials.token) {
       throw new UpdateError(
         'UPDATES_AUTH_REQUIRED',
-        credentials.failure === 'stored-credential-unavailable' ? m().authRequiredUnreadable : m().authRequired
+        credentials.failure === 'stored-credential-unavailable'
+          ? m().authRequiredUnreadable
+          : m().authRequired
       )
     }
     try {
       return { data: await readReleaseJson(path, credentials.token, signal), credentials }
     } catch (error) {
       if (error instanceof UpdateAccessError) {
-        throw new UpdateError(error.code, `${error.message}${m().linkedAccount(String(credentials.account))}`)
+        throw new UpdateError(
+          error.code,
+          `${error.message}${m().linkedAccount(String(credentials.account))}`
+        )
       }
       throw error
     }
@@ -313,7 +364,8 @@ export class AppUpdateService {
     if (this.disposed) return Promise.reject(new UpdateError('UPDATES_CLOSED', m().closing))
     if (this.authenticating) return Promise.reject(new UpdateError('UPDATES_BUSY', m().busyAuth))
     if (this.checking) return this.checking
-    if (this.state.phase === 'downloading' || this.state.phase === 'installing') return Promise.reject(new UpdateError('UPDATES_BUSY', m().busyUpdate))
+    if (this.state.phase === 'downloading' || this.state.phase === 'installing')
+      return Promise.reject(new UpdateError('UPDATES_BUSY', m().busyUpdate))
     this.checking = this.checkNow()
       .finally(() => {
         this.checking = null
@@ -327,7 +379,11 @@ export class AppUpdateService {
   /** Only the explicit UI command enters interactive OAuth, then verifies releases. */
   authenticate(): Promise<UpdateStatus> {
     if (this.disposed) return Promise.reject(new UpdateError('UPDATES_CLOSED', m().closing))
-    if (this.authenticating || this.checking || ['downloading', 'installing'].includes(this.state.phase)) {
+    if (
+      this.authenticating ||
+      this.checking ||
+      ['downloading', 'installing'].includes(this.state.phase)
+    ) {
       return Promise.reject(new UpdateError('UPDATES_BUSY', m().busyOperation))
     }
     this.authenticating = this.authenticateNow()
@@ -358,12 +414,19 @@ export class AppUpdateService {
     try {
       // Once OAuth has returned, complete the atomic save before another action can report
       // cancellation; the stored session must match the visible result.
-      credentials = await authenticateGithub(controller.signal, () => this.update({ phase: 'checking', message: m().authSaving }))
-      if (controller.signal.aborted || this.disposed) throw new UpdateError('UPDATES_AUTH_CANCELLED', m().authCancelled)
+      credentials = await authenticateGithub(controller.signal, () =>
+        this.update({ phase: 'checking', message: m().authSaving })
+      )
+      if (controller.signal.aborted || this.disposed)
+        throw new UpdateError('UPDATES_AUTH_CANCELLED', m().authCancelled)
       this.update({ authSource: credentials.source, githubAccount: credentials.account ?? null })
       this.deps.returnToApp()
     } catch (error) {
-      if (error instanceof UpdateError && error.code === 'UPDATES_AUTH_CANCELLED' && !this.disposed) {
+      if (
+        error instanceof UpdateError &&
+        error.code === 'UPDATES_AUTH_CANCELLED' &&
+        !this.disposed
+      ) {
         this.update({ phase: 'idle', errorCode: undefined, message: m().authCancelledNotice })
         return this.snapshot()
       }
@@ -384,12 +447,19 @@ export class AppUpdateService {
     this.update({ phase: 'checking', errorCode: undefined, message: m().checking })
     try {
       const development = this.state.installation === 'development'
-      const currentBase = stableVersion(development ? this.state.currentVersion.replace(/-dev$/, '') : this.state.currentVersion)
+      const currentBase = stableVersion(
+        development ? this.state.currentVersion.replace(/-dev$/, '') : this.state.currentVersion
+      )
       if (!currentBase) throw new UpdateError('UPDATES_VERSION', m().versionUnstable)
       // The release pipeline publishes monotonically increasing stable versions. Compare the
       // 100 most recent releases semantically instead of trusting a manually retargeted Latest.
-      const { data } = await this.releaseMetadata('/releases?per_page=100&page=1', controller.signal, linkedCredential)
-      if (!Array.isArray(data) || data.length > 100) throw new UpdateError('UPDATES_RESPONSE', m().releaseListInvalid)
+      const { data } = await this.releaseMetadata(
+        '/releases?per_page=100&page=1',
+        controller.signal,
+        linkedCredential
+      )
+      if (!Array.isArray(data) || data.length > 100)
+        throw new UpdateError('UPDATES_RESPONSE', m().releaseListInvalid)
       const choices = data.map(candidate).filter((entry): entry is ReleaseCandidate => !!entry)
       choices.sort((a, b) => compareVersions(b.view.version, a.view.version))
       const latest = choices[0]
@@ -427,7 +497,10 @@ export class AppUpdateService {
           checkedAt,
           release: latest.view,
           download: this.staged ? this.state.download : null,
-          message: m().available(latest.view.version, `${suffix}${latest.view.checksum === 'unavailable' ? m().suffixNoChecksum : ''}`)
+          message: m().available(
+            latest.view.version,
+            `${suffix}${latest.view.checksum === 'unavailable' ? m().suffixNoChecksum : ''}`
+          )
         })
       }
       return this.snapshot()
@@ -440,20 +513,29 @@ export class AppUpdateService {
 
   async download(): Promise<UpdateStatus> {
     await this.load()
-    if (!this.snapshot().canDownload || !this.candidate) throw new UpdateError('UPDATES_DOWNLOAD_STATE', m().downloadState)
+    if (!this.snapshot().canDownload || !this.candidate)
+      throw new UpdateError('UPDATES_DOWNLOAD_STATE', m().downloadState)
     const selected = this.candidate
     const controller = new AbortController()
     this.active = controller
     this.update({
       phase: 'downloading',
       errorCode: undefined,
-      download: { receivedBytes: 0, totalBytes: selected.installer.size, percent: 0, verified: false },
+      download: {
+        receivedBytes: 0,
+        totalBytes: selected.installer.size,
+        percent: 0,
+        verified: false
+      },
       message: m().downloading
     })
     let temporary: string | undefined
     try {
       // Re-read this exact release before writing bytes: an asset may have been replaced since check.
-      const { data, credentials } = await this.releaseMetadata(`/releases/${selected.releaseId}`, controller.signal)
+      const { data, credentials } = await this.releaseMetadata(
+        `/releases/${selected.releaseId}`,
+        controller.signal
+      )
       const fresh = candidateFromExact(data, selected)
       let expectedHash = fresh.installer.digest
       if (fresh.checksums) {
@@ -471,43 +553,66 @@ export class AppUpdateService {
           .filter((match) => match?.[2] === fresh.installer.name)
         if (matching.length !== 1) throw new UpdateError('UPDATES_CHECKSUM', m().checksumNotUnique)
         const manifestHash = matching[0]![1].toLowerCase()
-        if (expectedHash && expectedHash !== manifestHash) throw new UpdateError('UPDATES_CHECKSUM', m().checksumConflict)
+        if (expectedHash && expectedHash !== manifestHash)
+          throw new UpdateError('UPDATES_CHECKSUM', m().checksumConflict)
         expectedHash = manifestHash
       }
       const directory = join(app.getPath('userData'), 'updates')
       await mkdir(directory, { recursive: true })
-      temporary = join(directory, `${UPDATE_PACKAGE_NAME}-${fresh.view.version}-${randomUUID()}.exe.part`)
-      const downloaded = await downloadReleaseAsset(fresh.installer.id, temporary, fresh.installer.size, {
-        token: credentials.token,
-        signal: controller.signal,
-        progress: (receivedBytes) =>
-          this.update({
-            download: {
-              receivedBytes,
-              totalBytes: fresh.installer.size,
-              percent: Math.floor((receivedBytes / fresh.installer.size) * 100),
-              verified: false
-            }
-          })
-      })
-      if (expectedHash && downloaded.sha256 !== expectedHash) throw new UpdateError('UPDATES_INTEGRITY', m().integrityMismatch)
+      temporary = join(
+        directory,
+        `${UPDATE_PACKAGE_NAME}-${fresh.view.version}-${randomUUID()}.exe.part`
+      )
+      const downloaded = await downloadReleaseAsset(
+        fresh.installer.id,
+        temporary,
+        fresh.installer.size,
+        {
+          token: credentials.token,
+          signal: controller.signal,
+          progress: (receivedBytes) =>
+            this.update({
+              download: {
+                receivedBytes,
+                totalBytes: fresh.installer.size,
+                percent: Math.floor((receivedBytes / fresh.installer.size) * 100),
+                verified: false
+              }
+            })
+        }
+      )
+      if (expectedHash && downloaded.sha256 !== expectedHash)
+        throw new UpdateError('UPDATES_INTEGRITY', m().integrityMismatch)
       const signature = await open(temporary, 'r')
       try {
         const header = Buffer.alloc(2)
         await signature.read(header, 0, 2, 0)
-        if (header.toString('ascii') !== 'MZ') throw new UpdateError('UPDATES_FORMAT', m().notWindowsExecutable)
+        if (header.toString('ascii') !== 'MZ')
+          throw new UpdateError('UPDATES_FORMAT', m().notWindowsExecutable)
       } finally {
         await signature.close()
       }
       const finalPath = temporary.slice(0, -5)
       await rename(temporary, finalPath)
       temporary = undefined
-      this.staged = { path: finalPath, sha256: downloaded.sha256, expectedHash, size: downloaded.size, version: fresh.view.version }
+      this.staged = {
+        path: finalPath,
+        sha256: downloaded.sha256,
+        expectedHash,
+        size: downloaded.size,
+        version: fresh.view.version
+      }
       this.candidate = fresh
       this.update({
         phase: 'downloaded',
         release: fresh.view,
-        download: { receivedBytes: downloaded.size, totalBytes: downloaded.size, percent: 100, sha256: downloaded.sha256, verified: !!expectedHash },
+        download: {
+          receivedBytes: downloaded.size,
+          totalBytes: downloaded.size,
+          percent: 100,
+          sha256: downloaded.sha256,
+          verified: !!expectedHash
+        },
         message: expectedHash ? m().downloadedVerified : m().downloadedUnverified
       })
       return this.snapshot()
@@ -523,11 +628,13 @@ export class AppUpdateService {
   async install(): Promise<UpdateStatus> {
     // A restart during an AI turn would abandon the move in flight: the game comes first.
     if (this.deps.isBusy()) throw new UpdateError('UPDATES_BUSY_GAME', m().busyGame)
-    if (!this.snapshot().canInstall || !this.staged) throw new UpdateError('UPDATES_INSTALL_STATE', m().installState)
+    if (!this.snapshot().canInstall || !this.staged)
+      throw new UpdateError('UPDATES_INSTALL_STATE', m().installState)
     const staged = this.staged
     this.update({ phase: 'installing', errorCode: undefined, message: m().finalVerification })
     try {
-      if (compareVersions(staged.version, app.getVersion()) <= 0) throw new UpdateError('UPDATES_VERSION', m().notNewer)
+      if (compareVersions(staged.version, app.getVersion()) <= 0)
+        throw new UpdateError('UPDATES_VERSION', m().notNewer)
       const hash = await fileHash(staged.path, staged.size)
       if (this.disposed) throw new UpdateError('UPDATES_CLOSED', m().closing)
       if (hash !== staged.sha256 || (staged.expectedHash && hash !== staged.expectedHash)) {
@@ -540,19 +647,25 @@ export class AppUpdateService {
         // run only after the explicit Install and restart command. Preserve the current install
         // directory, including custom locations: pins and NSIS's keep-shortcuts detection depend
         // on the executable path. NSIS requires /D to be the final argument.
-        const child = spawn(staged.path, ['/S', '--updated', '--force-run', `/D=${dirname(app.getPath('exe'))}`], {
-          detached: true,
-          stdio: 'ignore',
-          windowsHide: true,
-          // NSIS parses /D as the raw, unquoted command-line suffix. libuv's normal quoting
-          // would wrap paths containing spaces and hide that flag. Quote only argv[0];
-          // Windows paths cannot contain a double quote.
-          windowsVerbatimArguments: true,
-          argv0: '"' + staged.path + '"',
-          // Never leave the installer holding the old installation directory open.
-          cwd: dirname(staged.path)
-        })
-        child.once('error', () => reject(new UpdateError('UPDATES_INSTALL', m().installerNotStarted)))
+        const child = spawn(
+          staged.path,
+          ['/S', '--updated', '--force-run', `/D=${dirname(app.getPath('exe'))}`],
+          {
+            detached: true,
+            stdio: 'ignore',
+            windowsHide: true,
+            // NSIS parses /D as the raw, unquoted command-line suffix. libuv's normal quoting
+            // would wrap paths containing spaces and hide that flag. Quote only argv[0];
+            // Windows paths cannot contain a double quote.
+            windowsVerbatimArguments: true,
+            argv0: '"' + staged.path + '"',
+            // Never leave the installer holding the old installation directory open.
+            cwd: dirname(staged.path)
+          }
+        )
+        child.once('error', () =>
+          reject(new UpdateError('UPDATES_INSTALL', m().installerNotStarted))
+        )
         child.once('spawn', () => {
           child.unref()
           resolve()
@@ -580,14 +693,18 @@ export class AppUpdateService {
     try {
       const files = await readdir(directory)
       for (const name of files.slice(0, 200)) {
-        const match = /^ChessAdvisor-(\d+\.\d+\.\d+)-[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\.exe(?:\.part)?$/.exec(name)
+        const match =
+          /^ChessAdvisor-(\d+\.\d+\.\d+)-[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\.exe(?:\.part)?$/.exec(
+            name
+          )
         if (!match || !stableVersion(match[1])) continue
         const path = join(directory, name)
         if (path === this.staged?.path) continue
         const info = await lstat(path)
         if (!info.isFile()) continue
         if (
-          (stableVersion(this.state.currentVersion) && compareVersions(match[1], this.state.currentVersion) <= 0) ||
+          (stableVersion(this.state.currentVersion) &&
+            compareVersions(match[1], this.state.currentVersion) <= 0) ||
           Date.now() - info.mtimeMs > 7 * 24 * 60 * 60_000
         ) {
           await unlink(path).catch(() => {}) // Windows retains a locked installer until a later launch.

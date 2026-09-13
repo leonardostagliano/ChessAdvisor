@@ -77,7 +77,8 @@ export class UpdatePromptController {
         !this.dismissed.has(status.release.version)
       ) {
         version = status.release.version
-      } else if (status.phase === 'up-to-date' || (version && status.release?.version !== version)) version = null
+      } else if (status.phase === 'up-to-date' || (version && status.release?.version !== version))
+        version = null
     }
     this.emit({ status, version, ...(version !== this.state.version ? { error: '' } : {}) })
   }
@@ -108,7 +109,8 @@ export class UpdatePromptController {
         this.accept(downloaded)
       }
       const ready = this.state.status
-      if (ready?.release?.version !== version || !ready.canInstall) throw new Error(this.messages.releaseChanged)
+      if (ready?.release?.version !== version || !ready.canInstall)
+        throw new Error(this.messages.releaseChanged)
       this.emit({ pending: 'installing' })
       const installing = await this.api.install()
       if (this.disposed) return

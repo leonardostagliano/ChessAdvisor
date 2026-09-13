@@ -29,7 +29,8 @@ export const MAX_BOOK_PLIES = 20
 
 export const EMPTY_BOOK: OpeningBook = { byEpd: new Map() }
 
-const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value)
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value)
 
 /** Builds the book from the JSON dataset. A missing or broken file is not fatal: no names, no crash. */
 export function loadOpenings(resourcePath: string): OpeningBook {
@@ -49,7 +50,13 @@ export function loadOpenings(resourcePath: string): OpeningBook {
   for (const row of parsed) {
     if (!isRecord(row)) continue
     const { eco, name, epd } = row
-    if (typeof eco !== 'string' || typeof name !== 'string' || typeof epd !== 'string' || epd.length === 0) continue
+    if (
+      typeof eco !== 'string' ||
+      typeof name !== 'string' ||
+      typeof epd !== 'string' ||
+      epd.length === 0
+    )
+      continue
     // The dataset is already deduplicated by EPD; the first row still wins if it is not.
     if (!byEpd.has(epd)) byEpd.set(epd, { eco, name })
   }

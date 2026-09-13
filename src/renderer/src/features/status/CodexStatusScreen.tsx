@@ -22,7 +22,11 @@ export interface CodexStatusScreenProps {
 
 const CODEX_DOCS = 'https://developers.openai.com/codex/cli/'
 
-export function CodexStatusScreen({ state, onRetry, onContinueAnyway }: CodexStatusScreenProps): React.JSX.Element {
+export function CodexStatusScreen({
+  state,
+  onRetry,
+  onContinueAnyway
+}: CodexStatusScreenProps): React.JSX.Element {
   const { t } = useTranslation()
   const mirrored = useCodexStore((store) => store.state)
   const retryStore = useCodexStore((store) => store.retry)
@@ -49,7 +53,11 @@ export function CodexStatusScreen({ state, onRetry, onContinueAnyway }: CodexSta
             <h1 className={styles.title}>{t('codexStatus.starting.title')}</h1>
             <p className={styles.body}>{t('codexStatus.starting.body')}</p>
             <div className={styles.actions}>
-              <span className={styles.spinner} role="status" aria-label={t('codexStatus.starting.title')} />
+              <span
+                className={styles.spinner}
+                role="status"
+                aria-label={t('codexStatus.starting.title')}
+              />
             </div>
           </>
         ) : null}
@@ -65,10 +73,7 @@ export function CodexStatusScreen({ state, onRetry, onContinueAnyway }: CodexSta
             </ul>
             <div className={styles.actions}>
               {retryButton}
-              <Button
-                variant="ghost"
-                onClick={() => void window.api?.app.openExternal(CODEX_DOCS)}
-              >
+              <Button variant="ghost" onClick={() => void window.api?.app.openExternal(CODEX_DOCS)}>
                 {t('codexStatus.notInstalled.download')}
               </Button>
             </div>
@@ -148,7 +153,9 @@ function CopyableCommand({ command }: { command: string }): React.JSX.Element {
     <div className={styles.command}>
       <code className={`${styles.commandText} selectable`}>{command}</code>
       <div className={styles.actions}>
-        {copied ? <span className={styles.copied}>{t('codexStatus.notAuthenticated.copied')}</span> : null}
+        {copied ? (
+          <span className={styles.copied}>{t('codexStatus.notAuthenticated.copied')}</span>
+        ) : null}
         <Button variant="secondary" size="sm" onClick={() => void copy()}>
           {t('codexStatus.notAuthenticated.copy')}
         </Button>

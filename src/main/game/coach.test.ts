@@ -22,7 +22,11 @@ function game(patch: Partial<Game> = {}): Game {
     kind: 'match',
     status: 'in_progress',
     userColor: 'w',
-    opponent: { model: 'gpt-6-astra', effort: 'medium', difficulty: { mode: 'fixed', level: 3, targetElo: 1200 } },
+    opponent: {
+      model: 'gpt-6-astra',
+      effort: 'medium',
+      difficulty: { mode: 'fixed', level: 3, targetElo: 1200 }
+    },
     coach: { model: 'gpt-6-astra', effort: 'medium' },
     clock: null,
     language: 'it',
@@ -34,7 +38,8 @@ function game(patch: Partial<Game> = {}): Game {
 }
 
 class FakeCodex implements SessionCodex {
-  readonly started: { role: string; model: string; baseInstructions: string; gameId?: string }[] = []
+  readonly started: { role: string; model: string; baseInstructions: string; gameId?: string }[] =
+    []
   readonly requests: TurnRequest[] = []
   readonly interrupted: string[] = []
   readonly closed: string[] = []
@@ -43,17 +48,31 @@ class FakeCodex implements SessionCodex {
   deltas: string[] = []
   private threads = 0
 
-  async startThread(role: 'opponent' | 'coach' | 'training', opts: { model: string; baseInstructions: string; gameId?: string }): Promise<string> {
+  async startThread(
+    role: 'opponent' | 'coach' | 'training',
+    opts: { model: string; baseInstructions: string; gameId?: string }
+  ): Promise<string> {
     this.started.push({ role, ...opts })
     this.threads += 1
     return `thread-${this.threads}`
   }
 
-  async runTurn(req: TurnRequest, onDelta?: (kind: 'text' | 'reasoning', delta: string) => void): Promise<TurnResult> {
+  async runTurn(
+    req: TurnRequest,
+    onDelta?: (kind: 'text' | 'reasoning', delta: string) => void
+  ): Promise<TurnResult> {
     this.requests.push(req)
     for (const delta of this.deltas) onDelta?.('text', delta)
     const scripted = this.script.shift()
-    return scripted ?? { ok: true, text: 'Commento finto.', turnId: `t-${this.requests.length}`, effectiveModel: null, durationMs: 3 }
+    return (
+      scripted ?? {
+        ok: true,
+        text: 'Commento finto.',
+        turnId: `t-${this.requests.length}`,
+        effectiveModel: null,
+        durationMs: 3
+      }
+    )
   }
 
   async interrupt(threadId: string): Promise<void> {
@@ -70,17 +89,29 @@ class FakeCodex implements SessionCodex {
 }
 
 /** Engine whose best line is always the first legal move in SAN order. */
-function fakeEngine(available = true): SessionEngine & { calls: { fen: string; profile: string }[] } {
+function fakeEngine(
+  available = true
+): SessionEngine & { calls: { fen: string; profile: string }[] } {
   const calls: { fen: string; profile: string }[] = []
   return {
     calls,
-    state: (): EngineState => ({ available, binary: available ? 'avx2' : 'none', version: 'fake 17', message: null }),
+    state: (): EngineState => ({
+      available,
+      binary: available ? 'avx2' : 'none',
+      version: 'fake 17',
+      message: null
+    }),
     analyze: async (fen: string, profile: string): Promise<Analysis> => {
       calls.push({ fen, profile })
       const moves = legalMoves(fen)
       return {
         bestMove: moves[0]?.uci ?? null,
-        lines: moves.slice(0, 3).map((move, index) => ({ move: move.uci, pv: [move.uci], scoreCp: 40 - index * 10, depth: 18 })),
+        lines: moves.slice(0, 3).map((move, index) => ({
+          move: move.uci,
+          pv: [move.uci],
+          scoreCp: 40 - index * 10,
+          depth: 18
+        })),
         depth: 18,
         fen
       }
@@ -145,7 +176,11 @@ describe('CoachSession', () => {
     await coach.start(game(), { language: 'it' })
     expect(codex.started[0]!.baseInstructions).toMatch(/senza oracolo/)
 
-    const comment = await coach.commentOn(game(), 1, { fenBefore: START_FEN, fenAfter: AFTER_E4, pgn: '1. e4 *' })
+    const comment = await coach.commentOn(game(), 1, {
+      fenBefore: START_FEN,
+      fenAfter: AFTER_E4,
+      pgn: '1. e4 *'
+    })
     expect(comment).not.toBeNull()
     expect(missing.calls).toHaveLength(0)
     expect(codex.requests[0]!.text).toMatch(/senza oracolo/)
@@ -157,7 +192,11 @@ describe('CoachSession', () => {
     const seen: { busy: boolean; streamId: string | null }[] = []
     coach.onActivity = (activity) => seen.push({ ...activity })
 
-    const comment = await coach.commentOn(game(), 1, { fenBefore: START_FEN, fenAfter: AFTER_E4, pgn: '1. e4 *' })
+    const comment = await coach.commentOn(game(), 1, {
+      fenBefore: START_FEN,
+      fenAfter: AFTER_E4,
+      pgn: '1. e4 *'
+    })
 
     expect(comment).toMatchObject({ text: 'Commento finto.' })
     expect(comment!.streamId).toMatch(/[0-9a-f-]{36}/)
@@ -183,31 +222,59 @@ describe('CoachSession', () => {
 
   it('emits the whole answer once when the turn produced no deltas at all', async () => {
     await coach.start(game(), { language: 'it' })
-    const comment = await coach.commentOn(game(), 1, { fenBefore: START_FEN, fenAfter: AFTER_E4, pgn: '1. e4 *' })
+    const comment = await coach.commentOn(game(), 1, {
+      fenBefore: START_FEN,
+      fenAfter: AFTER_E4,
+      pgn: '1. e4 *'
+    })
     expect(emitted).toHaveLength(1)
-    expect(emitted[0]).toMatchObject({ streamId: comment!.streamId, kind: 'text', chunk: 'Commento finto.' })
+    expect(emitted[0]).toMatchObject({
+      streamId: comment!.streamId,
+      kind: 'text',
+      chunk: 'Commento finto.'
+    })
   })
 
   it('returns null instead of throwing when the comment turn fails', async () => {
     await coach.start(game(), { language: 'it' })
     codex.script = [{ ok: false, reason: 'failed', message: 'boom', turnId: null }]
-    expect(await coach.commentOn(game(), 1, { fenBefore: START_FEN, fenAfter: AFTER_E4, pgn: '1. e4 *' })).toBeNull()
+    expect(
+      await coach.commentOn(game(), 1, { fenBefore: START_FEN, fenAfter: AFTER_E4, pgn: '1. e4 *' })
+    ).toBeNull()
     expect(coach.off).toBe(false)
   })
 
   it('switches itself off after a quota failure instead of burning one call per move', async () => {
     await coach.start(game(), { language: 'it' })
     codex.script = [{ ok: false, reason: 'quota', message: 'usage limit reached', turnId: null }]
-    expect(await coach.commentOn(game(), 1, { fenBefore: START_FEN, fenAfter: AFTER_E4, pgn: '1. e4 *' })).toBeNull()
+    expect(
+      await coach.commentOn(game(), 1, { fenBefore: START_FEN, fenAfter: AFTER_E4, pgn: '1. e4 *' })
+    ).toBeNull()
     expect(coach.off).toBe(true)
-    expect(await coach.commentOn(game(), 1, { fenBefore: START_FEN, fenAfter: AFTER_E4, pgn: '1. e4 *' })).toBeNull()
+    expect(
+      await coach.commentOn(game(), 1, { fenBefore: START_FEN, fenAfter: AFTER_E4, pgn: '1. e4 *' })
+    ).toBeNull()
     expect(codex.requests).toHaveLength(1)
   })
 
   it('rides the resume recap on the first real turn instead of spending one on it', async () => {
     const log: CoachLogEntry[] = [
-      { id: 'c1', ply: 1, kind: 'question', text: 'che piano ho?', language: 'it', createdAt: '2026-01-01T00:00:00.000Z' },
-      { id: 'c2', ply: 1, kind: 'answer', text: 'sviluppa i pezzi', language: 'it', createdAt: '2026-01-01T00:00:00.000Z' }
+      {
+        id: 'c1',
+        ply: 1,
+        kind: 'question',
+        text: 'che piano ho?',
+        language: 'it',
+        createdAt: '2026-01-01T00:00:00.000Z'
+      },
+      {
+        id: 'c2',
+        ply: 1,
+        kind: 'answer',
+        text: 'sviluppa i pezzi',
+        language: 'it',
+        createdAt: '2026-01-01T00:00:00.000Z'
+      }
     ]
     await coach.start(game(), { language: 'it', recap: log })
     expect(codex.requests).toHaveLength(0)
@@ -224,15 +291,21 @@ describe('CoachSession', () => {
   })
 
   it('refuses an empty question and a question with no thread', async () => {
-    await expect(coach.ask(game(), 'ciao', { fen: AFTER_E4, pgn: '' })).rejects.toMatchObject({ code: 'COACH_NO_THREAD' })
+    await expect(coach.ask(game(), 'ciao', { fen: AFTER_E4, pgn: '' })).rejects.toMatchObject({
+      code: 'COACH_NO_THREAD'
+    })
     await coach.start(game(), { language: 'it' })
-    await expect(coach.ask(game(), '   ', { fen: AFTER_E4, pgn: '' })).rejects.toMatchObject({ code: 'COACH_EMPTY_QUESTION' })
+    await expect(coach.ask(game(), '   ', { fen: AFTER_E4, pgn: '' })).rejects.toMatchObject({
+      code: 'COACH_EMPTY_QUESTION'
+    })
   })
 
   it('reports a failed question as an error, unlike a comment', async () => {
     await coach.start(game(), { language: 'it' })
     codex.script = [{ ok: false, reason: 'failed', message: 'boom', turnId: null }]
-    await expect(coach.ask(game(), 'perché?', { fen: AFTER_E4, pgn: '' })).rejects.toMatchObject({ code: 'COACH_TURN_FAILED' })
+    await expect(coach.ask(game(), 'perché?', { fen: AFTER_E4, pgn: '' })).rejects.toMatchObject({
+      code: 'COACH_TURN_FAILED'
+    })
   })
 
   describe('hint', () => {
@@ -263,7 +336,11 @@ describe('CoachSession', () => {
 
     it('falls back to the engine best move and asks for the reason in plain text', async () => {
       await coach.start(game(), { language: 'it' })
-      codex.script = [hint('Qh5xf7'), hint('Ke2xd9'), { ok: true, text: 'Apre la diagonale.', turnId: 'h3', effectiveModel: null, durationMs: 1 }]
+      codex.script = [
+        hint('Qh5xf7'),
+        hint('Ke2xd9'),
+        { ok: true, text: 'Apre la diagonale.', turnId: 'h3', effectiveModel: null, durationMs: 1 }
+      ]
       const answer = await coach.hint(game(), { fen: START_FEN, pgn: '' })
 
       // The fake engine's best move is the first legal move in SAN order.
@@ -277,7 +354,9 @@ describe('CoachSession', () => {
       build({ engine: fakeEngine(false) })
       await coach.start(game(), { language: 'it' })
       codex.script = [hint('Qh5xf7'), hint('Ke2xd9')]
-      await expect(coach.hint(game(), { fen: START_FEN, pgn: '' })).rejects.toMatchObject({ code: 'COACH_HINT_FAILED' })
+      await expect(coach.hint(game(), { fen: START_FEN, pgn: '' })).rejects.toMatchObject({
+        code: 'COACH_HINT_FAILED'
+      })
     })
   })
 

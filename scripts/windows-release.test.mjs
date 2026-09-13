@@ -69,10 +69,14 @@ describe('planRelease', () => {
           GIT_COMMITTER_EMAIL: 'test@example.invalid'
         }
       }).trim()
-    writeFileSync(join(repo, 'package.json'), `${JSON.stringify({ name: 'chessadvisor', version: '0.1.0' }, null, 2)}\n`)
+    writeFileSync(
+      join(repo, 'package.json'),
+      `${JSON.stringify({ name: 'chessadvisor', version: '0.1.0' }, null, 2)}\n`
+    )
     execFileSync('git', ['init', '-q', '--initial-branch=main', repo], { encoding: 'utf8' })
     // Empty commits keep the fixture fast: only history and the manifest are read.
-    const commit = (message) => git('-c', 'commit.gpgsign=false', 'commit', '-q', '--allow-empty', '-m', message)
+    const commit = (message) =>
+      git('-c', 'commit.gpgsign=false', 'commit', '-q', '--allow-empty', '-m', message)
     commit('chore: initial import')
     commit('fix: first fix')
     git('tag', 'v0.1.1')
@@ -103,7 +107,11 @@ describe('planRelease', () => {
     expect(plan.version).toBe('0.2.0')
     expect(plan.tag).toBe('v0.2.0')
     expect(plan.previousTag).toBeNull()
-    expect(plan.commits.map((entry) => entry.sha)).toEqual([sha.initial, sha.firstFix, sha.secondFeature])
+    expect(plan.commits.map((entry) => entry.sha)).toEqual([
+      sha.initial,
+      sha.firstFix,
+      sha.secondFeature
+    ])
   })
 
   it('skips when HEAD is already contained in a published release', () => {
@@ -118,17 +126,25 @@ describe('planRelease', () => {
     expect(plan.bump).toBe('minor')
     expect(plan.version).toBe('0.2.0')
     expect(plan.previousTag).toBe('v0.1.1')
-    expect(plan.commits.map((entry) => entry.message)).toEqual(['feat: second feature', 'fix: third fix'])
+    expect(plan.commits.map((entry) => entry.message)).toEqual([
+      'feat: second feature',
+      'fix: third fix'
+    ])
   })
 
   it('throws when HEAD does not descend from the last published release', () => {
-    expect(() => planRelease({ cwd: repo, releases: [PUBLISHED_V011], sha: sha.divergent })).toThrow(/non discende/)
+    expect(() =>
+      planRelease({ cwd: repo, releases: [PUBLISHED_V011], sha: sha.divergent })
+    ).toThrow(/non discende/)
   })
 
   it('skips a version already reserved by another release', () => {
     const plan = planRelease({
       cwd: repo,
-      releases: [PUBLISHED_V011, { tag_name: 'v0.2.0', draft: true, prerelease: false, target_commitish: 'another-commit' }],
+      releases: [
+        PUBLISHED_V011,
+        { tag_name: 'v0.2.0', draft: true, prerelease: false, target_commitish: 'another-commit' }
+      ],
       sha: sha.thirdFix
     })
     expect(plan.version).toBe('0.2.1')

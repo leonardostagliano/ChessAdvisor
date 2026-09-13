@@ -71,7 +71,11 @@ export function formatEval(value: Eval | null | undefined, language: 'it' | 'en'
  * The block of Stockfish data shared by every coach call, or the oracle-less notice.
  * `evalAfter` is only written when the call is about a move that has already been played.
  */
-export function engineBlock(engine: EngineContext | null, language: 'it' | 'en', opts: { withAfter: boolean }): string[] {
+export function engineBlock(
+  engine: EngineContext | null,
+  language: 'it' | 'en',
+  opts: { withAfter: boolean }
+): string[] {
   const it = language === 'it'
   if (!engine) {
     return [
@@ -88,13 +92,21 @@ export function engineBlock(engine: EngineContext | null, language: 'it' | 'en',
     `${it ? 'Valutazione prima' : 'Evaluation before'}: ${formatEval(engine.evalBefore, language)}`
   ]
   if (opts.withAfter) {
-    lines.push(`${it ? 'Valutazione dopo' : 'Evaluation after'}: ${formatEval(engine.evalAfter, language)}`)
+    lines.push(
+      `${it ? 'Valutazione dopo' : 'Evaluation after'}: ${formatEval(engine.evalAfter, language)}`
+    )
   }
   if (engine.classification) {
-    lines.push(`${it ? 'Classificazione' : 'Classification'}: ${CLASSIFICATION_NAME[language][engine.classification]}`)
+    lines.push(
+      `${it ? 'Classificazione' : 'Classification'}: ${CLASSIFICATION_NAME[language][engine.classification]}`
+    )
   }
   if (engine.bestLines.length > 0) {
-    lines.push(it ? 'Migliori varianti dalla posizione di partenza:' : 'Best lines from the starting position:')
+    lines.push(
+      it
+        ? 'Migliori varianti dalla posizione di partenza:'
+        : 'Best lines from the starting position:'
+    )
     for (const [index, line] of engine.bestLines.entries()) {
       const pv = line.pv.length > 0 ? line.pv.join(' ') : line.san
       lines.push(`${index + 1}. ${line.san} (${formatEval(line.eval, language)}) — ${pv}`)
@@ -106,14 +118,21 @@ export function engineBlock(engine: EngineContext | null, language: 'it' | 'en',
 /** `FEN:` and `PGN:` lines, in the shape every prompt of the app uses. */
 export function positionBlock(fen: string, pgn: string, language: 'it' | 'en'): string[] {
   const text = movetext(pgn)
-  return [`FEN: ${fen}`, `PGN: ${text.length > 0 ? text : language === 'it' ? '(partita appena iniziata)' : '(game just started)'}`]
+  return [
+    `FEN: ${fen}`,
+    `PGN: ${text.length > 0 ? text : language === 'it' ? '(partita appena iniziata)' : '(game just started)'}`
+  ]
 }
 
 /**
  * `baseInstructions` of the coach thread: one per game, recreated on resume.
  * `userColor` is the colour of the person being taught, never the opponent's.
  */
-export function coachBaseInstructions(p: { language: 'it' | 'en'; userColor: 'w' | 'b'; engineAvailable: boolean }): string {
+export function coachBaseInstructions(p: {
+  language: 'it' | 'en'
+  userColor: 'w' | 'b'
+  engineAvailable: boolean
+}): string {
   const { language } = p
   const lines: string[] = []
 
@@ -160,7 +179,13 @@ export function commentText(p: {
   language: 'it' | 'en'
 }): string {
   const it = p.language === 'it'
-  const who = it ? (p.by === 'user' ? 'dalla persona che alleni' : 'dal suo avversario') : p.by === 'user' ? 'by the person you coach' : 'by their opponent'
+  const who = it
+    ? p.by === 'user'
+      ? 'dalla persona che alleni'
+      : 'dal suo avversario'
+    : p.by === 'user'
+      ? 'by the person you coach'
+      : 'by their opponent'
   const lines: string[] = [
     it ? `Commenta la mossa appena giocata ${who}.` : `Comment on the move just played ${who}.`,
     `${it ? 'Mossa' : 'Move'}: ${p.move.ply}. ${p.move.san} (${p.move.uci})`,
@@ -174,10 +199,18 @@ export function commentText(p: {
 }
 
 /** Text of a free question asked from the Coach tab (spec §4.2, "Consiglio"). */
-export function adviceText(p: { question: string; fen: string; pgn: string; engine: EngineContext | null; language: 'it' | 'en' }): string {
+export function adviceText(p: {
+  question: string
+  fen: string
+  pgn: string
+  engine: EngineContext | null
+  language: 'it' | 'en'
+}): string {
   const it = p.language === 'it'
   return [
-    it ? 'La persona che alleni ti fa una domanda sulla partita in corso.' : 'The person you coach asks you a question about the game in progress.',
+    it
+      ? 'La persona che alleni ti fa una domanda sulla partita in corso.'
+      : 'The person you coach asks you a question about the game in progress.',
     `${it ? 'Domanda' : 'Question'}: ${p.question.trim()}`,
     ...positionBlock(p.fen, p.pgn, p.language),
     ...engineBlock(p.engine, p.language, { withAfter: false }),
@@ -188,7 +221,12 @@ export function adviceText(p: { question: string; fen: string; pgn: string; engi
 }
 
 /** Text of the "Suggerimento" button: one move plus one reason, as structured output. */
-export function hintText(p: { fen: string; pgn: string; engine: EngineContext | null; language: 'it' | 'en' }): string {
+export function hintText(p: {
+  fen: string
+  pgn: string
+  engine: EngineContext | null
+  language: 'it' | 'en'
+}): string {
   const it = p.language === 'it'
   return [
     it

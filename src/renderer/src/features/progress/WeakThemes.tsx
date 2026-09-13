@@ -21,11 +21,22 @@ export interface ThemeRow {
 }
 
 /** Most frequent first; ties go to the theme seen most recently. */
-export function topThemes(stats: Record<string, ThemeStat> | undefined, limit = TOP_THEMES): ThemeRow[] {
+export function topThemes(
+  stats: Record<string, ThemeStat> | undefined,
+  limit = TOP_THEMES
+): ThemeRow[] {
   return Object.entries(stats ?? {})
     .filter(([, stat]) => (stat?.occurrences ?? 0) > 0)
-    .map(([theme, stat]) => ({ theme, occurrences: stat.occurrences, lastSeen: stat.lastSeen ?? '' }))
-    .sort((a, b) => b.occurrences - a.occurrences || (a.lastSeen < b.lastSeen ? 1 : a.lastSeen > b.lastSeen ? -1 : 0))
+    .map(([theme, stat]) => ({
+      theme,
+      occurrences: stat.occurrences,
+      lastSeen: stat.lastSeen ?? ''
+    }))
+    .sort(
+      (a, b) =>
+        b.occurrences - a.occurrences ||
+        (a.lastSeen < b.lastSeen ? 1 : a.lastSeen > b.lastSeen ? -1 : 0)
+    )
     .slice(0, limit)
 }
 
@@ -54,7 +65,11 @@ export function WeakThemes({ themeStats, className }: WeakThemesProps): React.JS
             const name = t(`themes.${row.theme}`, { defaultValue: row.theme })
             const seen = new Date(row.lastSeen)
             return (
-              <li key={row.theme} className={cx(styles.bar, styles.fill_theme)} data-theme={row.theme}>
+              <li
+                key={row.theme}
+                className={cx(styles.bar, styles.fill_theme)}
+                data-theme={row.theme}
+              >
                 <span className={styles.barLabel}>{name}</span>
                 <span
                   className={styles.barTrack}
@@ -67,7 +82,9 @@ export function WeakThemes({ themeStats, className }: WeakThemesProps): React.JS
                   />
                 </span>
                 <span className={styles.barValue}>
-                  <span className={styles.barPrimary}>{t('progress.occurrences', { count: row.occurrences })}</span>
+                  <span className={styles.barPrimary}>
+                    {t('progress.occurrences', { count: row.occurrences })}
+                  </span>
                   {Number.isNaN(seen.getTime()) ? null : (
                     <span className={styles.barSecondary}>
                       {t('progress.lastSeen', { date: seen.toLocaleDateString(i18n.language) })}

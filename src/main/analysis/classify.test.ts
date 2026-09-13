@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { classify } from './classify'
 
-const move = (loss: number, patch: Partial<Parameters<typeof classify>[0]> = {}): ReturnType<typeof classify> =>
+const move = (
+  loss: number,
+  patch: Partial<Parameters<typeof classify>[0]> = {}
+): ReturnType<typeof classify> =>
   classify({ loss, playedUci: 'e2e4', bestUci: 'd2d4', inBook: false, ...patch })
 
 describe('classify', () => {

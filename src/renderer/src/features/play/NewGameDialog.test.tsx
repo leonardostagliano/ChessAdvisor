@@ -90,8 +90,16 @@ afterEach(() => {
 describe('clockOf', () => {
   it('answers null for "Nessuno" and milliseconds for everything else', () => {
     expect(clockOf('none', 10, 5, false)).toBeNull()
-    expect(clockOf('5+0', 10, 5, false)).toEqual({ initialMs: 300_000, incrementMs: 0, aiClock: false })
-    expect(clockOf('custom', 3, 2, true)).toEqual({ initialMs: 180_000, incrementMs: 2_000, aiClock: true })
+    expect(clockOf('5+0', 10, 5, false)).toEqual({
+      initialMs: 300_000,
+      incrementMs: 0,
+      aiClock: false
+    })
+    expect(clockOf('custom', 3, 2, true)).toEqual({
+      initialMs: 180_000,
+      incrementMs: 2_000,
+      aiClock: true
+    })
   })
 
   it('keeps a custom time control inside usable bounds', () => {
@@ -111,7 +119,9 @@ describe('needsClockWarning', () => {
     expect(needsClockWarning({ ...short, initialMs: 600_000 }, 'xhigh')).toBe(true)
     expect(needsClockWarning(short, 'medium')).toBe(false)
     expect(needsClockWarning({ ...short, aiClock: false }, 'high')).toBe(false)
-    expect(needsClockWarning({ ...short, initialMs: 900_000, incrementMs: 10_000 }, 'high')).toBe(false)
+    expect(needsClockWarning({ ...short, initialMs: 900_000, incrementMs: 10_000 }, 'high')).toBe(
+      false
+    )
     expect(needsClockWarning(null, 'high')).toBe(false)
   })
 })
@@ -133,7 +143,10 @@ describe('NewGameDialog', () => {
       'Adattivaparte da 1200'
     ])
     // The last difficulty stored in the settings is preselected.
-    expect(within(group).getByRole('radio', { name: /Medio/ })).toHaveAttribute('aria-checked', 'true')
+    expect(within(group).getByRole('radio', { name: /Medio/ })).toHaveAttribute(
+      'aria-checked',
+      'true'
+    )
   })
 
   it('behaves like a radio group: a single Tab stop and arrow keys that move the choice', async () => {
@@ -145,23 +158,42 @@ describe('NewGameDialog', () => {
     expect(options.map((option) => option.tabIndex)).toEqual([-1, -1, 0, -1, -1, -1, -1])
 
     fireEvent.keyDown(group, { key: 'ArrowRight' })
-    expect(within(group).getByRole('radio', { name: /Impegnativo/ })).toHaveAttribute('aria-checked', 'true')
+    expect(within(group).getByRole('radio', { name: /Impegnativo/ })).toHaveAttribute(
+      'aria-checked',
+      'true'
+    )
     expect(document.activeElement).toBe(within(group).getByRole('radio', { name: /Impegnativo/ }))
 
     fireEvent.keyDown(group, { key: 'ArrowUp' })
-    expect(within(group).getByRole('radio', { name: /Medio/ })).toHaveAttribute('aria-checked', 'true')
+    expect(within(group).getByRole('radio', { name: /Medio/ })).toHaveAttribute(
+      'aria-checked',
+      'true'
+    )
 
     fireEvent.keyDown(group, { key: 'End' })
-    expect(within(group).getByRole('radio', { name: /Adattiva/ })).toHaveAttribute('aria-checked', 'true')
+    expect(within(group).getByRole('radio', { name: /Adattiva/ })).toHaveAttribute(
+      'aria-checked',
+      'true'
+    )
 
     // The arrows wrap around, as the radio-group pattern prescribes.
     fireEvent.keyDown(group, { key: 'ArrowRight' })
-    expect(within(group).getByRole('radio', { name: /Principiante/ })).toHaveAttribute('aria-checked', 'true')
+    expect(within(group).getByRole('radio', { name: /Principiante/ })).toHaveAttribute(
+      'aria-checked',
+      'true'
+    )
 
     const colors = screen.getByRole('radiogroup', { name: 'Colore' })
-    expect(within(colors).getAllByRole('radio').map((option) => option.tabIndex)).toEqual([0, -1, -1])
+    expect(
+      within(colors)
+        .getAllByRole('radio')
+        .map((option) => option.tabIndex)
+    ).toEqual([0, -1, -1])
     fireEvent.keyDown(colors, { key: 'ArrowLeft' })
-    expect(within(colors).getByRole('radio', { name: 'Casuale' })).toHaveAttribute('aria-checked', 'true')
+    expect(within(colors).getByRole('radio', { name: 'Casuale' })).toHaveAttribute(
+      'aria-checked',
+      'true'
+    )
   })
 
   it('shows the current adaptive rating under the adaptive option', async () => {
@@ -175,7 +207,12 @@ describe('NewGameDialog', () => {
     await screen.findByRole('radiogroup', { name: /difficolt/i })
 
     let listbox = await openSelect(/ragionamento/i)
-    expect(optionTexts(listbox)).toEqual(['Bassofast', 'Mediobalanced', 'Altoslow', 'Estremoslowest'])
+    expect(optionTexts(listbox)).toEqual([
+      'Bassofast',
+      'Mediobalanced',
+      'Altoslow',
+      'Estremoslowest'
+    ])
     fireEvent.keyDown(listbox, { key: 'Escape' })
 
     listbox = await openSelect(/modello/i)
@@ -229,20 +266,24 @@ describe('NewGameDialog', () => {
     render(<NewGameDialog open onClose={() => {}} />)
     const group = await screen.findByRole('radiogroup', { name: 'Orologio' })
 
-    expect(within(group).getAllByRole('radio').map((option) => option.textContent)).toEqual([
-      'Nessuno',
-      '5+0',
-      '10+0',
-      '15+10',
-      'Personalizzato'
-    ])
-    expect(within(group).getByRole('radio', { name: 'Nessuno' })).toHaveAttribute('aria-checked', 'true')
+    expect(
+      within(group)
+        .getAllByRole('radio')
+        .map((option) => option.textContent)
+    ).toEqual(['Nessuno', '5+0', '10+0', '15+10', 'Personalizzato'])
+    expect(within(group).getByRole('radio', { name: 'Nessuno' })).toHaveAttribute(
+      'aria-checked',
+      'true'
+    )
     // The mode only exists once there is a clock to share (spec §4.3).
     expect(screen.queryByRole('radiogroup', { name: 'Modalità' })).not.toBeInTheDocument()
 
     fireEvent.click(within(group).getByRole('radio', { name: '15+10' }))
     expect(screen.getByRole('radiogroup', { name: 'Modalità' })).toBeInTheDocument()
-    expect(screen.getByRole('radio', { name: 'Solo il mio tempo' })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByRole('radio', { name: 'Solo il mio tempo' })).toHaveAttribute(
+      'aria-checked',
+      'true'
+    )
   })
 
   it('passes the chosen time control to the new game', async () => {
@@ -254,7 +295,9 @@ describe('NewGameDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Inizia partita' }))
 
     await waitFor(() => expect(started).toHaveLength(1))
-    expect(started[0]).toMatchObject({ clock: { initialMs: 900_000, incrementMs: 10_000, aiClock: true } })
+    expect(started[0]).toMatchObject({
+      clock: { initialMs: 900_000, incrementMs: 10_000, aiClock: true }
+    })
   })
 
   it('takes the custom time control from its two inputs', async () => {
@@ -267,7 +310,9 @@ describe('NewGameDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Inizia partita' }))
 
     await waitFor(() => expect(started).toHaveLength(1))
-    expect(started[0]).toMatchObject({ clock: { initialMs: 180_000, incrementMs: 2_000, aiClock: false } })
+    expect(started[0]).toMatchObject({
+      clock: { initialMs: 180_000, incrementMs: 2_000, aiClock: false }
+    })
   })
 
   it('makes the user choose before giving the AI a clock it will flag on', async () => {
@@ -277,7 +322,11 @@ describe('NewGameDialog', () => {
     // gpt-6-astra with a high effort, 5+0, clock for the AI too: the case of spec §4.3.
     const listbox = await openSelect(/ragionamento/i)
     fireEvent.click(within(listbox).getByRole('option', { name: /Alto/ }))
-    fireEvent.click(within(screen.getByRole('radiogroup', { name: 'Orologio' })).getByRole('radio', { name: '5+0' }))
+    fireEvent.click(
+      within(screen.getByRole('radiogroup', { name: 'Orologio' })).getByRole('radio', {
+        name: '5+0'
+      })
+    )
     fireEvent.click(screen.getByRole('radio', { name: 'Orologio anche per l’AI' }))
     fireEvent.click(screen.getByRole('button', { name: 'Inizia partita' }))
 
@@ -287,7 +336,10 @@ describe('NewGameDialog', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Solo il mio tempo' }))
     await waitFor(() => expect(started).toHaveLength(1))
-    expect(started[0]).toMatchObject({ effort: 'high', clock: { initialMs: 300_000, aiClock: false } })
+    expect(started[0]).toMatchObject({
+      effort: 'high',
+      clock: { initialMs: 300_000, aiClock: false }
+    })
   })
 
   it('starts the risky game as it is when the user insists', async () => {
@@ -296,14 +348,20 @@ describe('NewGameDialog', () => {
 
     const listbox = await openSelect(/ragionamento/i)
     fireEvent.click(within(listbox).getByRole('option', { name: /Alto/ }))
-    fireEvent.click(within(screen.getByRole('radiogroup', { name: 'Orologio' })).getByRole('radio', { name: '10+0' }))
+    fireEvent.click(
+      within(screen.getByRole('radiogroup', { name: 'Orologio' })).getByRole('radio', {
+        name: '10+0'
+      })
+    )
     fireEvent.click(screen.getByRole('radio', { name: 'Orologio anche per l’AI' }))
     fireEvent.click(screen.getByRole('button', { name: 'Inizia partita' }))
 
     await screen.findByText(/rischia di perdere per tempo/)
     fireEvent.click(screen.getByRole('button', { name: 'Continua comunque' }))
     await waitFor(() => expect(started).toHaveLength(1))
-    expect(started[0]).toMatchObject({ clock: { initialMs: 600_000, incrementMs: 0, aiClock: true } })
+    expect(started[0]).toMatchObject({
+      clock: { initialMs: 600_000, incrementMs: 0, aiClock: true }
+    })
   })
 
   it('explains that no model is playable when Codex has none', async () => {

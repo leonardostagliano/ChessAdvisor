@@ -50,7 +50,11 @@ export function evalAtCursor(game: Game | null, cursor: number): Eval | null {
   return move ? (toWhite(move.eval?.after, mover(move)) ?? null) : null
 }
 
-export function ReviewScreen({ gameId, ply = null, onClose }: ReviewScreenProps): React.JSX.Element {
+export function ReviewScreen({
+  gameId,
+  ply = null,
+  onClose
+}: ReviewScreenProps): React.JSX.Element {
   const { t, i18n } = useTranslation()
   const engineAvailable = useEngineStore((state) => state.available)
   const game = useReviewStore((state) => state.game)
@@ -124,19 +128,31 @@ export function ReviewScreen({ gameId, ply = null, onClose }: ReviewScreenProps)
   const moves = game.moves
   const move = cursor >= 0 ? (moves[cursor] ?? null) : null
   const fen = move ? move.fenAfter : (game.startFen ?? START_FEN)
-  const lastMove: [string, string] | undefined = move ? [move.uci.slice(0, 2), move.uci.slice(2, 4)] : undefined
+  const lastMove: [string, string] | undefined = move
+    ? [move.uci.slice(0, 2), move.uci.slice(2, 4)]
+    : undefined
   const analysis = game.analysis
   const tone = game.result ? resultTone(game.result, game.userColor) : 'draw'
   const busy = request !== null
-  const streaming = activity && activity.streamId && move && activity.ply === move.ply ? (stream?.text ?? '') : null
+  const streaming =
+    activity && activity.streamId && move && activity.ply === move.ply ? (stream?.text ?? '') : null
 
   const evaluation = evalAtCursor(game, cursor)
   const fenBefore = move ? fenBeforeOf(game, cursor) : (game.startFen ?? START_FEN)
-  const bestLine = move?.eval ? numberedLine(fenBefore, lineInSan(fenBefore, move.eval.bestLine.length > 0 ? move.eval.bestLine : [move.eval.bestMove])) : ''
+  const bestLine = move?.eval
+    ? numberedLine(
+        fenBefore,
+        lineInSan(
+          fenBefore,
+          move.eval.bestLine.length > 0 ? move.eval.bestLine : [move.eval.bestMove]
+        )
+      )
+    : ''
 
   const running = status.state === 'running'
   const analysed = !!analysis
-  const percent = running && status.total ? Math.round(((status.ply ?? 0) / Math.max(1, status.total)) * 100) : 0
+  const percent =
+    running && status.total ? Math.round(((status.ply ?? 0) / Math.max(1, status.total)) * 100) : 0
 
   return (
     <section className={styles.screen} aria-label={t('review.title')}>
@@ -144,25 +160,44 @@ export function ReviewScreen({ gameId, ply = null, onClose }: ReviewScreenProps)
         <div className={styles.headTexts}>
           <p className="eyebrow">{t('review.title')}</p>
           <h2 className={styles.title}>
-            {game.result ? `${t(`result.${tone}`)} ${t(`result.reason.${game.result.reason}`)}` : t('archive.statusInProgress')}
+            {game.result
+              ? `${t(`result.${tone}`)} ${t(`result.reason.${game.result.reason}`)}`
+              : t('archive.statusInProgress')}
           </h2>
           <div className={styles.chips}>
-            {game.result ? <span className={cx(styles.chip, 'mono')}>{game.result.outcome}</span> : null}
-            <span className={styles.chip}>{t('archive.against', { model: game.opponent.model })}</span>
-            <span className={styles.chip}>{game.userColor === 'w' ? t('archive.asWhite') : t('archive.asBlack')}</span>
+            {game.result ? (
+              <span className={cx(styles.chip, 'mono')}>{game.result.outcome}</span>
+            ) : null}
+            <span className={styles.chip}>
+              {t('archive.against', { model: game.opponent.model })}
+            </span>
+            <span className={styles.chip}>
+              {game.userColor === 'w' ? t('archive.asWhite') : t('archive.asBlack')}
+            </span>
             {game.opening ? (
               <span className={styles.chip} title={game.opening.name}>
                 {`${game.opening.eco} · ${game.opening.name}`}
               </span>
             ) : null}
-            <span className={styles.chip}>{new Date(game.updatedAt).toLocaleDateString(i18n.language)}</span>
+            <span className={styles.chip}>
+              {new Date(game.updatedAt).toLocaleDateString(i18n.language)}
+            </span>
           </div>
         </div>
         <div className={styles.actions}>
-          <Button size="sm" disabled={busy || !analysed || (analysis?.keyMoments.length ?? 0) === 0} onClick={() => void useReviewStore.getState().commentKeyMoments()}>
+          <Button
+            size="sm"
+            disabled={busy || !analysed || (analysis?.keyMoments.length ?? 0) === 0}
+            onClick={() => void useReviewStore.getState().commentKeyMoments()}
+          >
             {request === 'keyMoments' ? t('review.commenting') : t('review.commentKeyMoments')}
           </Button>
-          <Button size="sm" variant="primary" disabled={busy} onClick={() => void useReviewStore.getState().lesson()}>
+          <Button
+            size="sm"
+            variant="primary"
+            disabled={busy}
+            onClick={() => void useReviewStore.getState().lesson()}
+          >
             {request === 'lesson' ? t('review.lessonWriting') : t('review.lesson')}
           </Button>
           <Button size="sm" variant="ghost" onClick={onClose}>
@@ -183,7 +218,9 @@ export function ReviewScreen({ gameId, ply = null, onClose }: ReviewScreenProps)
           >
             <div className={styles.progressFill} style={{ width: `${percent}%` }} />
           </div>
-          <p className={styles.note}>{t('review.analysingProgress', { ply: status.ply ?? 0, total: status.total ?? 0 })}</p>
+          <p className={styles.note}>
+            {t('review.analysingProgress', { ply: status.ply ?? 0, total: status.total ?? 0 })}
+          </p>
         </div>
       ) : null}
 
@@ -212,9 +249,15 @@ export function ReviewScreen({ gameId, ply = null, onClose }: ReviewScreenProps)
         <div className={styles.stats}>
           {(['w', 'b'] as const).map((colour) => (
             <div key={colour} className={styles.stat}>
-              <span className={styles.statLabel}>{colour === 'w' ? t('review.white') : t('review.black')}</span>
-              <span className={cx(styles.statValue, 'mono')}>{t('review.accuracyValue', { value: analysis.accuracy[colour].toFixed(1) })}</span>
-              <span className={styles.statHint}>{t('review.acplValue', { value: analysis.acpl[colour] })}</span>
+              <span className={styles.statLabel}>
+                {colour === 'w' ? t('review.white') : t('review.black')}
+              </span>
+              <span className={cx(styles.statValue, 'mono')}>
+                {t('review.accuracyValue', { value: analysis.accuracy[colour].toFixed(1) })}
+              </span>
+              <span className={styles.statHint}>
+                {t('review.acplValue', { value: analysis.acpl[colour] })}
+              </span>
             </div>
           ))}
         </div>
@@ -231,7 +274,11 @@ export function ReviewScreen({ gameId, ply = null, onClose }: ReviewScreenProps)
           <EvalGraph game={game} cursor={cursor} onSelect={setCursor} />
 
           <div className={styles.boardRow}>
-            <EvalBar evaluation={evaluation} orientation={game.userColor === 'w' ? 'white' : 'black'} available={engineAvailable} />
+            <EvalBar
+              evaluation={evaluation}
+              orientation={game.userColor === 'w' ? 'white' : 'black'}
+              available={engineAvailable}
+            />
             <Board
               fen={fen}
               orientation={game.userColor === 'w' ? 'white' : 'black'}
@@ -243,9 +290,15 @@ export function ReviewScreen({ gameId, ply = null, onClose }: ReviewScreenProps)
 
           <section className={styles.card} aria-label={t('review.moveDetails')}>
             <header className={styles.cardHead}>
-              <h3 className={cx(styles.cardTitle, 'mono')}>{move ? `${move.ply}. ${move.san}` : t('play.startPosition')}</h3>
+              <h3 className={cx(styles.cardTitle, 'mono')}>
+                {move ? `${move.ply}. ${move.san}` : t('play.startPosition')}
+              </h3>
               {move ? (
-                <Button size="sm" disabled={busy} onClick={() => void useReviewStore.getState().commentMove(move.ply)}>
+                <Button
+                  size="sm"
+                  disabled={busy}
+                  onClick={() => void useReviewStore.getState().commentMove(move.ply)}
+                >
                   {request === 'move' ? t('review.commenting') : t('review.commentMove')}
                 </Button>
               ) : null}
@@ -256,33 +309,54 @@ export function ReviewScreen({ gameId, ply = null, onClose }: ReviewScreenProps)
                 <div className={styles.details}>
                   <div className={styles.detail}>
                     <span className={styles.detailLabel}>{t('review.evalBefore')}</span>
-                    <span className={cx(styles.detailValue, 'mono')}>{evalLabel(toWhite(move.eval.before, mover(move)))}</span>
+                    <span className={cx(styles.detailValue, 'mono')}>
+                      {evalLabel(toWhite(move.eval.before, mover(move)))}
+                    </span>
                   </div>
                   <div className={styles.detail}>
                     <span className={styles.detailLabel}>{t('review.evalAfter')}</span>
-                    <span className={cx(styles.detailValue, 'mono')}>{evalLabel(toWhite(move.eval.after, mover(move)))}</span>
+                    <span className={cx(styles.detailValue, 'mono')}>
+                      {evalLabel(toWhite(move.eval.after, mover(move)))}
+                    </span>
                   </div>
                   <div className={styles.detail}>
                     <span className={styles.detailLabel}>{t('review.judgement')}</span>
-                    <span className={cx(styles.detailValue, styles[`mark_${move.eval.classification}` as const])}>
+                    <span
+                      className={cx(
+                        styles.detailValue,
+                        styles[`mark_${move.eval.classification}` as const]
+                      )}
+                    >
                       {t(`review.classification.${move.eval.classification}`)}
                     </span>
                   </div>
                   <div className={styles.detail}>
                     <span className={styles.detailLabel}>{t('review.winLoss')}</span>
-                    <span className={cx(styles.detailValue, 'mono')}>{move.eval.winPercentLoss.toFixed(1)}</span>
+                    <span className={cx(styles.detailValue, 'mono')}>
+                      {move.eval.winPercentLoss.toFixed(1)}
+                    </span>
                   </div>
                 </div>
-                {bestLine ? <p className={cx(styles.bestLine, 'mono')}>{t('review.bestLine', { line: bestLine })}</p> : null}
+                {bestLine ? (
+                  <p className={cx(styles.bestLine, 'mono')}>
+                    {t('review.bestLine', { line: bestLine })}
+                  </p>
+                ) : null}
               </>
             ) : (
-              <p className={styles.note}>{move ? t('review.moveNotAnalysed') : t('review.startHint')}</p>
+              <p className={styles.note}>
+                {move ? t('review.moveNotAnalysed') : t('review.startHint')}
+              </p>
             )}
 
             {streaming !== null ? (
               <CommentCard text={streaming} streaming title={t('coach.name')} />
             ) : move?.coachComment ? (
-              <CommentCard text={move.coachComment} language={move.coachCommentLanguage ?? null} title={t('coach.name')} />
+              <CommentCard
+                text={move.coachComment}
+                language={move.coachCommentLanguage ?? null}
+                title={t('coach.name')}
+              />
             ) : null}
           </section>
         </div>
@@ -293,7 +367,11 @@ export function ReviewScreen({ gameId, ply = null, onClose }: ReviewScreenProps)
             <ReviewMoveList moves={moves} cursor={cursor} onSelect={setCursor} />
           </section>
           <KeyMoments game={game} cursor={cursor} onSelect={setCursor} analysed={analysed} />
-          <LessonCard lesson={analysis?.lesson ?? null} busy={request === 'lesson'} onGenerate={() => void useReviewStore.getState().lesson()} />
+          <LessonCard
+            lesson={analysis?.lesson ?? null}
+            busy={request === 'lesson'}
+            onGenerate={() => void useReviewStore.getState().lesson()}
+          />
         </aside>
       </div>
     </section>

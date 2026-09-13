@@ -9,7 +9,10 @@ import { parseBestMove, parseInfoLine, type InfoLine } from './uci'
  * Search budget per use case (spec §3.2). `live` drives the eval bar and must stay cheap,
  * `coach` feeds comments, hints and the illegal-move fallback, `review` the post-game analysis.
  */
-export const PROFILES: Record<AnalysisProfile, { depth: number; movetimeMs?: number; multipv: number }> = {
+export const PROFILES: Record<
+  AnalysisProfile,
+  { depth: number; movetimeMs?: number; multipv: number }
+> = {
   live: { depth: 14, movetimeMs: 300, multipv: 1 },
   coach: { depth: 18, multipv: 3 },
   review: { depth: 20, multipv: 2 }
@@ -25,7 +28,11 @@ const BINARIES: { binary: 'avx2' | 'popcnt'; file: string }[] = [
 const PROBE_TIMEOUT_MS = 5000
 const HASH_MB = 128
 /** A search that never reports `bestmove` must not wedge the queue for good. */
-const SEARCH_TIMEOUT_MS: Record<AnalysisProfile, number> = { live: 10_000, coach: 60_000, review: 180_000 }
+const SEARCH_TIMEOUT_MS: Record<AnalysisProfile, number> = {
+  live: 10_000,
+  coach: 60_000,
+  review: 180_000
+}
 
 /** Carries a machine-readable code to the renderer through the IPC error contract. */
 export class EngineError extends Error {
@@ -125,11 +132,22 @@ export class EngineService {
     // A failed probe is never remembered: antivirus scans, a busy machine or a missing download can
     // all make one launch fail, and the engine must come back on its own at the next start.
     const candidates = override
-      ? [{ binary: (cached === 'avx2' || cached === 'popcnt' ? cached : 'avx2') as 'avx2' | 'popcnt', exe: override.exe, args: override.args }]
+      ? [
+          {
+            binary: (cached === 'avx2' || cached === 'popcnt' ? cached : 'avx2') as
+              'avx2' | 'popcnt',
+            exe: override.exe,
+            args: override.args
+          }
+        ]
       : BINARIES.slice()
           // The build chosen by a previous probe goes first; the others stay as a fallback.
           .sort((a, b) => Number(b.binary === cached) - Number(a.binary === cached))
-          .map((entry) => ({ binary: entry.binary, exe: this.deps.resourcePath('engine', entry.file), args: [] as string[] }))
+          .map((entry) => ({
+            binary: entry.binary,
+            exe: this.deps.resourcePath('engine', entry.file),
+            args: [] as string[]
+          }))
 
     const failures: string[] = []
     for (const candidate of candidates) {
@@ -140,7 +158,12 @@ export class EngineService {
       const failure = await this.probe(candidate.exe, candidate.args)
       if (failure === null) {
         await this.persistBinary(candidate.binary)
-        return this.setState({ available: true, binary: candidate.binary, version: this.version, message: null })
+        return this.setState({
+          available: true,
+          binary: candidate.binary,
+          version: this.version,
+          message: null
+        })
       }
       failures.push(`${candidate.exe}: ${failure}`)
     }
@@ -221,14 +244,33 @@ export class EngineService {
    * running one (its promise rejects with an `AbortError`); `coach` and `review` requests are
    * never pre-empted, so a post-game analysis is not destroyed by the eval bar.
    */
-  analyze(fen: string, profile: AnalysisProfile, opts?: { signal?: AbortSignal }): Promise<Analysis> {
+  analyze(
+    fen: string,
+    profile: AnalysisProfile,
+    opts?: { signal?: AbortSignal }
+  ): Promise<Analysis> {
     if (!this.current.available || !this.proc || !this.proc.alive) {
-      return Promise.reject(new EngineError('ENGINE_UNAVAILABLE', this.current.message ?? 'the chess engine is not available'))
+      return Promise.reject(
+        new EngineError(
+          'ENGINE_UNAVAILABLE',
+          this.current.message ?? 'the chess engine is not available'
+        )
+      )
     }
-    if (opts?.signal?.aborted) return Promise.reject(new EngineAbortError('analysis aborted before it started'))
+    if (opts?.signal?.aborted)
+      return Promise.reject(new EngineAbortError('analysis aborted before it started'))
 
     return new Promise<Analysis>((resolve, reject) => {
-      const job: Job = { fen, profile, resolve, reject, settled: false, lines: new Map(), timer: null, detachSignal: null }
+      const job: Job = {
+        fen,
+        profile,
+        resolve,
+        reject,
+        settled: false,
+        lines: new Map(),
+        timer: null,
+        detachSignal: null
+      }
 
       const signal = opts?.signal
       if (signal) {
@@ -242,7 +284,8 @@ export class EngineService {
           this.remove(queued)
           this.settle(queued, new EngineAbortError('superseded by a newer live analysis'))
         }
-        if (this.running && this.running.profile === 'live') this.preempt(this.running, 'superseded by a newer live analysis')
+        if (this.running && this.running.profile === 'live')
+          this.preempt(this.running, 'superseded by a newer live analysis')
       }
 
       this.queue.push(job)
@@ -255,7 +298,8 @@ export class EngineService {
     const proc = this.proc
     if (!proc || !proc.alive) {
       const job = this.queue.shift()
-      if (job) this.settle(job, new EngineError('ENGINE_UNAVAILABLE', 'the chess engine is not running'))
+      if (job)
+        this.settle(job, new EngineError('ENGINE_UNAVAILABLE', 'the chess engine is not running'))
       return
     }
     const job = this.queue.shift()!
@@ -319,7 +363,10 @@ export class EngineService {
       waiter.reject(new Error(`the engine exited with code ${code} during the handshake`))
     }
     if (this.quitting) return
-    const error = new EngineError('ENGINE_CRASHED', `the chess engine exited unexpectedly (code ${code})`)
+    const error = new EngineError(
+      'ENGINE_CRASHED',
+      `the chess engine exited unexpectedly (code ${code})`
+    )
     this.failAll(error)
     if (this.current.available) {
       this.setState({ ...this.current, available: false, message: error.message })
@@ -340,7 +387,9 @@ export class EngineService {
    */
   private handleSearchTimeout(job: Job, deadline: number): void {
     this.settle(job, new EngineError('ENGINE_TIMEOUT', `no bestmove within ${deadline} ms`))
-    void this.terminate(`the chess engine stopped answering (no bestmove within ${deadline} ms)`).catch(() => undefined)
+    void this.terminate(
+      `the chess engine stopped answering (no bestmove within ${deadline} ms)`
+    ).catch(() => undefined)
   }
 
   private abort(job: Job): void {

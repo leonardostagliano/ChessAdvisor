@@ -9,7 +9,8 @@ import { TESTED_CODEX_VERSION } from '../codex/protocolVersion'
  */
 export function getAppVersion(): string {
   if (app.isPackaged) return app.getVersion()
-  if (typeof __CHESSADVISOR_DEV_VERSION__ === 'string' && __CHESSADVISOR_DEV_VERSION__) return __CHESSADVISOR_DEV_VERSION__
+  if (typeof __CHESSADVISOR_DEV_VERSION__ === 'string' && __CHESSADVISOR_DEV_VERSION__)
+    return __CHESSADVISOR_DEV_VERSION__
   return `${app.getVersion().split('+')[0]}-dev`
 }
 

@@ -12,7 +12,9 @@ export const MAX_INSTALLER_BYTES = 512 * 1024 * 1024
 export function stableVersion(value: unknown): string | undefined {
   if (typeof value !== 'string') return undefined
   const match = /^v?((?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*))$/.exec(value)
-  return match && match[1].split('.').every((part) => Number.isSafeInteger(Number(part))) ? match[1] : undefined
+  return match && match[1].split('.').every((part) => Number.isSafeInteger(Number(part)))
+    ? match[1]
+    : undefined
 }
 
 export function compareVersions(left: string, right: string): number {
@@ -38,7 +40,8 @@ export function isApplicationOrigin(value: string): boolean {
       !url.port &&
       !url.search &&
       !url.hash &&
-      url.pathname.replace(/^\/|\.git\/?$|\/$/g, '').toLowerCase() === UPDATE_REPOSITORY.toLowerCase()
+      url.pathname.replace(/^\/|\.git\/?$|\/$/g, '').toLowerCase() ===
+        UPDATE_REPOSITORY.toLowerCase()
     )
   } catch {
     return false

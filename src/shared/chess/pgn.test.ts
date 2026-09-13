@@ -35,7 +35,9 @@ describe('pgnOf', () => {
   })
 
   it('writes the headers it is given', () => {
-    const pgn = pgnOf(sans(['e4']), { headers: { Event: 'ChessAdvisor', White: 'Leonardo', Black: 'gpt-6-astra', Result: '*' } })
+    const pgn = pgnOf(sans(['e4']), {
+      headers: { Event: 'ChessAdvisor', White: 'Leonardo', Black: 'gpt-6-astra', Result: '*' }
+    })
     expect(pgn).toContain('[Event "ChessAdvisor"]')
     expect(pgn).toContain('[White "Leonardo"]')
     expect(pgn).toContain('[Black "gpt-6-astra"]')

@@ -127,6 +127,10 @@ export class GameClock {
   /** What the renderer interpolates from: the values at `updatedAt` and who is burning time. */
   snapshot(): ClockState {
     this.settle()
-    return { remainingMs: { ...this.remainingMs }, running: this.running, updatedAt: this.updatedAt }
+    return {
+      remainingMs: { ...this.remainingMs },
+      running: this.running,
+      updatedAt: this.updatedAt
+    }
   }
 }

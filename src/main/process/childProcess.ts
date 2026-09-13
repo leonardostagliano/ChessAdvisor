@@ -127,7 +127,11 @@ export class ManagedProcess {
     if (pid === undefined) return
     if (process.platform === 'win32') {
       try {
-        spawn('taskkill', ['/PID', String(pid), '/T', '/F'], { shell: false, windowsHide: true, stdio: 'ignore' }).unref()
+        spawn('taskkill', ['/PID', String(pid), '/T', '/F'], {
+          shell: false,
+          windowsHide: true,
+          stdio: 'ignore'
+        }).unref()
         return
       } catch {
         /* fall through to SIGKILL */
@@ -165,7 +169,8 @@ export class ManagedProcess {
     this.opts.onExit?.(code, canRestart)
     if (!canRestart || !restart) return
 
-    const backoff = restart.backoffMs[this.attempt] ?? restart.backoffMs[restart.backoffMs.length - 1] ?? 0
+    const backoff =
+      restart.backoffMs[this.attempt] ?? restart.backoffMs[restart.backoffMs.length - 1] ?? 0
     this.attempt += 1
     this.restartTimer = setTimeout(() => {
       this.restartTimer = null
@@ -196,7 +201,9 @@ export class ManagedProcess {
         continue
       }
       if (raw.length > MAX_LINE_BYTES) {
-        console.error(`[${this.opts.name}] dropped an output line larger than ${MAX_LINE_BYTES} bytes`)
+        console.error(
+          `[${this.opts.name}] dropped an output line larger than ${MAX_LINE_BYTES} bytes`
+        )
         continue
       }
       const line = stripCr(raw).toString('utf8')
@@ -214,6 +221,9 @@ export class ManagedProcess {
   }
 }
 
-const stripCr = (buffer: Buffer): Buffer => (buffer.length > 0 && buffer[buffer.length - 1] === 0x0d ? buffer.subarray(0, buffer.length - 1) : buffer)
+const stripCr = (buffer: Buffer): Buffer =>
+  buffer.length > 0 && buffer[buffer.length - 1] === 0x0d
+    ? buffer.subarray(0, buffer.length - 1)
+    : buffer
 
 const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))

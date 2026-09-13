@@ -105,8 +105,12 @@ async function readVolume(volume, from) {
   if (from) return readFile(join(resolve(from), `${volume}.tsv`), 'utf8')
   const url = `${BASE}/${volume}.tsv`
   process.stdout.write(`  downloading ${url}\n`)
-  const response = await fetch(url, { redirect: 'follow', headers: { 'user-agent': 'ChessAdvisor-build-datasets' } })
-  if (response.status !== 200) throw new Error(`${url} answered HTTP ${response.status} ${response.statusText}`)
+  const response = await fetch(url, {
+    redirect: 'follow',
+    headers: { 'user-agent': 'ChessAdvisor-build-datasets' }
+  })
+  if (response.status !== 200)
+    throw new Error(`${url} answered HTTP ${response.status} ${response.statusText}`)
   return response.text()
 }
 
@@ -118,7 +122,8 @@ async function buildOpenings({ from, out }) {
     rows.push(...parsed)
   }
   const { entries, skipped } = withEpd(rows)
-  if (entries.length === 0) throw new Error('no opening survived the EPD computation: the source format changed')
+  if (entries.length === 0)
+    throw new Error('no opening survived the EPD computation: the source format changed')
 
   let payload = JSON.stringify(entries)
   let withPgn = true
@@ -358,15 +363,21 @@ async function cachedDownload(url, file) {
   try {
     const info = await stat(file)
     if (info.isFile() && info.size > 0) {
-      process.stdout.write(`  using the cached download ${file} (${(info.size / 1024 / 1024).toFixed(0)} MB)\n`)
+      process.stdout.write(
+        `  using the cached download ${file} (${(info.size / 1024 / 1024).toFixed(0)} MB)\n`
+      )
       return file
     }
   } catch {
     // Not downloaded yet.
   }
   process.stdout.write(`  downloading ${url}\n`)
-  const response = await fetch(url, { redirect: 'follow', headers: { 'user-agent': 'ChessAdvisor-build-datasets' } })
-  if (response.status !== 200) throw new Error(`${url} answered HTTP ${response.status} ${response.statusText}`)
+  const response = await fetch(url, {
+    redirect: 'follow',
+    headers: { 'user-agent': 'ChessAdvisor-build-datasets' }
+  })
+  if (response.status !== 200)
+    throw new Error(`${url} answered HTTP ${response.status} ${response.statusText}`)
   await mkdir(dirname(file), { recursive: true })
   await pipeline(Readable.fromWeb(response.body), createWriteStream(file))
   return file
@@ -401,7 +412,9 @@ async function streamCsv(file, onRow) {
 }
 
 async function buildPuzzles({ from, out }) {
-  const file = from ? resolve(from) : await cachedDownload(PUZZLE_URL, join(DOWNLOAD_DIR, 'lichess_db_puzzle.csv.zst'))
+  const file = from
+    ? resolve(from)
+    : await cachedDownload(PUZZLE_URL, join(DOWNLOAD_DIR, 'lichess_db_puzzle.csv.zst'))
 
   // Bounded reservoir: at most CELL_CAP candidates per (bucket, theme) cell survive the stream,
   // which caps the memory at a few tens of thousands of rows whatever the size of the database.
@@ -411,7 +424,10 @@ async function buildPuzzles({ from, out }) {
   let unplayable = 0
   await streamCsv(file, (line) => {
     read += 1
-    if (read % 500_000 === 0) process.stdout.write(`  ${read.toLocaleString('en-US')} rows read, ${eligible} eligible so far\n`)
+    if (read % 500_000 === 0)
+      process.stdout.write(
+        `  ${read.toLocaleString('en-US')} rows read, ${eligible} eligible so far\n`
+      )
     const row = parsePuzzleRow(line)
     if (!row || !eligiblePuzzle(row)) return
     eligible += 1
@@ -430,7 +446,8 @@ async function buildPuzzles({ from, out }) {
 
   const pool = [...cells.values()].flat()
   const selected = selectPuzzles(pool, PUZZLE_TARGET)
-  if (selected.length === 0) throw new Error('no puzzle survived the filters: the database format changed')
+  if (selected.length === 0)
+    throw new Error('no puzzle survived the filters: the database format changed')
 
   const payload = JSON.stringify(selected)
   await mkdir(dirname(out), { recursive: true })
@@ -662,9 +679,12 @@ export function validateEndgames(list) {
     } catch (error) {
       throw new Error(`endgame ${endgame.id}: illegal fen (${error?.message ?? error})`)
     }
-    if (board.turn() !== endgame.sideToMove) throw new Error(`endgame ${endgame.id}: side to move differs from the fen`)
-    if (board.moves().length === 0) throw new Error(`endgame ${endgame.id}: the position is already over`)
-    if (!TAXONOMY.includes(endgame.theme)) throw new Error(`endgame ${endgame.id}: theme ${endgame.theme} is outside the taxonomy`)
+    if (board.turn() !== endgame.sideToMove)
+      throw new Error(`endgame ${endgame.id}: side to move differs from the fen`)
+    if (board.moves().length === 0)
+      throw new Error(`endgame ${endgame.id}: the position is already over`)
+    if (!TAXONOMY.includes(endgame.theme))
+      throw new Error(`endgame ${endgame.id}: theme ${endgame.theme} is outside the taxonomy`)
   }
   return list
 }
@@ -673,7 +693,9 @@ async function buildEndgames({ out }) {
   const payload = JSON.stringify(validateEndgames(ENDGAMES), null, 2)
   await mkdir(dirname(out), { recursive: true })
   await writeFile(out, `${payload}\n`, 'utf8')
-  process.stdout.write(`endgames: ${ENDGAMES.length} curated positions, ${(payload.length / 1024).toFixed(0)} KB → ${out}\n`)
+  process.stdout.write(
+    `endgames: ${ENDGAMES.length} curated positions, ${(payload.length / 1024).toFixed(0)} KB → ${out}\n`
+  )
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -694,7 +716,9 @@ function parseArgs(argv) {
 async function main() {
   const args = parseArgs(process.argv.slice(2))
   if (!COMMANDS.includes(args.command)) {
-    process.stderr.write(`usage: node scripts/build-datasets.mjs <${COMMANDS.join('|')}> [--from DIR|FILE] [--out FILE]\n`)
+    process.stderr.write(
+      `usage: node scripts/build-datasets.mjs <${COMMANDS.join('|')}> [--from DIR|FILE] [--out FILE]\n`
+    )
     process.exitCode = 2
     return
   }

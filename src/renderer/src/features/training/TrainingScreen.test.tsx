@@ -3,7 +3,13 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import '@testing-library/jest-dom/vitest'
 import '../../i18n'
 import type { SessionState } from '@shared/types/session'
-import type { EndgameListEntry, Exercise, OpeningOverviewEntry, StudyPlanView, ThematicSet } from '@shared/types/training'
+import type {
+  EndgameListEntry,
+  Exercise,
+  OpeningOverviewEntry,
+  StudyPlanView,
+  ThematicSet
+} from '@shared/types/training'
 import { EMPTY_SESSION, useGameStore } from '../../stores/gameStore'
 import { useTrainingStore } from '../../stores/trainingStore'
 import { useUiStore } from '../../stores/uiStore'
@@ -62,7 +68,14 @@ const thematicSet: ThematicSet = {
   motivation: 'Le forchette ti sfuggono spesso.',
   fallback: false,
   exercises: Array.from({ length: 10 }, (_, index) =>
-    exercise({ id: `tac-${index}`, kind: 'thematic', theme: 'fork', rating: 900 + index, sourceGameId: undefined, sourcePly: undefined })
+    exercise({
+      id: `tac-${index}`,
+      kind: 'thematic',
+      theme: 'fork',
+      rating: 900 + index,
+      sourceGameId: undefined,
+      sourcePly: undefined
+    })
   )
 }
 
@@ -75,7 +88,12 @@ const opening: OpeningOverviewEntry = {
   deviations: [{ epd: 'epd-1', san: 'Nf3', count: 3, bestSan: 'd4' }]
 }
 
-const emptyPlan: StudyPlanView = { plan: null, suggestRegenerate: false, invalidRefs: 0, gamesSincePlan: 0 }
+const emptyPlan: StudyPlanView = {
+  plan: null,
+  suggestRegenerate: false,
+  invalidRefs: 0,
+  gamesSincePlan: 0
+}
 
 const list = vi.fn(async (): Promise<Exercise[]> => [exercise()])
 const endgames = vi.fn(async (): Promise<EndgameListEntry[]> => [endgame])
@@ -140,13 +158,11 @@ describe('TrainingScreen', () => {
     render(<TrainingScreen />)
     await waitFor(() => expect(list).toHaveBeenCalled())
     const strip = screen.getByRole('tablist', { name: 'Aree di allenamento' })
-    expect(within(strip).getAllByRole('tab').map((tab) => tab.textContent)).toEqual([
-      'Dalle tue partite',
-      'Tattica',
-      'Aperture',
-      'Finali',
-      'Piano di studio'
-    ])
+    expect(
+      within(strip)
+        .getAllByRole('tab')
+        .map((tab) => tab.textContent)
+    ).toEqual(['Dalle tue partite', 'Tattica', 'Aperture', 'Finali', 'Piano di studio'])
   })
 
   it('lists the exercises of the analysed games and links back to the move they come from', async () => {
@@ -198,7 +214,11 @@ describe('TrainingScreen', () => {
 
     fireEvent.click(within(detail).getByRole('button', { name: 'Mini-lezione' }))
     await waitFor(() => expect(lesson).toHaveBeenCalledWith('B20'))
-    await waitFor(() => expect(within(screen.getByTestId('opening-detail')).getByTestId('explanation-card')).toHaveTextContent('Lezione finta.'))
+    await waitFor(() =>
+      expect(
+        within(screen.getByTestId('opening-detail')).getByTestId('explanation-card')
+      ).toHaveTextContent('Lezione finta.')
+    )
   })
 
   it('starts an endgame drill and hands the user over to the board', async () => {
@@ -244,6 +264,8 @@ describe('TrainingScreen', () => {
     list.mockResolvedValueOnce([exercise({ id: 'og-g2-3', sourcePly: 3, status: 'solved' })])
     listeners.get('training:changed')?.({ kind: 'exercises' } as never)
     await waitFor(() => expect(list).toHaveBeenCalledTimes(2))
-    await waitFor(() => expect(screen.getByTestId('own-exercises').textContent).toContain('semimossa 3'))
+    await waitFor(() =>
+      expect(screen.getByTestId('own-exercises').textContent).toContain('semimossa 3')
+    )
   })
 })

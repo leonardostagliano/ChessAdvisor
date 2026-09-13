@@ -22,9 +22,17 @@ import { UpdatesSection } from './UpdatesSection'
  */
 
 /** Efforts of `model`, or an empty list while the catalogue has not arrived. */
-function effortsOf(models: ModelInfo[], id: string | null, label: (effortId: string) => string = (effortId) => effortId): SelectOption[] {
+function effortsOf(
+  models: ModelInfo[],
+  id: string | null,
+  label: (effortId: string) => string = (effortId) => effortId
+): SelectOption[] {
   const model = models.find((entry) => entry.id === id)
-  return (model?.efforts ?? []).map((effort) => ({ value: effort.id, label: label(effort.id), hint: effort.description }))
+  return (model?.efforts ?? []).map((effort) => ({
+    value: effort.id,
+    label: label(effort.id),
+    hint: effort.description
+  }))
 }
 
 /** Epoch seconds (what the app-server sends) or milliseconds, whichever the number looks like. */
@@ -33,7 +41,13 @@ export function quotaResetDate(resetsAt: number): Date | null {
   return new Date(resetsAt < 1e12 ? resetsAt * 1000 : resetsAt)
 }
 
-function QuotaBar({ window: quota, label }: { window: QuotaWindow; label: string }): React.JSX.Element {
+function QuotaBar({
+  window: quota,
+  label
+}: {
+  window: QuotaWindow
+  label: string
+}): React.JSX.Element {
   const percent = Math.max(0, Math.min(100, quota.usedPercent))
   return (
     <div className={styles.quota}>
@@ -111,12 +125,17 @@ export function SettingsScreen(): React.JSX.Element {
     hint: model.description
   }))
 
-  const ready = codex.status === 'ready' ? (codex as Extract<CodexState, { status: 'ready' }>) : null
+  const ready =
+    codex.status === 'ready' ? (codex as Extract<CodexState, { status: 'ready' }>) : null
   const separateCoach = settings?.separateCoach ?? false
   // Same wording as the New game dialog; unknown effort ids fall back to the raw id.
   const effortLabel = (id: string): string => t(`newGame.efforts.${id}`, { defaultValue: id })
   const defaultEfforts = effortsOf(models, settings?.defaultModel ?? null, effortLabel)
-  const coachEfforts = effortsOf(models, settings?.coachModel ?? settings?.defaultModel ?? null, effortLabel)
+  const coachEfforts = effortsOf(
+    models,
+    settings?.coachModel ?? settings?.defaultModel ?? null,
+    effortLabel
+  )
   const resetDate = quota?.primary ? quotaResetDate(quota.primary.resetsAt) : null
 
   return (
@@ -135,7 +154,12 @@ export function SettingsScreen(): React.JSX.Element {
             <span className={screen.fieldLabel}>{t('settings.theme')}</span>
             <span className={screen.fieldHint}>{t('settings.themeHint')}</span>
           </span>
-          <Select<ThemeChoice> value={theme} options={themeOptions} onChange={setTheme} label={t('settings.theme')} />
+          <Select<ThemeChoice>
+            value={theme}
+            options={themeOptions}
+            onChange={setTheme}
+            label={t('settings.theme')}
+          />
         </div>
 
         <div className={screen.field}>
@@ -143,7 +167,12 @@ export function SettingsScreen(): React.JSX.Element {
             <span className={screen.fieldLabel}>{t('settings.language')}</span>
             <span className={screen.fieldHint}>{t('settings.languageHint')}</span>
           </span>
-          <Select<Language> value={language} options={languageOptions} onChange={setLanguage} label={t('settings.language')} />
+          <Select<Language>
+            value={language}
+            options={languageOptions}
+            onChange={setLanguage}
+            label={t('settings.language')}
+          />
         </div>
       </section>
 
@@ -224,11 +253,17 @@ export function SettingsScreen(): React.JSX.Element {
           <dt className={styles.term}>{t('settings.codexStatus')}</dt>
           <dd className={styles.value}>{statusLabel(codex, t)}</dd>
           <dt className={styles.term}>{t('settings.codexAccount')}</dt>
-          <dd className={`${styles.value} selectable`}>{ready?.account.email ?? t('settings.unknown')}</dd>
+          <dd className={`${styles.value} selectable`}>
+            {ready?.account.email ?? t('settings.unknown')}
+          </dd>
           <dt className={styles.term}>{t('settings.codexPlan')}</dt>
-          <dd className={styles.value}>{ready?.account.planType ?? quota?.planType ?? t('settings.unknown')}</dd>
+          <dd className={styles.value}>
+            {ready?.account.planType ?? quota?.planType ?? t('settings.unknown')}
+          </dd>
           <dt className={styles.term}>{t('settings.codexCliVersion')}</dt>
-          <dd className={`${styles.value} mono selectable`}>{ready?.cliVersion ?? t('settings.unknown')}</dd>
+          <dd className={`${styles.value} mono selectable`}>
+            {ready?.cliVersion ?? t('settings.unknown')}
+          </dd>
         </dl>
 
         {ready?.versionMismatch ? (
@@ -244,7 +279,9 @@ export function SettingsScreen(): React.JSX.Element {
               <QuotaBar window={quota.primary} label={t('settings.codexQuota')} />
               <span className={screen.fieldHint}>
                 {t('settings.codexQuotaUsed', { percent: Math.round(quota.primary.usedPercent) })}
-                {resetDate ? ` · ${t('settings.codexQuotaReset', { date: resetDate.toLocaleString(i18n.language) })}` : ''}
+                {resetDate
+                  ? ` · ${t('settings.codexQuotaReset', { date: resetDate.toLocaleString(i18n.language) })}`
+                  : ''}
               </span>
             </>
           ) : (
@@ -268,11 +305,15 @@ export function SettingsScreen(): React.JSX.Element {
 
         <dl className={styles.grid}>
           <dt className={styles.term}>{t('settings.engineState')}</dt>
-          <dd className={styles.value}>{engine.available ? t('settings.engineAvailable') : t('settings.engineUnavailable')}</dd>
+          <dd className={styles.value}>
+            {engine.available ? t('settings.engineAvailable') : t('settings.engineUnavailable')}
+          </dd>
           <dt className={styles.term}>{t('settings.engineBinary')}</dt>
           <dd className={`${styles.value} mono`}>{engine.binary}</dd>
           <dt className={styles.term}>{t('settings.engineVersion')}</dt>
-          <dd className={`${styles.value} mono selectable`}>{engine.version ?? t('settings.unknown')}</dd>
+          <dd className={`${styles.value} mono selectable`}>
+            {engine.version ?? t('settings.unknown')}
+          </dd>
         </dl>
 
         {engine.message ? <p className={screen.fieldHint}>{engine.message}</p> : null}

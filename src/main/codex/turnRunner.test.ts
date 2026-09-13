@@ -217,7 +217,10 @@ describe('runTurn', () => {
     await h.respond('turn/start', startedTurn)
     h.emit('turn/completed', {
       threadId: THREAD,
-      turn: turn({ itemsView: 'summary', items: [agentMessage('m1', '{"move":"c5"}', 'final_answer')] })
+      turn: turn({
+        itemsView: 'summary',
+        items: [agentMessage('m1', '{"move":"c5"}', 'final_answer')]
+      })
     })
     const result = await promise
     expect(itemsList).not.toHaveBeenCalled()
@@ -226,11 +229,20 @@ describe('runTurn', () => {
 
   it('falls back to the items completed during the turn when the list call fails', async () => {
     const h = harness()
-    const itemsList = vi.fn(async () => { throw new Error('unsupported') })
+    const itemsList = vi.fn(async () => {
+      throw new Error('unsupported')
+    })
     const promise = runTurn(h.rpc, h.bus, req(), h.events, { itemsList })
     await h.respond('turn/start', startedTurn)
-    h.emit('item/completed', { threadId: THREAD, turnId: TURN, item: agentMessage('m1', '{"move":"e5"}', 'final_answer') })
-    h.emit('turn/completed', { threadId: THREAD, turn: turn({ itemsView: 'notLoaded', items: [] }) })
+    h.emit('item/completed', {
+      threadId: THREAD,
+      turnId: TURN,
+      item: agentMessage('m1', '{"move":"e5"}', 'final_answer')
+    })
+    h.emit('turn/completed', {
+      threadId: THREAD,
+      turn: turn({ itemsView: 'notLoaded', items: [] })
+    })
     const result = await promise
     expect(result).toEqual(expect.objectContaining({ ok: true, text: '{"move":"e5"}' }))
   })
@@ -239,10 +251,17 @@ describe('runTurn', () => {
     const h = harness()
     const promise = runTurn(h.rpc, h.bus, req(), h.events, noItems)
     await h.respond('turn/start', startedTurn)
-    h.emit('item/completed', { threadId: THREAD, turnId: TURN, item: { type: 'commandExecution', id: 'c1' } })
+    h.emit('item/completed', {
+      threadId: THREAD,
+      turnId: TURN,
+      item: { type: 'commandExecution', id: 'c1' }
+    })
     h.emit('turn/completed', {
       threadId: THREAD,
-      turn: turn({ itemsView: 'summary', items: [agentMessage('m1', '{"move":"c5"}', 'final_answer')] })
+      turn: turn({
+        itemsView: 'summary',
+        items: [agentMessage('m1', '{"move":"c5"}', 'final_answer')]
+      })
     })
     const result = await promise
     expect(result).toEqual(expect.objectContaining({ ok: false, reason: 'invalid-items' }))

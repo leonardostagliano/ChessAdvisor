@@ -1,6 +1,12 @@
 import type { Profile } from '@shared/types/profile'
 import { describe, expect, it } from 'vitest'
-import { LABELS_SCHEMA, QUALITATIVE_SCHEMA, labelsText, profileBaseInstructions, qualitativeText } from './profilePrompts'
+import {
+  LABELS_SCHEMA,
+  QUALITATIVE_SCHEMA,
+  labelsText,
+  profileBaseInstructions,
+  qualitativeText
+} from './profilePrompts'
 import { THEMES } from './themes'
 
 const moment = {
@@ -15,9 +21,27 @@ const moment = {
 }
 
 const profile: Profile = {
-  level: { band: 'intermediate', estimate: 1440, confidence: 0.7, updatedAt: '2026-03-03T12:00:00.000Z' },
-  themeStats: { fork: { occurrences: 4, lastSeen: '2026-03-03T12:00:00.000Z' }, pin: { occurrences: 1, lastSeen: '2026-03-01T12:00:00.000Z' } },
-  openingStats: { C40: { eco: 'C40', name: "King's Knight Opening", games: 3, wins: 1, draws: 1, losses: 1, avgAccuracyFirst10: 82.5 } },
+  level: {
+    band: 'intermediate',
+    estimate: 1440,
+    confidence: 0.7,
+    updatedAt: '2026-03-03T12:00:00.000Z'
+  },
+  themeStats: {
+    fork: { occurrences: 4, lastSeen: '2026-03-03T12:00:00.000Z' },
+    pin: { occurrences: 1, lastSeen: '2026-03-01T12:00:00.000Z' }
+  },
+  openingStats: {
+    C40: {
+      eco: 'C40',
+      name: "King's Knight Opening",
+      games: 3,
+      wins: 1,
+      draws: 1,
+      losses: 1,
+      avgAccuracyFirst10: 82.5
+    }
+  },
   history: [
     { gameId: 'g1', date: '2026-03-01T12:00:00.000Z', accuracy: 71.5, acpl: 62 },
     { gameId: 'g2', date: '2026-03-03T12:00:00.000Z', accuracy: 80.25, acpl: 41 }
@@ -27,7 +51,12 @@ const profile: Profile = {
 
 describe('the schemas of M4', () => {
   it('follow the strict-mode rules of spec §3.1', () => {
-    const schemas: { type: string; required: readonly string[]; additionalProperties: boolean; properties: object }[] = [LABELS_SCHEMA, QUALITATIVE_SCHEMA]
+    const schemas: {
+      type: string
+      required: readonly string[]
+      additionalProperties: boolean
+      properties: object
+    }[] = [LABELS_SCHEMA, QUALITATIVE_SCHEMA]
     for (const schema of schemas) {
       expect(schema.type).toBe('object')
       expect(schema.additionalProperties).toBe(false)
@@ -42,7 +71,12 @@ describe('the schemas of M4', () => {
 
 describe('labelsText', () => {
   it('lists every moment on a line the answer can be matched to, with the taxonomy', () => {
-    const text = labelsText({ moments: [moment], language: 'it', userColor: 'w', opening: { eco: 'C40', name: "King's Knight Opening" } })
+    const text = labelsText({
+      moments: [moment],
+      language: 'it',
+      userColor: 'w',
+      opening: { eco: 'C40', name: "King's Knight Opening" }
+    })
     expect(text).toContain('- 13. Nxe5 (f3e5)')
     expect(text).toContain(`FEN: ${moment.fenBefore}`)
     expect(text).toContain('migliore: O-O — O-O Nf6')
@@ -73,7 +107,10 @@ describe('qualitativeText', () => {
   })
 
   it('says plainly when there is nothing to judge yet', () => {
-    const text = qualitativeText({ profile: { ...profile, history: [], themeStats: {}, openingStats: {} }, language: 'en' })
+    const text = qualitativeText({
+      profile: { ...profile, history: [], themeStats: {}, openingStats: {} },
+      language: 'en'
+    })
     expect(text).toContain('There are no analysed games yet.')
   })
 })

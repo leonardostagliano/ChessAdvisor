@@ -2,7 +2,13 @@ import { randomUUID } from 'node:crypto'
 import { Chess } from 'chess.js'
 import { normalizeMove } from '@shared/chess/notation'
 import { pgnOf } from '@shared/chess/pgn'
-import type { AnalysisProgress, AnalysisStatus, ReviewActivity, ReviewLesson, StreamEnvelope } from '@shared/types/api'
+import type {
+  AnalysisProgress,
+  AnalysisStatus,
+  ReviewActivity,
+  ReviewLesson,
+  StreamEnvelope
+} from '@shared/types/api'
 import type { Eval, Game } from '@shared/types/game'
 import type { Language } from '@shared/types/settings'
 import { coachBaseInstructions, type EngineContext } from '../game/coachPrompts'
@@ -49,7 +55,10 @@ export interface AnalysisManagerDeps {
   engine: SessionEngine
   store: GameStore
   settings: SettingsStore
-  emit(channel: 'analysis:progress' | 'review:activity' | 'stream', payload: AnalysisProgress | ReviewActivity | StreamEnvelope): void
+  emit(
+    channel: 'analysis:progress' | 'review:activity' | 'stream',
+    payload: AnalysisProgress | ReviewActivity | StreamEnvelope
+  ): void
   /** Where `openings.json` lives; resolved lazily so a test can point somewhere else. */
   openingsPath(): string
   /**
@@ -100,7 +109,10 @@ function pvInSan(fen: string, pv: string[]): string[] {
   return san
 }
 
-function whiteEval(line: { scoreCp?: number; scoreMate?: number } | undefined, fen: string): Eval | null {
+function whiteEval(
+  line: { scoreCp?: number; scoreMate?: number } | undefined,
+  fen: string
+): Eval | null {
   if (!line) return null
   const flip = sideToMove(fen) === 'b' ? -1 : 1
   if (typeof line.scoreMate === 'number') return { mate: flip * line.scoreMate }
@@ -140,7 +152,10 @@ export class AnalysisManager {
     if (settings.separateCoach && settings.coachModel) {
       return { model: settings.coachModel, effort: settings.coachEffort ?? game.coach.effort }
     }
-    return { model: game.coach.model || game.opponent.model, effort: game.coach.effort || game.opponent.effort }
+    return {
+      model: game.coach.model || game.opponent.model,
+      effort: game.coach.effort || game.opponent.effort
+    }
   }
 
   private openings(): OpeningBook {
@@ -160,7 +175,9 @@ export class AnalysisManager {
   /** Hook of `game:finished`: a finished match is analysed by itself, in the background. */
   onGameFinished(game: Game): void {
     if (game.kind !== 'match') return
-    void this.run(game.id).catch((error) => console.error('[analysis] the automatic analysis failed:', error))
+    void this.run(game.id).catch((error) =>
+      console.error('[analysis] the automatic analysis failed:', error)
+    )
   }
 
   async status(gameId: string): Promise<AnalysisStatus> {
@@ -168,7 +185,9 @@ export class AnalysisManager {
     if (current) return { state: 'running', ply: current.ply, total: current.total }
     if (!this.deps.engine.state().available) return { state: 'unavailable' }
     const game = await this.deps.store.get(gameId)
-    return game?.analysis ? { state: 'done', ply: game.moves.length, total: game.moves.length } : { state: 'idle' }
+    return game?.analysis
+      ? { state: 'done', ply: game.moves.length, total: game.moves.length }
+      : { state: 'idle' }
   }
 
   /**
@@ -180,10 +199,19 @@ export class AnalysisManager {
     const current = this.running.get(gameId)
     if (current) return current.promise
     if (!this.deps.engine.state().available) {
-      return Promise.reject(new AnalysisError('ANALYSIS_UNAVAILABLE', this.deps.engine.state().message ?? 'the chess engine is not available'))
+      return Promise.reject(
+        new AnalysisError(
+          'ANALYSIS_UNAVAILABLE',
+          this.deps.engine.state().message ?? 'the chess engine is not available'
+        )
+      )
     }
 
-    const entry: RunningAnalysis = { promise: Promise.resolve(null as unknown as Game), ply: 0, total: 0 }
+    const entry: RunningAnalysis = {
+      promise: Promise.resolve(null as unknown as Game),
+      ply: 0,
+      total: 0
+    }
     const work = (async () => {
       const game = await this.deps.store.get(gameId)
       if (!game) throw new AnalysisError('GAME_NOT_FOUND', `no game ${gameId}`)
@@ -267,7 +295,13 @@ export class AnalysisManager {
     const streamId = randomUUID()
 
     this.inFlight += 1
-    this.deps.emit('review:activity', { gameId: game.id, kind: activity.kind, ply: activity.ply, streamId, busy: true })
+    this.deps.emit('review:activity', {
+      gameId: game.id,
+      kind: activity.kind,
+      ply: activity.ply,
+      streamId,
+      busy: true
+    })
 
     let streamed = false
     try {
@@ -288,12 +322,25 @@ export class AnalysisManager {
       )
       if (!result.ok) throw new AnalysisError('REVIEW_TURN_FAILED', result.message)
       if (!streamed && !outputSchema && result.text.trim().length > 0) {
-        this.deps.emit('stream', { streamId, threadId, turnId: result.turnId, itemId: '', kind: 'text', chunk: result.text })
+        this.deps.emit('stream', {
+          streamId,
+          threadId,
+          turnId: result.turnId,
+          itemId: '',
+          kind: 'text',
+          chunk: result.text
+        })
       }
       return result.text.trim()
     } finally {
       this.inFlight = Math.max(0, this.inFlight - 1)
-      this.deps.emit('review:activity', { gameId: game.id, kind: activity.kind, ply: activity.ply, streamId: null, busy: this.inFlight > 0 })
+      this.deps.emit('review:activity', {
+        gameId: game.id,
+        kind: activity.kind,
+        ply: activity.ply,
+        streamId: null,
+        busy: this.inFlight > 0
+      })
     }
   }
 
@@ -329,7 +376,10 @@ export class AnalysisManager {
 
     const saved = move.eval
     if (saved) {
-      const bestSan = pvInSan(fenBefore, saved.bestLine.length > 0 ? saved.bestLine : [saved.bestMove])
+      const bestSan = pvInSan(
+        fenBefore,
+        saved.bestLine.length > 0 ? saved.bestLine : [saved.bestMove]
+      )
       const before = toWhite(saved.before, mover)
       return {
         evalBefore: before,
@@ -361,12 +411,18 @@ export class AnalysisManager {
     }
   }
 
-  private async comment(game: Game, ply: number, text: string, kind: ReviewActivity['kind']): Promise<string> {
+  private async comment(
+    game: Game,
+    ply: number,
+    text: string,
+    kind: ReviewActivity['kind']
+  ): Promise<string> {
     const move = game.moves[ply - 1]
     if (!move) throw new AnalysisError('BAD_PLY', `ply ${ply} is not part of game ${game.id}`)
     const language = this.language()
     const answer = await this.runTurn(game, text, { kind, ply })
-    if (answer.length === 0) throw new AnalysisError('REVIEW_EMPTY_ANSWER', 'the review answered with an empty comment')
+    if (answer.length === 0)
+      throw new AnalysisError('REVIEW_EMPTY_ANSWER', 'the review answered with an empty comment')
     move.coachComment = answer
     move.coachCommentLanguage = language
     return answer
@@ -394,7 +450,9 @@ export class AnalysisManager {
   /** "Commenta i momenti chiave": one call per moment, at most {@link MAX_KEY_MOMENT_COMMENTS}. */
   async commentKeyMoments(gameId: string): Promise<{ ply: number; text: string }[]> {
     const game = await this.requireGame(gameId)
-    const plies = (game.analysis?.keyMoments ?? []).filter((ply) => Boolean(game.moves[ply - 1])).slice(0, MAX_KEY_MOMENT_COMMENTS)
+    const plies = (game.analysis?.keyMoments ?? [])
+      .filter((ply) => Boolean(game.moves[ply - 1]))
+      .slice(0, MAX_KEY_MOMENT_COMMENTS)
     const comments: { ply: number; text: string }[] = []
     for (const [index, ply] of plies.entries()) {
       const move = game.moves[ply - 1]!
@@ -432,13 +490,17 @@ export class AnalysisManager {
     } catch {
       throw new AnalysisError('LESSON_INVALID', 'the lesson did not come back as JSON')
     }
-    const record = (typeof parsed === 'object' && parsed !== null ? parsed : {}) as Record<string, unknown>
+    const record = (typeof parsed === 'object' && parsed !== null ? parsed : {}) as Record<
+      string,
+      unknown
+    >
     const takeaways = (Array.isArray(record.takeaways) ? record.takeaways : [])
       .filter((entry): entry is string => typeof entry === 'string' && entry.trim().length > 0)
       .map((entry) => entry.trim())
       .slice(0, LESSON_TAKEAWAYS)
     const summary = typeof record.summary === 'string' ? record.summary.trim() : ''
-    if (takeaways.length === 0 && summary.length === 0) throw new AnalysisError('LESSON_INVALID', 'the lesson came back empty')
+    if (takeaways.length === 0 && summary.length === 0)
+      throw new AnalysisError('LESSON_INVALID', 'the lesson came back empty')
 
     const lesson: ReviewLesson = { takeaways, summary, language }
     if (game.analysis) {
@@ -458,21 +520,33 @@ export interface RegisterAnalysisIpcDeps {
 }
 
 const gameId = (value: unknown): string => {
-  if (typeof value !== 'string' || value.length === 0) throw new AnalysisError('BAD_GAME_ID', 'a game id is required')
+  if (typeof value !== 'string' || value.length === 0)
+    throw new AnalysisError('BAD_GAME_ID', 'a game id is required')
   return value
 }
 
 const plyNumber = (value: unknown): number => {
-  if (typeof value !== 'number' || !Number.isFinite(value) || value < 1) throw new AnalysisError('BAD_PLY', 'a ply number is required')
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 1)
+    throw new AnalysisError('BAD_PLY', 'a ply number is required')
   return Math.round(value)
 }
 
 /** Binds the `analysis` and `review` namespaces of `window.api`. */
 export function registerAnalysisIpc(deps: RegisterAnalysisIpcDeps): void {
   deps.handle('analysis:run', async (id: unknown): Promise<Game> => deps.manager.run(gameId(id)))
-  deps.handle('analysis:status', async (id: unknown): Promise<AnalysisStatus> => deps.manager.status(gameId(id)))
-  deps.handle('review:commentMove', async (id: unknown, ply: unknown): Promise<string> => deps.manager.commentMove(gameId(id), plyNumber(ply)))
-  deps.handle('review:commentKeyMoments', async (id: unknown): Promise<{ ply: number; text: string }[]> => deps.manager.commentKeyMoments(gameId(id)))
-  deps.handle('review:lesson', async (id: unknown): Promise<ReviewLesson> => deps.manager.lesson(gameId(id)))
+  deps.handle('analysis:status', async (id: unknown): Promise<AnalysisStatus> =>
+    deps.manager.status(gameId(id))
+  )
+  deps.handle('review:commentMove', async (id: unknown, ply: unknown): Promise<string> =>
+    deps.manager.commentMove(gameId(id), plyNumber(ply))
+  )
+  deps.handle(
+    'review:commentKeyMoments',
+    async (id: unknown): Promise<{ ply: number; text: string }[]> =>
+      deps.manager.commentKeyMoments(gameId(id))
+  )
+  deps.handle('review:lesson', async (id: unknown): Promise<ReviewLesson> =>
+    deps.manager.lesson(gameId(id))
+  )
   deps.handle('review:close', async (): Promise<void> => deps.manager.close())
 }

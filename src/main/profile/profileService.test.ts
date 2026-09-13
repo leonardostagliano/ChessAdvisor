@@ -15,7 +15,8 @@ import { THEMES } from './themes'
 
 /** Answers by the shape of the schema, exactly as the fake app-server does. */
 class FakeCodex implements SessionCodex {
-  readonly started: { role: string; model: string; baseInstructions: string; gameId?: string }[] = []
+  readonly started: { role: string; model: string; baseInstructions: string; gameId?: string }[] =
+    []
   readonly requests: TurnRequest[] = []
   readonly closed: string[] = []
   /** Themes handed back by the labelling call, cycled over the plies found in the prompt. */
@@ -25,7 +26,10 @@ class FakeCodex implements SessionCodex {
   failNext = false
   private threads = 0
 
-  async startThread(role: 'opponent' | 'coach' | 'training', opts: { model: string; baseInstructions: string; gameId?: string }): Promise<string> {
+  async startThread(
+    role: 'opponent' | 'coach' | 'training',
+    opts: { model: string; baseInstructions: string; gameId?: string }
+  ): Promise<string> {
     this.started.push({ role, ...opts })
     this.threads += 1
     return `thread-${this.threads}`
@@ -37,18 +41,32 @@ class FakeCodex implements SessionCodex {
       this.failNext = false
       return { ok: false, reason: 'failed', message: 'fake failure', turnId: null }
     }
-    const properties = (req.outputSchema as { properties?: Record<string, unknown> } | undefined)?.properties ?? {}
+    const properties =
+      (req.outputSchema as { properties?: Record<string, unknown> } | undefined)?.properties ?? {}
     if ('labels' in properties) {
       const plies = [...req.text.matchAll(/^-\s*(\d+)\./gm)].map((match) => Number(match[1]))
       const labels = plies
         .filter((ply) => !this.skipPlies.includes(ply))
-        .map((ply, index) => ({ ply, theme: this.themes[index % this.themes.length], note: 'fake' }))
-      return { ok: true, text: JSON.stringify({ labels }), turnId: 't', effectiveModel: null, durationMs: 1 }
+        .map((ply, index) => ({
+          ply,
+          theme: this.themes[index % this.themes.length],
+          note: 'fake'
+        }))
+      return {
+        ok: true,
+        text: JSON.stringify({ labels }),
+        turnId: 't',
+        effectiveModel: null,
+        durationMs: 1
+      }
     }
     if ('strengths' in properties) {
       return {
         ok: true,
-        text: JSON.stringify({ strengths: ['forte uno', 'forte due'], weaknesses: ['debole uno', 'debole due'] }),
+        text: JSON.stringify({
+          strengths: ['forte uno', 'forte due'],
+          weaknesses: ['debole uno', 'debole due']
+        }),
         turnId: 't',
         effectiveModel: null,
         durationMs: 1
@@ -73,7 +91,10 @@ class FakeCodex implements SessionCodex {
 }
 
 /** One game with real moves, an analysis and evaluations on the user's plies. */
-function gameInit(sans: string[], patch: Partial<Game> = {}): Omit<Game, 'id' | 'createdAt' | 'updatedAt' | 'status'> {
+function gameInit(
+  sans: string[],
+  patch: Partial<Game> = {}
+): Omit<Game, 'id' | 'createdAt' | 'updatedAt' | 'status'> {
   const chess = new Chess()
   const moves: Move[] = sans.map((san, index) => {
     const played = chess.move(san)
@@ -99,7 +120,11 @@ function gameInit(sans: string[], patch: Partial<Game> = {}): Omit<Game, 'id' | 
   return {
     kind: 'match',
     userColor: 'w',
-    opponent: { model: 'gpt-6-astra', effort: 'medium', difficulty: { mode: 'fixed', level: 3, targetElo: 1200 } },
+    opponent: {
+      model: 'gpt-6-astra',
+      effort: 'medium',
+      difficulty: { mode: 'fixed', level: 3, targetElo: 1200 }
+    },
     coach: { model: 'gpt-6-astra', effort: 'medium' },
     clock: null,
     language: 'it',
@@ -107,7 +132,12 @@ function gameInit(sans: string[], patch: Partial<Game> = {}): Omit<Game, 'id' | 
     takebacks: 0,
     coachLog: [],
     result: { outcome: '1-0', reason: 'resign' },
-    analysis: { accuracy: { w: 80, b: 70 }, acpl: { w: 45, b: 60 }, keyMoments: [1, 3], analyzedAt: '2026-03-03T12:00:00.000Z' },
+    analysis: {
+      accuracy: { w: 80, b: 70 },
+      acpl: { w: 45, b: 60 },
+      keyMoments: [1, 3],
+      analyzedAt: '2026-03-03T12:00:00.000Z'
+    },
     opening: { eco: 'C40', name: "King's Knight Opening", lastBookPly: 3 },
     ...patch
   } as Omit<Game, 'id' | 'createdAt' | 'updatedAt' | 'status'>
@@ -151,7 +181,14 @@ describe('ProfileService', () => {
   const saved = async (sans: string[], patch: Partial<Game> = {}): Promise<Game> => {
     const init = gameInit(sans, patch)
     const game = await games.create(init)
-    Object.assign(game, { status: 'finished', moves: init.moves, result: init.result, analysis: init.analysis, opening: init.opening, takebacks: init.takebacks })
+    Object.assign(game, {
+      status: 'finished',
+      moves: init.moves,
+      result: init.result,
+      analysis: init.analysis,
+      opening: init.opening,
+      takebacks: init.takebacks
+    })
     await games.save(game)
     return game
   }
@@ -196,9 +233,16 @@ describe('ProfileService', () => {
     await service.onGameAnalyzed(game)
 
     const updated = service.get()
-    expect(updated.history).toEqual([{ gameId: game.id, date: '2026-03-03T12:00:00.000Z', accuracy: 80, acpl: 45 }])
+    expect(updated.history).toEqual([
+      { gameId: game.id, date: '2026-03-03T12:00:00.000Z', accuracy: 80, acpl: 45 }
+    ])
     // ACPL 45 → 1600, accuracy 80 → 1600; one game out of a window of ten: confidence 0.1.
-    expect(updated.level).toEqual({ band: 'advanced', estimate: 1600, confidence: 0.1, updatedAt: '2026-03-03T13:00:00.000Z' })
+    expect(updated.level).toEqual({
+      band: 'advanced',
+      estimate: 1600,
+      confidence: 0.1,
+      updatedAt: '2026-03-03T13:00:00.000Z'
+    })
     expect(updated.gamesSincePlan).toBe(1)
     expect(events.at(-1)?.level.estimate).toBe(1600)
   })
@@ -206,11 +250,20 @@ describe('ProfileService', () => {
   it('aggregates the openings with a running accuracy over the first ten plies', async () => {
     const first = await saved(['e4', 'e5', 'Nf3'])
     await service.onGameAnalyzed(first)
-    const second = await saved(['e4', 'e5', 'Nf3'], { result: { outcome: '0-1', reason: 'checkmate' } })
+    const second = await saved(['e4', 'e5', 'Nf3'], {
+      result: { outcome: '0-1', reason: 'checkmate' }
+    })
     await service.onGameAnalyzed(second)
 
     const stats = service.get().openingStats.C40!
-    expect(stats).toMatchObject({ eco: 'C40', name: "King's Knight Opening", games: 2, wins: 1, draws: 0, losses: 1 })
+    expect(stats).toMatchObject({
+      eco: 'C40',
+      name: "King's Knight Opening",
+      games: 2,
+      wins: 1,
+      draws: 0,
+      losses: 1
+    })
     // Every user move loses 12 points of winning chance (accuracy ≈ 58): the mean never moves.
     expect(stats.avgAccuracyFirst10).toBeCloseTo(58, 0)
   })
@@ -290,11 +343,21 @@ describe('ProfileService', () => {
   it('excludes a game the AI lost on time from the level window (spec §6.1)', async () => {
     const flagged = await saved(['e4', 'e5'], {
       result: { outcome: '1-0', reason: 'timeout' },
-      analysis: { accuracy: { w: 45, b: 40 }, acpl: { w: 150, b: 160 }, keyMoments: [], analyzedAt: '2026-03-02T12:00:00.000Z' }
+      analysis: {
+        accuracy: { w: 45, b: 40 },
+        acpl: { w: 150, b: 160 },
+        keyMoments: [],
+        analyzedAt: '2026-03-02T12:00:00.000Z'
+      }
     })
     await service.onGameAnalyzed(flagged)
     // The flagged game is in the history (it was played) but never in the estimate.
-    expect(service.get().level).toEqual({ band: 'beginner', estimate: 0, confidence: 0, updatedAt: '2026-03-03T13:00:00.000Z' })
+    expect(service.get().level).toEqual({
+      band: 'beginner',
+      estimate: 0,
+      confidence: 0,
+      updatedAt: '2026-03-03T13:00:00.000Z'
+    })
 
     await service.onGameAnalyzed(await saved(['e4', 'e5']))
 

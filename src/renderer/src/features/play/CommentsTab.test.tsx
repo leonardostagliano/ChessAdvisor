@@ -16,8 +16,23 @@ import { CommentsTab, uncommentedMoves } from './CommentsTab'
 const FEN_1 = 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1'
 const FEN_2 = 'rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq e6 0 2'
 
-function move(ply: number, san: string, uci: string, fenAfter: string, by: Move['by'], patch: Partial<Move> = {}): Move {
-  return { ply, san, uci, fenAfter, epdAfter: fenAfter.split(' ').slice(0, 4).join(' '), by, ...patch }
+function move(
+  ply: number,
+  san: string,
+  uci: string,
+  fenAfter: string,
+  by: Move['by'],
+  patch: Partial<Move> = {}
+): Move {
+  return {
+    ply,
+    san,
+    uci,
+    fenAfter,
+    epdAfter: fenAfter.split(' ').slice(0, 4).join(' '),
+    by,
+    ...patch
+  }
 }
 
 function game(moves: Move[]): Game {
@@ -28,7 +43,11 @@ function game(moves: Move[]): Game {
     kind: 'match',
     status: 'in_progress',
     userColor: 'w',
-    opponent: { model: 'gpt-6-astra', effort: 'low', difficulty: { mode: 'fixed', level: 3, targetElo: 1200 } },
+    opponent: {
+      model: 'gpt-6-astra',
+      effort: 'low',
+      difficulty: { mode: 'fixed', level: 3, targetElo: 1200 }
+    },
     coach: { model: 'gpt-6-astra', effort: 'low' },
     clock: null,
     language: 'it',
@@ -88,8 +107,14 @@ describe('uncommentedMoves', () => {
 describe('CommentsTab', () => {
   it('shows one card per commented ply, in the language it was written in', () => {
     const state = session([
-      move(0, 'e4', 'e2e4', FEN_1, 'user', { coachComment: 'Apri il centro.', coachCommentLanguage: 'it' }),
-      move(1, 'e5', 'e7e5', FEN_2, 'ai', { coachComment: 'A symmetrical answer.', coachCommentLanguage: 'en' })
+      move(0, 'e4', 'e2e4', FEN_1, 'user', {
+        coachComment: 'Apri il centro.',
+        coachCommentLanguage: 'it'
+      }),
+      move(1, 'e5', 'e7e5', FEN_2, 'ai', {
+        coachComment: 'A symmetrical answer.',
+        coachCommentLanguage: 'en'
+      })
     ])
     render(<CommentsTab session={state} />)
 
@@ -101,9 +126,12 @@ describe('CommentsTab', () => {
   })
 
   it('explains the silence instead of showing an empty feed when the comments are hidden', () => {
-    const state = session([move(0, 'e4', 'e2e4', FEN_1, 'user', { coachComment: 'Apri il centro.' })], {
-      commentsVisible: false
-    })
+    const state = session(
+      [move(0, 'e4', 'e2e4', FEN_1, 'user', { coachComment: 'Apri il centro.' })],
+      {
+        commentsVisible: false
+      }
+    )
     render(<CommentsTab session={state} />)
 
     expect(screen.getByText(/Commenti nascosti/)).toBeInTheDocument()
@@ -134,7 +162,9 @@ describe('CommentsTab', () => {
   })
 
   it('offers to comment the skipped moves only while there are any', async () => {
-    const commented = session([move(0, 'e4', 'e2e4', FEN_1, 'user', { coachComment: 'Apri il centro.' })])
+    const commented = session([
+      move(0, 'e4', 'e2e4', FEN_1, 'user', { coachComment: 'Apri il centro.' })
+    ])
     const { rerender } = render(<CommentsTab session={commented} />)
     expect(screen.queryByRole('button', { name: /mosse saltate/ })).not.toBeInTheDocument()
 
@@ -151,7 +181,10 @@ describe('CommentsTab', () => {
   })
 
   it('streams the comment in flight into a card of its own', () => {
-    const state = session([move(0, 'e4', 'e2e4', FEN_1, 'user')], { busy: true, streamId: 's-coach' })
+    const state = session([move(0, 'e4', 'e2e4', FEN_1, 'user')], {
+      busy: true,
+      streamId: 's-coach'
+    })
     useGameStore.setState({ session: state })
     render(<CommentsTab session={state} />)
 
@@ -159,17 +192,41 @@ describe('CommentsTab', () => {
 
     act(() => {
       const store = useGameStore.getState()
-      store.applyStream({ streamId: 's-coach', threadId: 't', turnId: 'u', itemId: 'i', kind: 'text', chunk: 'Buona ' })
-      store.applyStream({ streamId: 's-coach', threadId: 't', turnId: 'u', itemId: 'i', kind: 'text', chunk: 'apertura.' })
+      store.applyStream({
+        streamId: 's-coach',
+        threadId: 't',
+        turnId: 'u',
+        itemId: 'i',
+        kind: 'text',
+        chunk: 'Buona '
+      })
+      store.applyStream({
+        streamId: 's-coach',
+        threadId: 't',
+        turnId: 'u',
+        itemId: 'i',
+        kind: 'text',
+        chunk: 'apertura.'
+      })
       // Deltas of another turn (the opponent's) never reach the feed.
-      store.applyStream({ streamId: 's-ai', threadId: 't', turnId: 'u', itemId: 'i', kind: 'text', chunk: '{"move"' })
+      store.applyStream({
+        streamId: 's-ai',
+        threadId: 't',
+        turnId: 'u',
+        itemId: 'i',
+        kind: 'text',
+        chunk: '{"move"'
+      })
     })
 
     expect(screen.getByText('Buona apertura.')).toBeInTheDocument()
   })
 
   it('keeps the feed quiet while the coach is answering a question instead', () => {
-    const state = session([move(0, 'e4', 'e2e4', FEN_1, 'user')], { busy: true, streamId: 's-coach' })
+    const state = session([move(0, 'e4', 'e2e4', FEN_1, 'user')], {
+      busy: true,
+      streamId: 's-coach'
+    })
     useGameStore.setState({ session: state, coachRequest: 'answer' })
     render(<CommentsTab session={state} />)
 

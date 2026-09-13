@@ -56,7 +56,11 @@ export function CommentsTab({ session }: CommentsTabProps): React.JSX.Element {
           disabled={!game}
         />
         {visible && skipped.length > 0 ? (
-          <Button size="sm" disabled={!game || busy || session.coach.busy} onClick={() => void commentSkipped()}>
+          <Button
+            size="sm"
+            disabled={!game || busy || session.coach.busy}
+            onClick={() => void commentSkipped()}
+          >
             {t('coach.commentSkipped')}
           </Button>
         ) : null}

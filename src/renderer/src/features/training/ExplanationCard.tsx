@@ -22,12 +22,21 @@ export interface ExplanationCardProps {
   className?: string
 }
 
-export function ExplanationCard({ text, streaming = false, title, className }: ExplanationCardProps): React.JSX.Element | null {
+export function ExplanationCard({
+  text,
+  streaming = false,
+  title,
+  className
+}: ExplanationCardProps): React.JSX.Element | null {
   const { t } = useTranslation()
   if (text.length === 0 && !streaming) return null
 
   return (
-    <article className={cx(styles.explanation, className)} aria-live="polite" data-testid="explanation-card">
+    <article
+      className={cx(styles.explanation, className)}
+      aria-live="polite"
+      data-testid="explanation-card"
+    >
       <header className={styles.explanationHead}>{title ?? t('coach.name')}</header>
       <p className={cx(styles.prose, 'selectable')}>
         {text.length > 0 ? text : t('coach.writing')}

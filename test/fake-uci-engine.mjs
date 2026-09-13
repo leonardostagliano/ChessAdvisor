@@ -50,7 +50,9 @@ function infoLines(depth) {
   for (let i = 0; i < Math.min(multipv, CANDIDATES.length); i += 1) {
     const candidate = CANDIDATES[i]
     const score = mate ? `mate ${3 + i}` : `cp ${candidate.cp}`
-    lines.push(`info depth ${depth} seldepth ${depth + 4} multipv ${i + 1} score ${score} nodes 1000 nps 50000 time 10 pv ${candidate.pv.join(' ')}`)
+    lines.push(
+      `info depth ${depth} seldepth ${depth + 4} multipv ${i + 1} score ${score} nodes 1000 nps 50000 time 10 pv ${candidate.pv.join(' ')}`
+    )
   }
   return lines
 }
@@ -98,7 +100,8 @@ function handle(line) {
       const valueIndex = tokens.indexOf('value')
       if (nameIndex >= 0 && valueIndex > nameIndex) {
         const name = tokens.slice(nameIndex + 1, valueIndex).join(' ')
-        if (name === 'MultiPV') multipv = Math.max(1, Number.parseInt(tokens[valueIndex + 1] ?? '1', 10))
+        if (name === 'MultiPV')
+          multipv = Math.max(1, Number.parseInt(tokens[valueIndex + 1] ?? '1', 10))
       }
       return
     }

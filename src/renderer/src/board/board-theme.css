@@ -10,10 +10,7 @@
 cg-board {
   background-color: var(--board-light);
   /* Top-left square is light in both orientations, as on a real board (a8 and h1). */
-  background-image: repeating-conic-gradient(
-    var(--board-dark) 0% 25%,
-    var(--board-light) 0% 50%
-  );
+  background-image: repeating-conic-gradient(var(--board-dark) 0% 25%, var(--board-light) 0% 50%);
   background-size: 25% 25%;
   background-position: 0 0;
 }

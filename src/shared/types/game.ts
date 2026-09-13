@@ -7,7 +7,8 @@ export interface Eval {
   mate?: number
 }
 
-export type MoveClassification = 'book' | 'best' | 'excellent' | 'good' | 'inaccuracy' | 'mistake' | 'blunder'
+export type MoveClassification =
+  'book' | 'best' | 'excellent' | 'good' | 'inaccuracy' | 'mistake' | 'blunder'
 
 /**
  * Quality of one played move, filled by the post-game analysis pipeline (M3). Moves are UCI.
@@ -67,7 +68,15 @@ export interface CoachLogEntry {
 }
 
 export type GameOutcome = '1-0' | '0-1' | '1/2-1/2'
-export type GameEndReason = 'checkmate' | 'stalemate' | 'resign' | 'draw_agreed' | 'repetition' | 'fifty' | 'insufficient' | 'timeout'
+export type GameEndReason =
+  | 'checkmate'
+  | 'stalemate'
+  | 'resign'
+  | 'draw_agreed'
+  | 'repetition'
+  | 'fifty'
+  | 'insufficient'
+  | 'timeout'
 
 export interface GameResult {
   outcome: GameOutcome
@@ -135,7 +144,18 @@ export interface Game {
 }
 
 /** Row of the archive list: everything the list needs without reading the whole game. */
-export type GameSummary = Pick<Game, 'id' | 'createdAt' | 'updatedAt' | 'kind' | 'status' | 'userColor' | 'opponent' | 'result' | 'opening'> & {
+export type GameSummary = Pick<
+  Game,
+  | 'id'
+  | 'createdAt'
+  | 'updatedAt'
+  | 'kind'
+  | 'status'
+  | 'userColor'
+  | 'opponent'
+  | 'result'
+  | 'opening'
+> & {
   plies: number
   accuracy?: { w: number; b: number }
 }

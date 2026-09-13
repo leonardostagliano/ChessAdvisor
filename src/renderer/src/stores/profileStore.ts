@@ -55,7 +55,9 @@ const round1 = (value: number): number => Math.round(value * 10) / 10
  * The distribution of spec §6.9: only the user's own analysed moves count, the average is per
  * game (so a long game does not drown a short one) and the share is over the moves themselves.
  */
-export function distributionOf(games: readonly (Game | null | undefined)[]): ClassificationDistribution {
+export function distributionOf(
+  games: readonly (Game | null | undefined)[]
+): ClassificationDistribution {
   const totals = emptyCounts()
   let played = 0
   let counted = 0
@@ -191,7 +193,9 @@ export const useProfileStore = create<ProfileStoreState>((set, get) => {
 export function initProfileStore(): () => void {
   const api = bridge()
   if (!api) return () => {}
-  const unsubscribe = api.on('profile:changed', (profile) => useProfileStore.getState().apply(profile))
+  const unsubscribe = api.on('profile:changed', (profile) =>
+    useProfileStore.getState().apply(profile)
+  )
   void useProfileStore.getState().load()
   return unsubscribe
 }

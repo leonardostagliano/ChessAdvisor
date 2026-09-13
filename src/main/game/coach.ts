@@ -6,7 +6,15 @@ import type { TurnResult } from '@shared/types/codex'
 import type { Eval, Game } from '@shared/types/game'
 import type { EngineLine } from '@shared/types/engine'
 import type { SettingsStore } from '../store/settingsStore'
-import { HINT_SCHEMA, adviceText, coachBaseInstructions, commentText, hintText, resumeSummaryText, type EngineContext } from './coachPrompts'
+import {
+  HINT_SCHEMA,
+  adviceText,
+  coachBaseInstructions,
+  commentText,
+  hintText,
+  resumeSummaryText,
+  type EngineContext
+} from './coachPrompts'
 import type { SessionCodex, SessionEngine } from './gameSession'
 
 /**
@@ -157,7 +165,8 @@ export class CoachSession {
       }),
       gameId: game.id
     })
-    this.pendingRecap = opts.recap && opts.recap.length > 0 ? resumeSummaryText(opts.recap, opts.language) : null
+    this.pendingRecap =
+      opts.recap && opts.recap.length > 0 ? resumeSummaryText(opts.recap, opts.language) : null
   }
 
   async interrupt(): Promise<void> {
@@ -185,12 +194,23 @@ export class CoachSession {
    * Comment on the move at `ply` (1-based), with the engine's view of the position it was played
    * from. Returns `null` when the coach cannot answer: the game never waits on a comment.
    */
-  async commentOn(game: Game, ply: number, opts: { fenBefore: string; fenAfter: string; pgn: string }): Promise<{ streamId: string; text: string } | null> {
+  async commentOn(
+    game: Game,
+    ply: number,
+    opts: { fenBefore: string; fenAfter: string; pgn: string }
+  ): Promise<{ streamId: string; text: string } | null> {
     const move = game.moves[ply - 1]
     if (!move || !this.threadId || this.disabled) return null
     const language = this.language()
     const engine = await this.engineContext(opts.fenBefore, opts.fenAfter)
-    const text = commentText({ move, by: move.by, fen: opts.fenAfter, pgn: opts.pgn, engine, language })
+    const text = commentText({
+      move,
+      by: move.by,
+      fen: opts.fenAfter,
+      pgn: opts.pgn,
+      engine,
+      language
+    })
 
     const run = await this.runTurn(game, text, language)
     if (!run.result.ok) {
@@ -203,7 +223,11 @@ export class CoachSession {
   }
 
   /** Free question from the Coach tab; the answer streams into the same channel as the comments. */
-  async ask(game: Game, question: string, ctx: { fen: string; pgn: string }): Promise<{ streamId: string; text: string }> {
+  async ask(
+    game: Game,
+    question: string,
+    ctx: { fen: string; pgn: string }
+  ): Promise<{ streamId: string; text: string }> {
     const asked = String(question ?? '').trim()
     if (!asked) throw new CoachError('COACH_EMPTY_QUESTION', 'a question is required')
     if (!this.threadId) throw new CoachError('COACH_NO_THREAD', 'the coach thread is not open')
@@ -223,7 +247,10 @@ export class CoachSession {
    * One hint (spec §4.2): structured `{move, reason}`, validated for legality, one retry with the
    * error quoted back, then Stockfish's best move with a reason asked in plain text.
    */
-  async hint(game: Game, ctx: { fen: string; pgn: string }): Promise<{ move: string; uci: string; reason: string }> {
+  async hint(
+    game: Game,
+    ctx: { fen: string; pgn: string }
+  ): Promise<{ move: string; uci: string; reason: string }> {
     if (!this.threadId) throw new CoachError('COACH_NO_THREAD', 'the coach thread is not open')
     const language = this.language()
     const engine = await this.engineContext(ctx.fen, null)
@@ -273,10 +300,23 @@ export class CoachSession {
    * One coach turn. The recap of a resumed game is prepended here, so it never costs a call of
    * its own; the `streamId` is published before the turn starts and cleared when it ends.
    */
-  private async runTurn(game: Game, body: string, language: 'it' | 'en', outputSchema?: object): Promise<{ streamId: string; result: TurnResult }> {
+  private async runTurn(
+    game: Game,
+    body: string,
+    language: 'it' | 'en',
+    outputSchema?: object
+  ): Promise<{ streamId: string; result: TurnResult }> {
     const threadId = this.threadId
     if (!threadId) {
-      return { streamId: '', result: { ok: false, reason: 'failed', message: 'the coach thread is not open', turnId: null } }
+      return {
+        streamId: '',
+        result: {
+          ok: false,
+          reason: 'failed',
+          message: 'the coach thread is not open',
+          turnId: null
+        }
+      }
     }
     const recap = this.pendingRecap
     this.pendingRecap = null
@@ -330,7 +370,10 @@ export class CoachSession {
    * `null` whenever the engine is unavailable or the analysis fails: the oracle-less mode of
    * spec §4.2 is a normal way to run, not an error.
    */
-  private async engineContext(fenBefore: string, fenAfter: string | null): Promise<EngineContext | null> {
+  private async engineContext(
+    fenBefore: string,
+    fenAfter: string | null
+  ): Promise<EngineContext | null> {
     if (!this.deps.engine.state().available) return null
     try {
       const analysis = await this.deps.engine.analyze(fenBefore, 'coach')
@@ -356,8 +399,13 @@ export class CoachSession {
   }
 
   /** Last resort of `hint()`: the engine picks the move, the coach only explains it. */
-  private async engineHint(game: Game, ctx: { fen: string; pgn: string }, language: 'it' | 'en'): Promise<{ move: string; uci: string; reason: string }> {
-    if (!this.deps.engine.state().available) throw new CoachError('COACH_HINT_FAILED', 'no legal hint could be produced')
+  private async engineHint(
+    game: Game,
+    ctx: { fen: string; pgn: string },
+    language: 'it' | 'en'
+  ): Promise<{ move: string; uci: string; reason: string }> {
+    if (!this.deps.engine.state().available)
+      throw new CoachError('COACH_HINT_FAILED', 'no legal hint could be produced')
     let best: { san: string; uci: string } | null = null
     try {
       const analysis = await this.deps.engine.analyze(ctx.fen, 'coach')
@@ -370,8 +418,16 @@ export class CoachSession {
 
     const explain =
       language === 'it'
-        ? [`Spiega in una frase perché ${best.san} è la mossa da giocare in questa posizione.`, `FEN: ${ctx.fen}`, 'Testo semplice, niente JSON.'].join('\n')
-        : [`Explain in one sentence why ${best.san} is the move to play in this position.`, `FEN: ${ctx.fen}`, 'Plain text, no JSON.'].join('\n')
+        ? [
+            `Spiega in una frase perché ${best.san} è la mossa da giocare in questa posizione.`,
+            `FEN: ${ctx.fen}`,
+            'Testo semplice, niente JSON.'
+          ].join('\n')
+        : [
+            `Explain in one sentence why ${best.san} is the move to play in this position.`,
+            `FEN: ${ctx.fen}`,
+            'Plain text, no JSON.'
+          ].join('\n')
     const run = await this.runTurn(game, explain, language)
     return { move: best.san, uci: best.uci, reason: run.result.ok ? run.result.text.trim() : '' }
   }

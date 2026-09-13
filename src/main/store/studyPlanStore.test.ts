@@ -20,8 +20,20 @@ describe('StudyPlanStore', () => {
   const plan = {
     generatedAt: '2026-03-02T09:00:00.000Z',
     items: [
-      { id: 'item-1', title: 'Tattica', why: 'perché', activity: { type: 'thematic' as const, ref: 'fork' }, done: false },
-      { id: 'item-2', title: 'Gioca', why: '', activity: { type: 'play' as const, ref: null }, done: false }
+      {
+        id: 'item-1',
+        title: 'Tattica',
+        why: 'perché',
+        activity: { type: 'thematic' as const, ref: 'fork' },
+        done: false
+      },
+      {
+        id: 'item-2',
+        title: 'Gioca',
+        why: '',
+        activity: { type: 'play' as const, ref: null },
+        done: false
+      }
     ]
   }
 
@@ -48,8 +60,12 @@ describe('StudyPlanStore', () => {
   })
 
   it('drops the items of a broken file and the file itself when nothing is left', () => {
-    expect(sanitizePlan({ items: [{ title: 'ok', activity: { type: 'play', ref: null } }] })?.items).toHaveLength(1)
-    expect(sanitizePlan({ items: [{ title: 'ok', activity: { type: 'reading', ref: null } }] })).toBeNull()
+    expect(
+      sanitizePlan({ items: [{ title: 'ok', activity: { type: 'play', ref: null } }] })?.items
+    ).toHaveLength(1)
+    expect(
+      sanitizePlan({ items: [{ title: 'ok', activity: { type: 'reading', ref: null } }] })
+    ).toBeNull()
     expect(sanitizePlan('nope')).toBeNull()
   })
 })

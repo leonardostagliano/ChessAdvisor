@@ -92,7 +92,11 @@ export function normalizeMove(fen: string, input: string): LegalMove | null {
 
 /** First four FEN fields: placement, side to move, castling rights, en-passant square. */
 export function epdOf(fen: string): string {
-  return String(fen ?? '').trim().split(/\s+/).slice(0, 4).join(' ')
+  return String(fen ?? '')
+    .trim()
+    .split(/\s+/)
+    .slice(0, 4)
+    .join(' ')
 }
 
 /** Plays `move` (UCI, SAN or any spelling {@link normalizeMove} accepts) and returns the new position. */

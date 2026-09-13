@@ -34,7 +34,9 @@ export const PROMOTION_ROLES: { role: PromotionRole; letter: 'q' | 'r' | 'b' | '
 
 /** True when `orig → dest` is a pawn promotion in `fen` (any promotion piece is legal there). */
 export function isPromotion(fen: string, orig: string, dest: string): boolean {
-  return legalMoves(fen).some((move) => move.uci.length === 5 && move.uci.startsWith(`${orig}${dest}`))
+  return legalMoves(fen).some(
+    (move) => move.uci.length === 5 && move.uci.startsWith(`${orig}${dest}`)
+  )
 }
 
 export interface BoardMovable {
@@ -122,7 +124,8 @@ export function useReducedMotion(): boolean {
       media = undefined
     }
     if (!media) return
-    const onChange = (event: MediaQueryListEvent | MediaQueryList): void => setReduced(event.matches)
+    const onChange = (event: MediaQueryListEvent | MediaQueryList): void =>
+      setReduced(event.matches)
     onChange(media)
     if (typeof media.addEventListener === 'function') {
       media.addEventListener('change', onChange)
@@ -151,8 +154,15 @@ export function turnColorOf(fen: string): Color {
 /** Stable fingerprint of everything in a config that changes what chessground shows or allows. */
 export function configSignature(config: Config): string {
   const dests = config.movable?.dests
-  const destsSig = dests ? [...dests.entries()].map(([from, to]) => `${from}:${to.join('')}`).sort().join('|') : ''
-  const shapes = (config.drawable?.autoShapes ?? []).map((s) => `${s.orig}${s.dest ?? ''}${s.brush ?? ''}`).join('|')
+  const destsSig = dests
+    ? [...dests.entries()]
+        .map(([from, to]) => `${from}:${to.join('')}`)
+        .sort()
+        .join('|')
+    : ''
+  const shapes = (config.drawable?.autoShapes ?? [])
+    .map((s) => `${s.orig}${s.dest ?? ''}${s.brush ?? ''}`)
+    .join('|')
   return [
     config.fen,
     config.orientation,
@@ -185,7 +195,12 @@ export function destsOf(fen: string): Map<Key, Key[]> {
  * UCI of the move chessground just played. For a promotion the letter comes from the picker;
  * without a choice (programmatic callers) the queen is used.
  */
-export function uciOf(fen: string, orig: string, dest: string, promotion?: 'q' | 'r' | 'b' | 'n'): string {
+export function uciOf(
+  fen: string,
+  orig: string,
+  dest: string,
+  promotion?: 'q' | 'r' | 'b' | 'n'
+): string {
   const candidates = legalMoves(fen).filter(
     (move) => move.uci.length === 5 && move.uci.startsWith(`${orig}${dest}`)
   )
@@ -235,7 +250,10 @@ export function Board({
     if (!promotion) return
     setPromotion(null)
     // Put the pawn back: the position never changed in the main process.
-    apiRef.current?.set({ fen: moveRef.current.fen, lastMove: lastMove ? [lastMove[0] as Key, lastMove[1] as Key] : [] })
+    apiRef.current?.set({
+      fen: moveRef.current.fen,
+      lastMove: lastMove ? [lastMove[0] as Key, lastMove[1] as Key] : []
+    })
   }
   promotionCancelRef.current = cancelPromotion
   promotionChooseRef.current = choosePromotion
@@ -269,12 +287,16 @@ export function Board({
       coordinates,
       viewOnly,
       ...(lastMove ? { lastMove: [lastMove[0] as Key, lastMove[1] as Key] } : { lastMove: [] }),
-      animation: reducedMotion ? { enabled: false, duration: 0 } : { enabled: true, duration: ANIMATION_MS },
+      animation: reducedMotion
+        ? { enabled: false, duration: 0 }
+        : { enabled: true, duration: ANIMATION_MS },
       highlight: { lastMove: true, check: true },
       movable: {
         free: false,
         color: locked ? undefined : movable?.color,
-        dests: locked ? new Map<Key, Key[]>() : ((movable?.dests as Map<Key, Key[]> | undefined) ?? destsOf(fen)),
+        dests: locked
+          ? new Map<Key, Key[]>()
+          : ((movable?.dests as Map<Key, Key[]> | undefined) ?? destsOf(fen)),
         showDests: true,
         events: {
           after: (orig: Key, dest: Key) => {
@@ -384,17 +406,42 @@ export function Board({
     const file = promotion.dest.charCodeAt(0) - 97
     const column = orientation === 'white' ? file : 7 - file
     const fromTop = (orientation === 'white') === (promotion.color === 'white')
-    return { left: column * square, top: fromTop ? 0 : size - 4 * square, width: square, height: 4 * square }
+    return {
+      left: column * square,
+      top: fromTop ? 0 : size - 4 * square,
+      width: square,
+      height: 4 * square
+    }
   })()
 
   return (
-    <div ref={frameRef} className={cx(styles.frame, className)} role="group" aria-label={label ?? t('board.label')}>
+    <div
+      ref={frameRef}
+      className={cx(styles.frame, className)}
+      role="group"
+      aria-label={label ?? t('board.label')}
+    >
       <div className={styles.stage} style={{ width: size, height: size }}>
-        <div ref={hostRef} className={cx('cg-wrap', styles.board)} style={{ width: size, height: size }} />
+        <div
+          ref={hostRef}
+          className={cx('cg-wrap', styles.board)}
+          style={{ width: size, height: size }}
+        />
         {promotion && promotionStyle ? (
           <>
-            <button type="button" className={styles.promotionBackdrop} aria-label={t('board.promotion.cancel')} onClick={cancelPromotion} />
-            <div className={cx('cg-wrap', styles.promotion)} style={promotionStyle} role="dialog" aria-label={t('board.promotion.title')} data-testid="promotion-picker">
+            <button
+              type="button"
+              className={styles.promotionBackdrop}
+              aria-label={t('board.promotion.cancel')}
+              onClick={cancelPromotion}
+            />
+            <div
+              className={cx('cg-wrap', styles.promotion)}
+              style={promotionStyle}
+              role="dialog"
+              aria-label={t('board.promotion.title')}
+              data-testid="promotion-picker"
+            >
               {PROMOTION_ROLES.map(({ role, letter }, index) => (
                 <button
                   key={role}

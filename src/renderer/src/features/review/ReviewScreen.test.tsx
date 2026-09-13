@@ -25,8 +25,23 @@ const FEN_1 = 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1'
 const FEN_2 = 'rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq e6 0 2'
 const FEN_3 = 'rnbqkbnr/pppp1ppp/8/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 1 2'
 
-function move(ply: number, san: string, uci: string, fenAfter: string, by: Move['by'], patch: Partial<Move> = {}): Move {
-  return { ply, san, uci, fenAfter, epdAfter: fenAfter.split(' ').slice(0, 4).join(' '), by, ...patch }
+function move(
+  ply: number,
+  san: string,
+  uci: string,
+  fenAfter: string,
+  by: Move['by'],
+  patch: Partial<Move> = {}
+): Move {
+  return {
+    ply,
+    san,
+    uci,
+    fenAfter,
+    epdAfter: fenAfter.split(' ').slice(0, 4).join(' '),
+    by,
+    ...patch
+  }
 }
 
 /** Three plies whose last one is a blunder of the user: the only key moment of the game. */
@@ -38,26 +53,59 @@ function analysedGame(): Game {
     kind: 'match',
     status: 'finished',
     userColor: 'w',
-    opponent: { model: 'gpt-6-astra', effort: 'low', difficulty: { mode: 'fixed', level: 3, targetElo: 1200 } },
+    opponent: {
+      model: 'gpt-6-astra',
+      effort: 'low',
+      difficulty: { mode: 'fixed', level: 3, targetElo: 1200 }
+    },
     coach: { model: 'gpt-6-astra', effort: 'low' },
     clock: null,
     language: 'it',
     moves: [
       move(1, 'e4', 'e2e4', FEN_1, 'user', {
-        eval: { before: { cp: 20 }, after: { cp: 15 }, cpLoss: 5, winPercentLoss: 0.9, classification: 'best', bestMove: 'e2e4', bestLine: ['e2e4', 'e7e5'] }
+        eval: {
+          before: { cp: 20 },
+          after: { cp: 15 },
+          cpLoss: 5,
+          winPercentLoss: 0.9,
+          classification: 'best',
+          bestMove: 'e2e4',
+          bestLine: ['e2e4', 'e7e5']
+        }
       }),
       move(2, 'e5', 'e7e5', FEN_2, 'ai', {
-        eval: { before: { cp: -15 }, after: { cp: -20 }, cpLoss: 5, winPercentLoss: 0.9, classification: 'excellent', bestMove: 'e7e5', bestLine: ['e7e5'] }
+        eval: {
+          before: { cp: -15 },
+          after: { cp: -20 },
+          cpLoss: 5,
+          winPercentLoss: 0.9,
+          classification: 'excellent',
+          bestMove: 'e7e5',
+          bestLine: ['e7e5']
+        }
       }),
       move(3, 'Nf3', 'g1f3', FEN_3, 'user', {
-        eval: { before: { cp: 20 }, after: { cp: -300 }, cpLoss: 320, winPercentLoss: 45.2, classification: 'blunder', bestMove: 'd2d4', bestLine: ['d2d4', 'd7d5'] }
+        eval: {
+          before: { cp: 20 },
+          after: { cp: -300 },
+          cpLoss: 320,
+          winPercentLoss: 45.2,
+          classification: 'blunder',
+          bestMove: 'd2d4',
+          bestLine: ['d2d4', 'd7d5']
+        }
       })
     ],
     takebacks: 0,
     coachLog: [],
     result: { outcome: '0-1', reason: 'resign' },
     opening: { eco: 'C40', name: "King's Knight Opening", lastBookPly: 3 },
-    analysis: { accuracy: { w: 62.4, b: 88.2 }, acpl: { w: 108, b: 12 }, keyMoments: [3], analyzedAt: '2026-09-12T10:06:00.000Z' }
+    analysis: {
+      accuracy: { w: 62.4, b: 88.2 },
+      acpl: { w: 108, b: 12 },
+      keyMoments: [3],
+      analyzedAt: '2026-09-12T10:06:00.000Z'
+    }
   }
 }
 
@@ -73,7 +121,14 @@ const status = vi.fn(async () => ({ state: 'done', ply: 3, total: 3 }) as never)
 const run = vi.fn(async () => analysedGame())
 const commentMove = vi.fn(async () => 'La casa f3 lasciava il pedone e4 indifeso.')
 const commentKeyMoments = vi.fn(async () => [{ ply: 3, text: 'Momento chiave commentato.' }])
-const lesson = vi.fn(async () => ({ takeaways: ['Guarda le forchette', 'Sviluppa i pezzi', 'Controlla il centro'], summary: 'Partita persa per una svista.', language: 'it' }) as never)
+const lesson = vi.fn(
+  async () =>
+    ({
+      takeaways: ['Guarda le forchette', 'Sviluppa i pezzi', 'Controlla il centro'],
+      summary: 'Partita persa per una svista.',
+      language: 'it'
+    }) as never
+)
 const close = vi.fn(async () => undefined)
 const off = vi.fn()
 const listeners = new Map<string, (payload: never) => void>()
@@ -107,7 +162,11 @@ function reset(): void {
     request: null,
     error: null
   })
-  useEngineStore.setState({ state: { available: true, binary: 'avx2', version: 'Stockfish 17.1', message: null }, available: true, error: null })
+  useEngineStore.setState({
+    state: { available: true, binary: 'avx2', version: 'Stockfish 17.1', message: null },
+    available: true,
+    error: null
+  })
 }
 
 async function open(): Promise<void> {
@@ -194,7 +253,9 @@ describe('ReviewScreen', () => {
     await open()
     fireEvent.click(screen.getByRole('button', { name: 'Commenta i momenti chiave' }))
     await waitFor(() => expect(commentKeyMoments).toHaveBeenCalledWith('g1'))
-    expect(useReviewStore.getState().game?.moves[2]?.coachComment).toBe('Momento chiave commentato.')
+    expect(useReviewStore.getState().game?.moves[2]?.coachComment).toBe(
+      'Momento chiave commentato.'
+    )
   })
 
   it('writes the lesson of the game with its three takeaways', async () => {
@@ -213,7 +274,14 @@ describe('ReviewScreen', () => {
     const activity = listeners.get('review:activity')!
     const stream = listeners.get('stream')!
     activity({ gameId: 'g1', kind: 'move', ply: 3, streamId: 's1', busy: true } as never)
-    stream({ streamId: 's1', threadId: 't', turnId: 'u', itemId: 'i', kind: 'text', chunk: 'Il cavallo' } as never)
+    stream({
+      streamId: 's1',
+      threadId: 't',
+      turnId: 'u',
+      itemId: 'i',
+      kind: 'text',
+      chunk: 'Il cavallo'
+    } as never)
     expect(await screen.findByText(/Il cavallo/)).toBeInTheDocument()
   })
 
@@ -223,7 +291,9 @@ describe('ReviewScreen', () => {
     render(<ReviewScreen gameId="g1" onClose={() => {}} />)
     await waitFor(() => expect(screen.getByRole('progressbar')).toBeInTheDocument())
     listeners.get('analysis:progress')!({ gameId: 'g1', ply: 2, total: 3 } as never)
-    await waitFor(() => expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '2'))
+    await waitFor(() =>
+      expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '2')
+    )
     expect(screen.getByText(/semimossa 2 di 3/)).toBeInTheDocument()
   })
 
@@ -247,12 +317,16 @@ describe('ReviewScreen', () => {
     expect(screen.getByText('Analisi non disponibile')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Analizza' })).toBeNull()
     // Spec §8: without the engine the review is the coach's prose, so the lesson is the way on.
-    expect(screen.getAllByRole('button', { name: 'Lezione della partita' }).length).toBeGreaterThan(1)
+    expect(screen.getAllByRole('button', { name: 'Lezione della partita' }).length).toBeGreaterThan(
+      1
+    )
   })
 
   it('shows a failed review turn without losing the screen', async () => {
     await open()
-    lesson.mockRejectedValueOnce(new Error(encodeIpcErrorMessage('REVIEW_TURN_FAILED', 'il turno è fallito')))
+    lesson.mockRejectedValueOnce(
+      new Error(encodeIpcErrorMessage('REVIEW_TURN_FAILED', 'il turno è fallito'))
+    )
     fireEvent.click(screen.getByRole('button', { name: 'Lezione della partita' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('il turno è fallito')
     expect(screen.getByText('62.4%')).toBeInTheDocument()

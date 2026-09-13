@@ -28,9 +28,15 @@ function fenBefore(game: Game, ply: number): string {
 }
 
 /** The first move of the game the user got wrong inside the opening, if there is one. */
-export function firstDeviation(game: Game): { epd: string; san: string; bestSan: string; ply: number } | null {
+export function firstDeviation(
+  game: Game
+): { epd: string; san: string; bestSan: string; ply: number } | null {
   const move: Move | undefined = game.moves.find(
-    (entry) => entry.ply <= MAX_DEVIATION_PLIES && entry.by === 'user' && entry.eval && DEVIATING.has(entry.eval.classification)
+    (entry) =>
+      entry.ply <= MAX_DEVIATION_PLIES &&
+      entry.by === 'user' &&
+      entry.eval &&
+      DEVIATING.has(entry.eval.classification)
   )
   if (!move || !move.eval) return null
   const fen = fenBefore(game, move.ply)
@@ -59,7 +65,13 @@ export function buildOpeningsOverview(profile: Profile, games: Game[]): OpeningO
     const key = `${deviation.epd}|${deviation.san}`
     const current = perOpening.get(key)
     if (current) current.count += 1
-    else perOpening.set(key, { epd: deviation.epd, san: deviation.san, count: 1, bestSan: deviation.bestSan })
+    else
+      perOpening.set(key, {
+        epd: deviation.epd,
+        san: deviation.san,
+        count: 1,
+        bestSan: deviation.bestSan
+      })
     deviations.set(eco, perOpening)
   }
 
@@ -72,7 +84,8 @@ export function buildOpeningsOverview(profile: Profile, games: Game[]): OpeningO
         eco: stat.eco,
         name: stat.name,
         games: stat.games,
-        score: stat.games > 0 ? Math.round(((stat.wins + stat.draws / 2) / stat.games) * 1000) / 10 : 0,
+        score:
+          stat.games > 0 ? Math.round(((stat.wins + stat.draws / 2) / stat.games) * 1000) / 10 : 0,
         avgAccuracyFirst10: stat.avgAccuracyFirst10,
         deviations: rows
       }

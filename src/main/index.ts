@@ -99,7 +99,9 @@ const game = new GameManager({
   onFinished: (finished) => {
     analysis.onGameFinished(finished)
     // Task 20: an endgame drill writes its own result (spec §6.7); a match is analysed instead.
-    void training.onGameFinished(finished).catch((error) => console.error('[main] the endgame result could not be saved:', error))
+    void training
+      .onGameFinished(finished)
+      .catch((error) => console.error('[main] the endgame result could not be saved:', error))
   }
 })
 // --- Task 20: the training section ---
@@ -203,13 +205,33 @@ if (!gotLock) {
       return undefined
     })
     // Task 9: the archive index and the profile are read once, before the first IPC call.
-    await games.load().catch((error) => console.error('[main] the games archive could not be read:', error))
-    await profile.load().catch((error) => console.error('[main] the profile could not be read:', error))
+    await games
+      .load()
+      .catch((error) => console.error('[main] the games archive could not be read:', error))
+    await profile
+      .load()
+      .catch((error) => console.error('[main] the profile could not be read:', error))
     // Task 20: the training material — two small files and the bundled datasets.
-    await exercises.load().catch((error) => console.error('[main] the exercises could not be read:', error))
-    await plans.load().catch((error) => console.error('[main] the study plan could not be read:', error))
-    await library.load().catch((error) => console.error('[main] the training datasets could not be read:', error))
-    registerIpc({ settings, showWindow: showMainWindow, engine, codex, games, game, analysis, profile: profileService, training })
+    await exercises
+      .load()
+      .catch((error) => console.error('[main] the exercises could not be read:', error))
+    await plans
+      .load()
+      .catch((error) => console.error('[main] the study plan could not be read:', error))
+    await library
+      .load()
+      .catch((error) => console.error('[main] the training datasets could not be read:', error))
+    registerIpc({
+      settings,
+      showWindow: showMainWindow,
+      engine,
+      codex,
+      games,
+      game,
+      analysis,
+      profile: profileService,
+      training
+    })
     // In-app updater: never installs while a game turn is in flight.
     registerUpdates({
       handle,
@@ -224,7 +246,9 @@ if (!gotLock) {
 
     createWindow()
     // The engine probe spawns a child process: never let it delay the first paint.
-    void engine.start().catch((error) => console.error('[main] the chess engine could not start:', error))
+    void engine
+      .start()
+      .catch((error) => console.error('[main] the chess engine could not start:', error))
     // Repair this app's existing pins after an NSIS replacement, without delaying first paint.
     mainWindow?.once('ready-to-show', () => {
       void repairPinnedShortcuts().catch(() => undefined)
@@ -244,7 +268,9 @@ if (!gotLock) {
     powerMonitor.on('resume', () => void game.checkClock())
 
     // The renderer follows `codex:state`; a boot failure is a screen, never a crash.
-    void codex.start().catch((error) => console.error('[main] Codex service failed to start:', error))
+    void codex
+      .start()
+      .catch((error) => console.error('[main] Codex service failed to start:', error))
   })
 
   // On Windows the app lives in the tray after the last window is closed.

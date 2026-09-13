@@ -20,7 +20,11 @@ export interface LessonCardProps {
   onGenerate(): void
 }
 
-export function LessonCard({ lesson, busy = false, onGenerate }: LessonCardProps): React.JSX.Element {
+export function LessonCard({
+  lesson,
+  busy = false,
+  onGenerate
+}: LessonCardProps): React.JSX.Element {
   const { t } = useTranslation()
   const language = useUiStore((state) => state.language)
   const foreign = !!lesson && lesson.language !== language
@@ -34,7 +38,9 @@ export function LessonCard({ lesson, busy = false, onGenerate }: LessonCardProps
           {foreign ? (
             <span className={styles.badge}>
               {t('coach.languageBadge', {
-                language: t(lesson.language === 'it' ? 'settings.languageIt' : 'settings.languageEn')
+                language: t(
+                  lesson.language === 'it' ? 'settings.languageIt' : 'settings.languageEn'
+                )
               })}
             </span>
           ) : null}
@@ -42,7 +48,9 @@ export function LessonCard({ lesson, busy = false, onGenerate }: LessonCardProps
               which is what a lesson written in another language needs (spec §4.3). */}
           {lesson ? (
             <Button size="sm" variant="ghost" disabled={busy} onClick={onGenerate}>
-              {busy ? t('review.lessonWriting') : t('review.regenerate', { language: languageName })}
+              {busy
+                ? t('review.lessonWriting')
+                : t('review.regenerate', { language: languageName })}
             </Button>
           ) : null}
         </div>
@@ -60,7 +68,9 @@ export function LessonCard({ lesson, busy = false, onGenerate }: LessonCardProps
               </li>
             ))}
           </ol>
-          {lesson.summary ? <p className={cx(styles.summary, 'selectable')}>{lesson.summary}</p> : null}
+          {lesson.summary ? (
+            <p className={cx(styles.summary, 'selectable')}>{lesson.summary}</p>
+          ) : null}
         </>
       )}
     </section>

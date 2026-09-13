@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 // The contrast checker is the plain ESM module the shell script runs.
-import { REQUIREMENTS, checkContrast, contrastRatio, failures } from '../../../../scripts/check-contrast.mjs'
+import {
+  REQUIREMENTS,
+  checkContrast,
+  contrastRatio,
+  failures
+} from '../../../../scripts/check-contrast.mjs'
 
 /**
  * Spec §7 asks for 4.5:1 on text and 3:1 on graphic elements, on both palettes. The check itself
@@ -29,7 +34,9 @@ describe('palette contrast', () => {
   it('keeps every pair of both palettes above its minimum', () => {
     const rows = checkContrast() as Row[]
     expect(rows).toHaveLength(REQUIREMENTS.length * 2)
-    expect(failures(rows).map((row: Row) => `${row.theme} ${row.fg} on ${row.bg} = ${row.ratio}`)).toEqual([])
+    expect(
+      failures(rows).map((row: Row) => `${row.theme} ${row.fg} on ${row.bg} = ${row.ratio}`)
+    ).toEqual([])
   })
 
   it('checks both palettes, text and graphic thresholds alike', () => {

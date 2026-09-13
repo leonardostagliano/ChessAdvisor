@@ -65,29 +65,51 @@ describe('ExerciseStore', () => {
   })
 
   it('merges a patch and removes the keys set to undefined', async () => {
-    await store.put(exercise('tac-1', { status: 'solved', solvedAt: '2026-03-02T10:00:00.000Z', attempts: 3 }))
+    await store.put(
+      exercise('tac-1', { status: 'solved', solvedAt: '2026-03-02T10:00:00.000Z', attempts: 3 })
+    )
     const updated = await store.update('tac-1', { status: 'new', attempts: 0, solvedAt: undefined })
     expect(updated?.solvedAt).toBeUndefined()
-    expect(JSON.parse(await readFile(join(root, 'exercises.json'), 'utf8'))[0].solvedAt).toBeUndefined()
+    expect(
+      JSON.parse(await readFile(join(root, 'exercises.json'), 'utf8'))[0].solvedAt
+    ).toBeUndefined()
   })
 
   it('collects the ids of one status', async () => {
-    await store.putMany([exercise('tac-1', { status: 'solved' }), exercise('tac-2'), exercise('og-1', { kind: 'own_game', status: 'solved' })])
+    await store.putMany([
+      exercise('tac-1', { status: 'solved' }),
+      exercise('tac-2'),
+      exercise('og-1', { kind: 'own_game', status: 'solved' })
+    ])
     expect([...store.idsWithStatus('solved', 'thematic')]).toEqual(['tac-1'])
   })
 
   it('drops the rows of a broken file instead of crashing', async () => {
-    await writeFile(join(root, 'exercises.json'), JSON.stringify([exercise('tac-1'), { id: 'broken' }, 42]), 'utf8')
+    await writeFile(
+      join(root, 'exercises.json'),
+      JSON.stringify([exercise('tac-1'), { id: 'broken' }, 42]),
+      'utf8'
+    )
     await store.load()
     expect(store.list().map((entry) => entry.id)).toEqual(['tac-1'])
   })
 
   it('reads an exercise of an older version back to a usable shape', () => {
-    expect(sanitizeExercise({ id: 'x', kind: 'thematic', fen: '8/8/8/8/8/8/8/8 w - - 0 1', sideToMove: 'w', theme: 'fork' })).toMatchObject({
+    expect(
+      sanitizeExercise({
+        id: 'x',
+        kind: 'thematic',
+        fen: '8/8/8/8/8/8/8/8 w - - 0 1',
+        sideToMove: 'w',
+        theme: 'fork'
+      })
+    ).toMatchObject({
       solution: [],
       status: 'new',
       attempts: 0
     })
-    expect(sanitizeExercise({ id: 'x', kind: 'nope', fen: 'f', sideToMove: 'w', theme: 'fork' })).toBeNull()
+    expect(
+      sanitizeExercise({ id: 'x', kind: 'nope', fen: 'f', sideToMove: 'w', theme: 'fork' })
+    ).toBeNull()
   })
 })

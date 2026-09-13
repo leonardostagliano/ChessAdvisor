@@ -15,7 +15,8 @@ export class UpdateError extends Error {
   }
 }
 
-export type UpdateAccessReason = 'credentials' | 'sso' | 'oauth-policy' | 'permissions' | 'not-found' | 'forbidden'
+export type UpdateAccessReason =
+  'credentials' | 'sso' | 'oauth-policy' | 'permissions' | 'not-found' | 'forbidden'
 
 export class UpdateAccessError extends UpdateError {
   constructor(
@@ -35,12 +36,23 @@ const CDN_HOSTS = new Set([
 
 /** Official release endpoints only. Query strings on CDNs are signed by GitHub and stay in main memory. */
 function permittedUrl(url: URL, asset: boolean): boolean {
-  if (url.protocol !== 'https:' || url.username || url.password || (url.port && url.port !== '443') || url.hash) return false
+  if (
+    url.protocol !== 'https:' ||
+    url.username ||
+    url.password ||
+    (url.port && url.port !== '443') ||
+    url.hash
+  )
+    return false
   if (url.hostname === 'api.github.com') {
-    return url.pathname === `/repos/${UPDATE_REPOSITORY}/releases` || url.pathname.startsWith(`/repos/${UPDATE_REPOSITORY}/releases/`)
+    return (
+      url.pathname === `/repos/${UPDATE_REPOSITORY}/releases` ||
+      url.pathname.startsWith(`/repos/${UPDATE_REPOSITORY}/releases/`)
+    )
   }
   if (!asset) return false
-  if (url.hostname === 'github.com') return url.pathname.startsWith(`/${UPDATE_REPOSITORY}/releases/download/`)
+  if (url.hostname === 'github.com')
+    return url.pathname.startsWith(`/${UPDATE_REPOSITORY}/releases/download/`)
   return CDN_HOSTS.has(url.hostname)
 }
 
@@ -59,7 +71,9 @@ async function errorMessage(response: IncomingMessage): Promise<string> {
       chunks.push(bytes)
     }
     const data: unknown = JSON.parse(Buffer.concat(chunks).toString('utf8'))
-    return data && typeof data === 'object' && 'message' in data && typeof data.message === 'string' ? data.message.toLowerCase() : ''
+    return data && typeof data === 'object' && 'message' in data && typeof data.message === 'string'
+      ? data.message.toLowerCase()
+      : ''
   } catch {
     return ''
   } finally {
@@ -71,15 +85,24 @@ async function errorMessage(response: IncomingMessage): Promise<string> {
 async function responseError(response: IncomingMessage, githubApi: boolean): Promise<UpdateError> {
   const status = response.statusCode ?? 0
   const rateLimit = (): UpdateError => new UpdateError('UPDATES_RATE_LIMIT', m().rateLimit(status))
-  if (status === 429 || (status === 403 && response.headers['x-ratelimit-remaining'] === '0')) return rateLimit()
-  if (githubApi && status === 401) return new UpdateAccessError(status, 'credentials', m().accessCredentials)
-  if (githubApi && status === 404) return new UpdateAccessError(status, 'not-found', m().accessNotFound)
+  if (status === 429 || (status === 403 && response.headers['x-ratelimit-remaining'] === '0'))
+    return rateLimit()
+  if (githubApi && status === 401)
+    return new UpdateAccessError(status, 'credentials', m().accessCredentials)
+  if (githubApi && status === 404)
+    return new UpdateAccessError(status, 'not-found', m().accessNotFound)
   if (githubApi && status === 403) {
     const sso = response.headers['x-github-sso']
-    if (typeof sso === 'string' && /^required(?:;|$)/i.test(sso)) return new UpdateAccessError(status, 'sso', m().accessSso)
+    if (typeof sso === 'string' && /^required(?:;|$)/i.test(sso))
+      return new UpdateAccessError(status, 'sso', m().accessSso)
     const message = await errorMessage(response)
-    if (/secondary rate limit|api rate limit exceeded|abuse detection/.test(message)) return rateLimit()
-    if (/oauth app access restrictions|oauth application access restrictions|third.party application restrictions/.test(message)) {
+    if (/secondary rate limit|api rate limit exceeded|abuse detection/.test(message))
+      return rateLimit()
+    if (
+      /oauth app access restrictions|oauth application access restrictions|third.party application restrictions/.test(
+        message
+      )
+    ) {
       return new UpdateAccessError(status, 'oauth-policy', m().accessOauthPolicy)
     }
     if (/resource not accessible by (?:personal access token|integration)/.test(message)) {
@@ -90,8 +113,15 @@ async function responseError(response: IncomingMessage, githubApi: boolean): Pro
   return new UpdateError('UPDATES_HTTP', m().httpFailed(status))
 }
 
-async function responseFor(url: URL, token: string | undefined, asset: boolean, signal: AbortSignal, redirects = 0): Promise<IncomingMessage> {
-  if (!permittedUrl(url, asset) || redirects > 5) throw new UpdateError('UPDATES_URL', m().urlNotAllowed)
+async function responseFor(
+  url: URL,
+  token: string | undefined,
+  asset: boolean,
+  signal: AbortSignal,
+  redirects = 0
+): Promise<IncomingMessage> {
+  if (!permittedUrl(url, asset) || redirects > 5)
+    throw new UpdateError('UPDATES_URL', m().urlNotAllowed)
   const response = await new Promise<IncomingMessage>((resolve, reject) => {
     const request = https.request(
       url,
@@ -103,7 +133,10 @@ async function responseFor(url: URL, token: string | undefined, asset: boolean, 
           Accept: asset ? 'application/octet-stream' : 'application/vnd.github+json',
           'Accept-Encoding': 'identity',
           ...(url.hostname === 'api.github.com'
-            ? { 'X-GitHub-Api-Version': '2026-03-10', ...(token ? { Authorization: `Bearer ${token}` } : {}) }
+            ? {
+                'X-GitHub-Api-Version': '2026-03-10',
+                ...(token ? { Authorization: `Bearer ${token}` } : {})
+              }
             : {})
         }
       },
@@ -158,7 +191,12 @@ async function boundedRequest<T>(
   if (options.signal?.aborted) abort()
   let response: IncomingMessage | undefined
   try {
-    response = await responseFor(new URL(url), options.token, options.asset ?? false, controller.signal)
+    response = await responseFor(
+      new URL(url),
+      options.token,
+      options.asset ?? false,
+      controller.signal
+    )
     return await read(response)
   } catch (error) {
     if (error instanceof UpdateError) throw error
@@ -179,7 +217,8 @@ export function readReleaseBytes(
 ): Promise<Buffer> {
   return boundedRequest(url, { ...options, timeoutMs: 30_000 }, async (response) => {
     const length = Number(response.headers['content-length'])
-    if (Number.isFinite(length) && length > options.maxBytes) throw new UpdateError('UPDATES_SIZE', m().responseTooLarge)
+    if (Number.isFinite(length) && length > options.maxBytes)
+      throw new UpdateError('UPDATES_SIZE', m().responseTooLarge)
     const chunks: Buffer[] = []
     let size = 0
     for await (const chunk of response) {
@@ -192,8 +231,16 @@ export function readReleaseBytes(
   })
 }
 
-export async function readReleaseJson(path: string, token?: string, signal?: AbortSignal): Promise<unknown> {
-  const bytes = await readReleaseBytes(`${UPDATE_API_ROOT}${path}`, { token, maxBytes: 8 * 1024 * 1024, signal })
+export async function readReleaseJson(
+  path: string,
+  token?: string,
+  signal?: AbortSignal
+): Promise<unknown> {
+  const bytes = await readReleaseBytes(`${UPDATE_API_ROOT}${path}`, {
+    token,
+    maxBytes: 8 * 1024 * 1024,
+    signal
+  })
   try {
     return JSON.parse(bytes.toString('utf8'))
   } catch {
@@ -208,38 +255,45 @@ export async function downloadReleaseAsset(
   expectedSize: number,
   options: { token?: string; signal?: AbortSignal; progress(received: number): void }
 ): Promise<{ sha256: string; size: number }> {
-  return boundedRequest(`${UPDATE_API_ROOT}/releases/assets/${assetId}`, { ...options, asset: true, timeoutMs: 10 * 60_000 }, async (response) => {
-    const length = Number(response.headers['content-length'])
-    if (Number.isFinite(length) && (length > MAX_INSTALLER_BYTES || length !== expectedSize)) {
-      throw new UpdateError('UPDATES_SIZE', m().installerSizeMismatch)
-    }
-    const file = await open(path, 'wx', 0o600)
-    const hash = createHash('sha256')
-    let size = 0
-    let lastProgress = 0
-    try {
-      for await (const chunk of response) {
-        const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as string)
-        size += bytes.length
-        if (size > expectedSize || size > MAX_INSTALLER_BYTES) throw new UpdateError('UPDATES_SIZE', m().installerTooLarge)
-        hash.update(bytes)
-        let offset = 0
-        while (offset < bytes.length) {
-          const written = await file.write(bytes, offset, bytes.length - offset)
-          if (written.bytesWritten === 0) throw new UpdateError('UPDATES_WRITE', m().installerWriteFailed)
-          offset += written.bytesWritten
-        }
-        if (Date.now() - lastProgress >= 200) {
-          lastProgress = Date.now()
-          options.progress(size)
-        }
+  return boundedRequest(
+    `${UPDATE_API_ROOT}/releases/assets/${assetId}`,
+    { ...options, asset: true, timeoutMs: 10 * 60_000 },
+    async (response) => {
+      const length = Number(response.headers['content-length'])
+      if (Number.isFinite(length) && (length > MAX_INSTALLER_BYTES || length !== expectedSize)) {
+        throw new UpdateError('UPDATES_SIZE', m().installerSizeMismatch)
       }
-      if (size !== expectedSize || size === 0) throw new UpdateError('UPDATES_SIZE', m().installerIncomplete)
-      await file.sync()
-      options.progress(size)
-      return { sha256: hash.digest('hex'), size }
-    } finally {
-      await file.close()
+      const file = await open(path, 'wx', 0o600)
+      const hash = createHash('sha256')
+      let size = 0
+      let lastProgress = 0
+      try {
+        for await (const chunk of response) {
+          const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as string)
+          size += bytes.length
+          if (size > expectedSize || size > MAX_INSTALLER_BYTES)
+            throw new UpdateError('UPDATES_SIZE', m().installerTooLarge)
+          hash.update(bytes)
+          let offset = 0
+          while (offset < bytes.length) {
+            const written = await file.write(bytes, offset, bytes.length - offset)
+            if (written.bytesWritten === 0)
+              throw new UpdateError('UPDATES_WRITE', m().installerWriteFailed)
+            offset += written.bytesWritten
+          }
+          if (Date.now() - lastProgress >= 200) {
+            lastProgress = Date.now()
+            options.progress(size)
+          }
+        }
+        if (size !== expectedSize || size === 0)
+          throw new UpdateError('UPDATES_SIZE', m().installerIncomplete)
+        await file.sync()
+        options.progress(size)
+        return { sha256: hash.digest('hex'), size }
+      } finally {
+        await file.close()
+      }
     }
-  })
+  )
 }

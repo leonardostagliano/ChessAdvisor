@@ -1,5 +1,12 @@
 import type { Game, Move } from '@shared/types/game'
-import { CLASSIFICATION_NAME, COLOR_NAME, engineBlock, formatEval, positionBlock, type EngineContext } from '../game/coachPrompts'
+import {
+  CLASSIFICATION_NAME,
+  COLOR_NAME,
+  engineBlock,
+  formatEval,
+  positionBlock,
+  type EngineContext
+} from '../game/coachPrompts'
 
 /**
  * Prompts of the post-game review (spec §4.4).
@@ -24,7 +31,8 @@ export interface ReviewMoveContext {
   userColor: 'w' | 'b'
 }
 
-const moveHeader = (move: Move, language: 'it' | 'en'): string => `${language === 'it' ? 'Mossa' : 'Move'}: ${move.ply}. ${move.san} (${move.uci})`
+const moveHeader = (move: Move, language: 'it' | 'en'): string =>
+  `${language === 'it' ? 'Mossa' : 'Move'}: ${move.ply}. ${move.san} (${move.uci})`
 
 const playedBy = (move: Move, language: 'it' | 'en'): string =>
   language === 'it'
@@ -39,7 +47,9 @@ const playedBy = (move: Move, language: 'it' | 'en'): string =>
 export function commentMoveText(p: ReviewMoveContext): string {
   const it = p.language === 'it'
   return [
-    it ? `Rivedi la mossa ${p.move.ply} di una partita già conclusa, giocata ${playedBy(p.move, p.language)}.` : `Review move ${p.move.ply} of a finished game, played ${playedBy(p.move, p.language)}.`,
+    it
+      ? `Rivedi la mossa ${p.move.ply} di una partita già conclusa, giocata ${playedBy(p.move, p.language)}.`
+      : `Review move ${p.move.ply} of a finished game, played ${playedBy(p.move, p.language)}.`,
     moveHeader(p.move, p.language),
     ...positionBlock(p.fenBefore, p.pgn, p.language),
     ...engineBlock(p.engine, p.language, { withAfter: true }),
@@ -50,7 +60,9 @@ export function commentMoveText(p: ReviewMoveContext): string {
 }
 
 /** One of the key moments (spec §4.4): same material, said as part of a short series. */
-export function keyMomentsCommentText(p: ReviewMoveContext & { index: number; count: number }): string {
+export function keyMomentsCommentText(
+  p: ReviewMoveContext & { index: number; count: number }
+): string {
   const it = p.language === 'it'
   return [
     it
@@ -123,7 +135,8 @@ export function lessonText(p: { game: Game; language: 'it' | 'en'; pgn: string }
     const reason = REASON_NAME[p.language][game.result.reason] ?? game.result.reason
     lines.push(`${it ? 'Risultato' : 'Result'}: ${game.result.outcome} (${outcome}, ${reason})`)
   }
-  if (game.opening) lines.push(`${it ? 'Apertura' : 'Opening'}: ${game.opening.eco} ${game.opening.name}`)
+  if (game.opening)
+    lines.push(`${it ? 'Apertura' : 'Opening'}: ${game.opening.eco} ${game.opening.name}`)
   lines.push(`PGN: ${p.pgn}`)
 
   const analysis = game.analysis
@@ -137,17 +150,33 @@ export function lessonText(p: { game: Game; language: 'it' | 'en'; pgn: string }
       .filter((move): move is Move => Boolean(move))
       .slice(0, 8)
     if (moments.length > 0) {
-      lines.push(it ? 'Momenti chiave (mosse della persona che alleni):' : 'Key moments (moves by the person you coach):')
+      lines.push(
+        it
+          ? 'Momenti chiave (mosse della persona che alleni):'
+          : 'Key moments (moves by the person you coach):'
+      )
       for (const move of moments) {
         const evaluation = move.eval
-        const label = evaluation ? CLASSIFICATION_NAME[p.language][evaluation.classification] : it ? 'da rivedere' : 'to review'
-        const best = evaluation?.bestMove ? ` — ${it ? 'migliore' : 'best'}: ${evaluation.bestMove}` : ''
-        const after = evaluation ? ` (${it ? 'dopo' : 'after'} ${formatEval(evaluation.after, p.language)})` : ''
+        const label = evaluation
+          ? CLASSIFICATION_NAME[p.language][evaluation.classification]
+          : it
+            ? 'da rivedere'
+            : 'to review'
+        const best = evaluation?.bestMove
+          ? ` — ${it ? 'migliore' : 'best'}: ${evaluation.bestMove}`
+          : ''
+        const after = evaluation
+          ? ` (${it ? 'dopo' : 'after'} ${formatEval(evaluation.after, p.language)})`
+          : ''
         lines.push(`- ${move.ply}. ${move.san} · ${label}${after}${best}`)
       }
     }
   } else {
-    lines.push(it ? 'Questa partita non è stata analizzata dal motore: giudica con le tue forze.' : 'This game was not analysed by the engine: judge with your own eyes.')
+    lines.push(
+      it
+        ? 'Questa partita non è stata analizzata dal motore: giudica con le tue forze.'
+        : 'This game was not analysed by the engine: judge with your own eyes.'
+    )
   }
 
   lines.push(

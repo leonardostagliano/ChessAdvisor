@@ -41,10 +41,14 @@ export class StudyPlanStore {
 }
 
 function clone(plan: StudyPlan): StudyPlan {
-  return { generatedAt: plan.generatedAt, items: plan.items.map((item) => ({ ...item, activity: { ...item.activity } })) }
+  return {
+    generatedAt: plan.generatedAt,
+    items: plan.items.map((item) => ({ ...item, activity: { ...item.activity } }))
+  }
 }
 
-const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value)
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value)
 
 const TYPES = new Set<StudyActivityType>(['thematic', 'own_game', 'opening', 'endgame', 'play'])
 
@@ -55,7 +59,10 @@ export function sanitizePlan(raw: unknown): StudyPlan | null {
   for (const [index, value] of raw.items.entries()) {
     if (!isRecord(value)) continue
     const activity = isRecord(value.activity) ? value.activity : {}
-    const type = typeof activity.type === 'string' && TYPES.has(activity.type as StudyActivityType) ? (activity.type as StudyActivityType) : null
+    const type =
+      typeof activity.type === 'string' && TYPES.has(activity.type as StudyActivityType)
+        ? (activity.type as StudyActivityType)
+        : null
     if (!type) continue
     const title = typeof value.title === 'string' ? value.title.trim() : ''
     if (title.length === 0) continue
@@ -63,10 +70,19 @@ export function sanitizePlan(raw: unknown): StudyPlan | null {
       id: typeof value.id === 'string' && value.id ? value.id : `item-${index + 1}`,
       title,
       why: typeof value.why === 'string' ? value.why.trim() : '',
-      activity: { type, ref: typeof activity.ref === 'string' && activity.ref.length > 0 ? activity.ref : null },
+      activity: {
+        type,
+        ref: typeof activity.ref === 'string' && activity.ref.length > 0 ? activity.ref : null
+      },
       done: value.done === true
     })
   }
   if (items.length === 0) return null
-  return { generatedAt: typeof raw.generatedAt === 'string' && raw.generatedAt ? raw.generatedAt : new Date(0).toISOString(), items }
+  return {
+    generatedAt:
+      typeof raw.generatedAt === 'string' && raw.generatedAt
+        ? raw.generatedAt
+        : new Date(0).toISOString(),
+    items
+  }
 }

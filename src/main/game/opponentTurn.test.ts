@@ -2,7 +2,12 @@ import { legalMoves } from '@shared/chess/notation'
 import type { TurnRequest, TurnResult } from '@shared/types/codex'
 import type { Analysis, AnalysisProfile, EngineState } from '@shared/types/engine'
 import { describe, expect, it, vi } from 'vitest'
-import { MAX_ATTEMPTS, OpponentTurnError, playOpponentTurn, type OpponentDeps } from './opponentTurn'
+import {
+  MAX_ATTEMPTS,
+  OpponentTurnError,
+  playOpponentTurn,
+  type OpponentDeps
+} from './opponentTurn'
 
 /** After 1. e4: Black to move, so the opponent under test plays Black. */
 const AFTER_E4 = 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1'
@@ -15,11 +20,15 @@ const ok = (text: string, effectiveModel: string | null = null): TurnResult => (
   durationMs: 10
 })
 
-const answer = (move: string, shortComment: string | null = 'ok'): TurnResult => ok(JSON.stringify({ move, shortComment }))
+const answer = (move: string, shortComment: string | null = 'ok'): TurnResult =>
+  ok(JSON.stringify({ move, shortComment }))
 
 type RunTurn = OpponentDeps['codex']['runTurn']
 
-function deps(script: TurnResult[], engine?: Partial<{ available: boolean; bestMove: string | null }>): OpponentDeps & { runTurn: ReturnType<typeof vi.fn<RunTurn>> } {
+function deps(
+  script: TurnResult[],
+  engine?: Partial<{ available: boolean; bestMove: string | null }>
+): OpponentDeps & { runTurn: ReturnType<typeof vi.fn<RunTurn>> } {
   const available = engine?.available ?? false
   const runTurn = vi.fn<RunTurn>(async () => script.shift() ?? ok('{}'))
   // Every call advances the clock by one second, so an attempt always costs exactly 1000 ms.
@@ -28,7 +37,12 @@ function deps(script: TurnResult[], engine?: Partial<{ available: boolean; bestM
     runTurn,
     codex: { runTurn },
     engine: {
-      state: (): EngineState => ({ available, binary: available ? 'avx2' : 'none', version: 'fake', message: null }),
+      state: (): EngineState => ({
+        available,
+        binary: available ? 'avx2' : 'none',
+        version: 'fake',
+        message: null
+      }),
       analyze: async (fen: string, _profile: AnalysisProfile): Promise<Analysis> => ({
         bestMove: engine?.bestMove === undefined ? 'g8f6' : engine.bestMove,
         lines: [],
@@ -40,7 +54,9 @@ function deps(script: TurnResult[], engine?: Partial<{ available: boolean; bestM
   }
 }
 
-const params = (over: Partial<Parameters<typeof playOpponentTurn>[1]> = {}): Parameters<typeof playOpponentTurn>[1] => ({
+const params = (
+  over: Partial<Parameters<typeof playOpponentTurn>[1]> = {}
+): Parameters<typeof playOpponentTurn>[1] => ({
   threadId: 'thread-1',
   model: 'gpt-6-astra',
   effort: 'medium',
@@ -60,7 +76,12 @@ describe('playOpponentTurn', () => {
   it('accepts a legal move on the first attempt', async () => {
     const d = deps([answer('e5', 'la tua mossa preferita?')])
     const move = await playOpponentTurn(d, params())
-    expect(move).toMatchObject({ san: 'e5', uci: 'e7e5', shortComment: 'la tua mossa preferita?', attempts: 1 })
+    expect(move).toMatchObject({
+      san: 'e5',
+      uci: 'e7e5',
+      shortComment: 'la tua mossa preferita?',
+      attempts: 1
+    })
     expect(move.fallback).toBeUndefined()
     expect(move.thinkingMs).toBe(1000)
     expect(move.overheadMs).toBe(0)
@@ -75,7 +96,10 @@ describe('playOpponentTurn', () => {
 
   it('reports the model the app-server rerouted to', async () => {
     const d = deps([ok(JSON.stringify({ move: 'e5', shortComment: null }), 'gpt-6-astra-mini')])
-    await expect(playOpponentTurn(d, params())).resolves.toMatchObject({ effectiveModel: 'gpt-6-astra-mini', shortComment: null })
+    await expect(playOpponentTurn(d, params())).resolves.toMatchObject({
+      effectiveModel: 'gpt-6-astra-mini',
+      shortComment: null
+    })
   })
 
   it('retries an illegal move quoting it back, and counts the wasted time as overhead', async () => {
@@ -92,16 +116,28 @@ describe('playOpponentTurn', () => {
   })
 
   it('retries a failed turn without treating it as a model mistake', async () => {
-    const d = deps([{ ok: false, reason: 'failed', message: 'fake failure', turnId: 't1' }, answer('e5')])
+    const d = deps([
+      { ok: false, reason: 'failed', message: 'fake failure', turnId: 't1' },
+      answer('e5')
+    ])
     const move = await playOpponentTurn(d, params())
     expect(move).toMatchObject({ san: 'e5', attempts: 2, overheadMs: 1000 })
   })
 
   it('falls back to the engine best move after three unusable answers', async () => {
-    const d = deps([ok('not json at all'), ok('```json\n{"move":\n'), ok('{"move": 42}')], { available: true, bestMove: 'g8f6' })
+    const d = deps([ok('not json at all'), ok('```json\n{"move":\n'), ok('{"move": 42}')], {
+      available: true,
+      bestMove: 'g8f6'
+    })
     const onRetry = vi.fn()
     const move = await playOpponentTurn(d, params({ onRetry }))
-    expect(move).toMatchObject({ san: 'Nf6', uci: 'g8f6', fallback: 'engine', attempts: MAX_ATTEMPTS, shortComment: null })
+    expect(move).toMatchObject({
+      san: 'Nf6',
+      uci: 'g8f6',
+      fallback: 'engine',
+      attempts: MAX_ATTEMPTS,
+      shortComment: null
+    })
     expect(move.overheadMs).toBe(3000)
     expect(onRetry).toHaveBeenCalledTimes(MAX_ATTEMPTS)
   })
@@ -125,20 +161,31 @@ describe('playOpponentTurn', () => {
   })
 
   it('never retries a quota failure', async () => {
-    const d = deps([{ ok: false, reason: 'quota', message: 'usage limit reached', turnId: 't1' }, answer('e5')])
-    await expect(playOpponentTurn(d, params())).rejects.toMatchObject({ name: 'OpponentTurnError', reason: 'quota' })
+    const d = deps([
+      { ok: false, reason: 'quota', message: 'usage limit reached', turnId: 't1' },
+      answer('e5')
+    ])
+    await expect(playOpponentTurn(d, params())).rejects.toMatchObject({
+      name: 'OpponentTurnError',
+      reason: 'quota'
+    })
     expect(d.runTurn).toHaveBeenCalledTimes(1)
   })
 
   it('never retries an interrupted turn', async () => {
-    const d = deps([{ ok: false, reason: 'interrupted', message: 'takeback', turnId: 't1' }, answer('e5')])
+    const d = deps([
+      { ok: false, reason: 'interrupted', message: 'takeback', turnId: 't1' },
+      answer('e5')
+    ])
     await expect(playOpponentTurn(d, params())).rejects.toBeInstanceOf(OpponentTurnError)
     expect(d.runTurn).toHaveBeenCalledTimes(1)
   })
 
   it('refuses a position with no legal move at all', async () => {
     const d = deps([answer('e5')])
-    await expect(playOpponentTurn(d, params({ fen: '7k/5Q2/6K1/8/8/8/8/8 b - - 0 1' }))).rejects.toThrow(/no legal move/)
+    await expect(
+      playOpponentTurn(d, params({ fen: '7k/5Q2/6K1/8/8/8/8/8 b - - 0 1' }))
+    ).rejects.toThrow(/no legal move/)
     expect(d.runTurn).not.toHaveBeenCalled()
   })
 })

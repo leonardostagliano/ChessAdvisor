@@ -24,7 +24,11 @@ describe('SettingsStore.load', () => {
   })
 
   it('merges a partial file over the defaults', async () => {
-    await writeFile(fileIn(dir), JSON.stringify({ language: 'en', turnTimeoutSec: 90, updates: {} }), 'utf8')
+    await writeFile(
+      fileIn(dir),
+      JSON.stringify({ language: 'en', turnTimeoutSec: 90, updates: {} }),
+      'utf8'
+    )
     const store = new SettingsStore(fileIn(dir))
     const settings = await store.load()
     expect(settings.language).toBe('en')
@@ -102,7 +106,9 @@ describe('SettingsStore.save', () => {
       throw new Error('listener exploded')
     })
     const spy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
-    await expect(store.save({ showReasoning: true })).resolves.toMatchObject({ showReasoning: true })
+    await expect(store.save({ showReasoning: true })).resolves.toMatchObject({
+      showReasoning: true
+    })
     spy.mockRestore()
   })
 })

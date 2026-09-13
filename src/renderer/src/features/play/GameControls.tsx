@@ -73,7 +73,10 @@ export function GameControls({ session, onNewGame, onExit }: GameControlsProps):
         <Button variant="danger" disabled={!playing || busy} onClick={() => setConfirmResign(true)}>
           {t('controls.resign')}
         </Button>
-        <Button disabled={!playing || busy || session.ai.thinking || drawState === 'pending'} onClick={() => void askDraw()}>
+        <Button
+          disabled={!playing || busy || session.ai.thinking || drawState === 'pending'}
+          onClick={() => void askDraw()}
+        >
           {t('controls.offerDraw')}
         </Button>
         <Button

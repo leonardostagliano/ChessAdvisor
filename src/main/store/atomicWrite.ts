@@ -9,7 +9,8 @@ const STALE_TMP_MS = 60_000
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
 
-const codeOf = (error: unknown): string | undefined => (error as NodeJS.ErrnoException | undefined)?.code
+const codeOf = (error: unknown): string | undefined =>
+  (error as NodeJS.ErrnoException | undefined)?.code
 
 const retryDelay = (attempt: number): number | undefined => RENAME_RETRY_MS[attempt]
 

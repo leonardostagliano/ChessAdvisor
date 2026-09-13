@@ -21,7 +21,8 @@ function entry(index: number, accuracy: number, acpl = 40): ProfileHistoryEntry 
   }
 }
 
-const history = (values: number[]): ProfileHistoryEntry[] => values.map((value, index) => entry(index, value))
+const history = (values: number[]): ProfileHistoryEntry[] =>
+  values.map((value, index) => entry(index, value))
 
 afterEach(cleanup)
 
@@ -31,7 +32,9 @@ describe('trendPoints', () => {
     expect(points).toHaveLength(TREND_WINDOW)
     expect(points[0]!.gameId).toBe('g6')
     expect(points[TREND_WINDOW - 1]!.gameId).toBe('g25')
-    expect(points.map((point) => point.index)).toEqual(Array.from({ length: TREND_WINDOW }, (_, i) => i))
+    expect(points.map((point) => point.index)).toEqual(
+      Array.from({ length: TREND_WINDOW }, (_, i) => i)
+    )
   })
 
   it('maps the accuracy on a fixed scale, so a better game always sits higher', () => {

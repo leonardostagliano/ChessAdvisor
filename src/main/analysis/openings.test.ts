@@ -24,7 +24,10 @@ describe('loadOpenings', () => {
     const book = loadOpenings(DATASET)
     expect(book.byEpd.size).toBeGreaterThan(3000)
     const [, afterE4] = fensOf(['e4'])
-    expect(book.byEpd.get(afterE4!.split(/\s+/).slice(0, 4).join(' '))).toEqual({ eco: 'B00', name: "King's Pawn Game" })
+    expect(book.byEpd.get(afterE4!.split(/\s+/).slice(0, 4).join(' '))).toEqual({
+      eco: 'B00',
+      name: "King's Pawn Game"
+    })
   })
 
   it('survives a missing or broken file with an empty book', async () => {
@@ -46,7 +49,11 @@ describe('loadOpenings', () => {
     const dir = await makeTmpDir('openings')
     try {
       const path = join(dir, 'mixed.json')
-      writeFileSync(path, JSON.stringify([{ eco: 'A00', name: 'Fake', epd: 'x' }, { eco: 'A01' }, 42, null]), 'utf8')
+      writeFileSync(
+        path,
+        JSON.stringify([{ eco: 'A00', name: 'Fake', epd: 'x' }, { eco: 'A01' }, 42, null]),
+        'utf8'
+      )
       const book = loadOpenings(path)
       expect(book.byEpd.size).toBe(1)
       expect(book.byEpd.get('x')).toEqual({ eco: 'A00', name: 'Fake' })
@@ -60,7 +67,11 @@ describe('detectOpening', () => {
   const book = loadOpenings(DATASET)
 
   it('names the deepest book position of the game', () => {
-    expect(detectOpening(fensOf(['e4', 'e5', 'Nf3']), book)).toEqual({ eco: 'C40', name: "King's Knight Opening", lastBookPly: 3 })
+    expect(detectOpening(fensOf(['e4', 'e5', 'Nf3']), book)).toEqual({
+      eco: 'C40',
+      name: "King's Knight Opening",
+      lastBookPly: 3
+    })
   })
 
   it('recognises a transposition by position, not by move order', () => {

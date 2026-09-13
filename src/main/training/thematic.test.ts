@@ -1,16 +1,37 @@
 import type { Puzzle } from '@shared/types/training'
 import { describe, expect, it } from 'vitest'
 import { THEMES } from '../profile/themes'
-import { puzzleToExercise, rotationPick, rotationTheme, sanitizeThemePick, thematicExerciseId, RATING_CEILING, RATING_FLOOR } from './thematic'
+import {
+  puzzleToExercise,
+  rotationPick,
+  rotationTheme,
+  sanitizeThemePick,
+  thematicExerciseId,
+  RATING_CEILING,
+  RATING_FLOOR
+} from './thematic'
 
 describe('sanitizeThemePick', () => {
   it('takes the coach answer as it is when it makes sense', () => {
-    const pick = sanitizeThemePick({ theme: 'fork', ratingMin: 900, ratingMax: 1300, motivation: 'perché' })
-    expect(pick).toEqual({ theme: 'fork', ratingMin: 900, ratingMax: 1300, motivation: 'perché', fallback: false })
+    const pick = sanitizeThemePick({
+      theme: 'fork',
+      ratingMin: 900,
+      ratingMax: 1300,
+      motivation: 'perché'
+    })
+    expect(pick).toEqual({
+      theme: 'fork',
+      ratingMin: 900,
+      ratingMax: 1300,
+      motivation: 'perché',
+      fallback: false
+    })
   })
 
   it('squeezes an unknown theme back into the taxonomy', () => {
-    expect(sanitizeThemePick({ theme: 'zwischenzug', ratingMin: 900, ratingMax: 1300 })?.theme).toBe('missed_tactic')
+    expect(
+      sanitizeThemePick({ theme: 'zwischenzug', ratingMin: 900, ratingMax: 1300 })?.theme
+    ).toBe('missed_tactic')
   })
 
   it('turns an upside-down window around and clamps it to the dataset', () => {
@@ -50,7 +71,13 @@ describe('rotationTheme', () => {
   })
 
   it('draws in the default window and says it is a fallback', () => {
-    expect(rotationPick(0, ['fork'])).toEqual({ theme: 'fork', ratingMin: 800, ratingMax: 1200, motivation: '', fallback: true })
+    expect(rotationPick(0, ['fork'])).toEqual({
+      theme: 'fork',
+      ratingMin: 800,
+      ratingMax: 1200,
+      motivation: '',
+      fallback: true
+    })
   })
 })
 

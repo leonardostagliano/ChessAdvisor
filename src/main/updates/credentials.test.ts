@@ -33,7 +33,8 @@ vi.mock('node:fs/promises', async (importOriginal) => {
     ...actual,
     default: actual,
     stat: async (path: string) => {
-      if (env.files.has(String(path))) return { isFile: () => true } as Awaited<ReturnType<typeof actual.stat>>
+      if (env.files.has(String(path)))
+        return { isFile: () => true } as Awaited<ReturnType<typeof actual.stat>>
       return actual.stat(path)
     }
   }
@@ -50,7 +51,14 @@ vi.mock('node:child_process', async (importOriginal) => {
   }
 })
 
-const { authenticateGithub, credentialManagerPath, findGitExe, parseCredential, sessionPath, updateCredential } = await import('./credentials')
+const {
+  authenticateGithub,
+  credentialManagerPath,
+  findGitExe,
+  parseCredential,
+  sessionPath,
+  updateCredential
+} = await import('./credentials')
 
 const GIT_DIR = resolvePath('C:/fake-git/cmd')
 const GIT_EXE = join(GIT_DIR, 'git.exe')
@@ -80,7 +88,9 @@ afterEach(async () => {
 
 describe('parseCredential', () => {
   it('accepts a complete https/github.com credential', () => {
-    const result = parseCredential(Buffer.from('protocol=https\nhost=github.com\nusername=octocat\npassword=gho_token\n', 'utf8'))
+    const result = parseCredential(
+      Buffer.from('protocol=https\nhost=github.com\nusername=octocat\npassword=gho_token\n', 'utf8')
+    )
     expect(result).toEqual({ ok: true, token: 'gho_token', account: 'octocat' })
   })
 
@@ -91,20 +101,39 @@ describe('parseCredential', () => {
       'protocol=https\nhost=github.com\npath=some/repo.git\nusername=octocat\npassword=gho_token\n'
     ]
     for (const output of cases) {
-      expect(parseCredential(Buffer.from(output, 'utf8')), output).toEqual({ ok: false, reason: 'invalid-scope' })
+      expect(parseCredential(Buffer.from(output, 'utf8')), output).toEqual({
+        ok: false,
+        reason: 'invalid-scope'
+      })
     }
   })
 
   it('rejects a missing or whitespace-bearing token and an invalid account', () => {
-    expect(parseCredential(Buffer.from('protocol=https\nhost=github.com\nusername=octocat\n', 'utf8'))).toEqual({
+    expect(
+      parseCredential(Buffer.from('protocol=https\nhost=github.com\nusername=octocat\n', 'utf8'))
+    ).toEqual({
       ok: false,
       reason: 'missing-token'
     })
-    expect(parseCredential(Buffer.from('protocol=https\nhost=github.com\nusername=octocat\npassword=gho token\n', 'utf8'))).toEqual({
+    expect(
+      parseCredential(
+        Buffer.from(
+          'protocol=https\nhost=github.com\nusername=octocat\npassword=gho token\n',
+          'utf8'
+        )
+      )
+    ).toEqual({
       ok: false,
       reason: 'missing-token'
     })
-    expect(parseCredential(Buffer.from('protocol=https\nhost=github.com\nusername=octo cat\npassword=gho_token\n', 'utf8'))).toEqual({
+    expect(
+      parseCredential(
+        Buffer.from(
+          'protocol=https\nhost=github.com\nusername=octo cat\npassword=gho_token\n',
+          'utf8'
+        )
+      )
+    ).toEqual({
       ok: false,
       reason: 'missing-account'
     })
@@ -118,19 +147,40 @@ describe('updateCredential', () => {
 
   it('reports stored-credential-unavailable for a corrupt file', async () => {
     await writeFile(sessionPath(), '{ not json', 'utf8')
-    expect(await updateCredential()).toEqual({ source: 'anonymous', failure: 'stored-credential-unavailable' })
+    expect(await updateCredential()).toEqual({
+      source: 'anonymous',
+      failure: 'stored-credential-unavailable'
+    })
   })
 
   it('reports stored-credential-unavailable when the payload cannot be decrypted', async () => {
-    await writeFile(sessionPath(), JSON.stringify({ version: 1, cipher: 'electron-safe-storage', data: 'QUJD' }), 'utf8')
+    await writeFile(
+      sessionPath(),
+      JSON.stringify({ version: 1, cipher: 'electron-safe-storage', data: 'QUJD' }),
+      'utf8'
+    )
     env.decryptThrows = true
-    expect(await updateCredential()).toEqual({ source: 'anonymous', failure: 'stored-credential-unavailable' })
+    expect(await updateCredential()).toEqual({
+      source: 'anonymous',
+      failure: 'stored-credential-unavailable'
+    })
   })
 
   it('returns the stored session when it decrypts to a valid credential', async () => {
-    const data = Buffer.from(`enc:${JSON.stringify({ token: 'gho_token', account: 'octocat' })}`, 'utf8').toString('base64')
-    await writeFile(sessionPath(), JSON.stringify({ version: 1, cipher: 'electron-safe-storage', data }), 'utf8')
-    expect(await updateCredential()).toEqual({ source: 'github-app', token: 'gho_token', account: 'octocat' })
+    const data = Buffer.from(
+      `enc:${JSON.stringify({ token: 'gho_token', account: 'octocat' })}`,
+      'utf8'
+    ).toString('base64')
+    await writeFile(
+      sessionPath(),
+      JSON.stringify({ version: 1, cipher: 'electron-safe-storage', data }),
+      'utf8'
+    )
+    expect(await updateCredential()).toEqual({
+      source: 'github-app',
+      token: 'gho_token',
+      account: 'octocat'
+    })
   })
 })
 
@@ -183,7 +233,11 @@ describe('authenticateGithub', () => {
 
   it('stores an encrypted session and returns the account', async () => {
     const credential = await authenticateGithub(new AbortController().signal)
-    expect(credential).toEqual({ source: 'github-app', token: 'gho_fake_token_123', account: 'octocat' })
+    expect(credential).toEqual({
+      source: 'github-app',
+      token: 'gho_fake_token_123',
+      account: 'octocat'
+    })
     const saved = JSON.parse(await readFile(sessionPath(), 'utf8'))
     expect(saved.version).toBe(1)
     expect(saved.cipher).toBe('electron-safe-storage')
@@ -200,16 +254,22 @@ describe('authenticateGithub', () => {
 
   it('fails with UPDATES_AUTH_PROCESS when the manager exits non-zero', async () => {
     process.env.FAKE_GCM_EXIT_CODE = '3'
-    await expect(authenticateGithub(new AbortController().signal)).rejects.toMatchObject({ code: 'UPDATES_AUTH_PROCESS' })
+    await expect(authenticateGithub(new AbortController().signal)).rejects.toMatchObject({
+      code: 'UPDATES_AUTH_PROCESS'
+    })
   })
 
   it('fails with UPDATES_AUTH_CREDENTIAL when the response has no token', async () => {
     process.env.FAKE_GCM_OUTPUT = 'protocol=https\nhost=github.com\nusername=octocat\n'
-    await expect(authenticateGithub(new AbortController().signal)).rejects.toMatchObject({ code: 'UPDATES_AUTH_CREDENTIAL' })
+    await expect(authenticateGithub(new AbortController().signal)).rejects.toMatchObject({
+      code: 'UPDATES_AUTH_CREDENTIAL'
+    })
   })
 
   it('fails with UPDATES_AUTH_SAVE when the OS cannot protect the session', async () => {
     env.encryptionAvailable = false
-    await expect(authenticateGithub(new AbortController().signal)).rejects.toMatchObject({ code: 'UPDATES_AUTH_SAVE' })
+    await expect(authenticateGithub(new AbortController().signal)).rejects.toMatchObject({
+      code: 'UPDATES_AUTH_SAVE'
+    })
   })
 })

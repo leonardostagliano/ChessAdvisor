@@ -20,7 +20,10 @@ export function isTypingTarget(target: EventTarget | null): boolean {
 
 /** True when a modal dialog is open: its own focus trap owns the keyboard while it is. */
 export function isDialogOpen(): boolean {
-  return typeof document !== 'undefined' && document.querySelector('[role="dialog"][aria-modal="true"]') !== null
+  return (
+    typeof document !== 'undefined' &&
+    document.querySelector('[role="dialog"][aria-modal="true"]') !== null
+  )
 }
 
 export interface MoveKeyHandlers {
@@ -37,7 +40,13 @@ export interface MoveKeyHandlers {
 }
 
 /** ← → Home End walk the moves of the game on screen, in Gioca as in Revisione. */
-export function useMoveKeys({ previous, next, first, last, enabled = true }: MoveKeyHandlers): void {
+export function useMoveKeys({
+  previous,
+  next,
+  first,
+  last,
+  enabled = true
+}: MoveKeyHandlers): void {
   useEffect(() => {
     if (!enabled) return
     const onKey = (event: KeyboardEvent): void => {

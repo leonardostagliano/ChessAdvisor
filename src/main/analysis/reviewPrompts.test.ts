@@ -23,7 +23,9 @@ const engine = (): EngineContext => ({
   bestLines: [{ san: 'Nf3', pv: ['Nf3', 'Nc6'], eval: { cp: 30 } }]
 })
 
-const context = (patch: Partial<Parameters<typeof commentMoveText>[0]> = {}): Parameters<typeof commentMoveText>[0] => ({
+const context = (
+  patch: Partial<Parameters<typeof commentMoveText>[0]> = {}
+): Parameters<typeof commentMoveText>[0] => ({
   move: move(),
   fenBefore: FEN_BEFORE,
   fenAfter: FEN_AFTER,
@@ -72,7 +74,9 @@ describe('keyMomentsCommentText', () => {
     const text = keyMomentsCommentText({ ...context(), index: 2, count: 5 })
     expect(text).toContain('Rivedi la mossa 7')
     expect(text).toContain('momento chiave 2 di 5')
-    expect(keyMomentsCommentText({ ...context(), language: 'en', index: 1, count: 3 })).toContain('key moment 1 of 3')
+    expect(keyMomentsCommentText({ ...context(), language: 'en', index: 1, count: 3 })).toContain(
+      'key moment 1 of 3'
+    )
   })
 })
 
@@ -84,16 +88,28 @@ describe('lessonText', () => {
     kind: 'match',
     status: 'finished',
     userColor: 'w',
-    opponent: { model: 'gpt-6-astra', effort: 'medium', difficulty: { mode: 'fixed', level: 3, targetElo: 1200 } },
+    opponent: {
+      model: 'gpt-6-astra',
+      effort: 'medium',
+      difficulty: { mode: 'fixed', level: 3, targetElo: 1200 }
+    },
     coach: { model: 'gpt-6-astra', effort: 'medium' },
     clock: null,
     language: 'it',
-    moves: [move({ ply: 1, san: 'e4', uci: 'e2e4' }), move({ ply: 2, san: 'e5', uci: 'e7e5', by: 'ai' })],
+    moves: [
+      move({ ply: 1, san: 'e4', uci: 'e2e4' }),
+      move({ ply: 2, san: 'e5', uci: 'e7e5', by: 'ai' })
+    ],
     takebacks: 0,
     coachLog: [],
     result: { outcome: '0-1', reason: 'checkmate' },
     opening: { eco: 'C40', name: "King's Knight Opening", lastBookPly: 3 },
-    analysis: { accuracy: { w: 71.2, b: 88.4 }, acpl: { w: 96, b: 22 }, keyMoments: [1], analyzedAt: '2026-01-02T00:00:00.000Z' },
+    analysis: {
+      accuracy: { w: 71.2, b: 88.4 },
+      acpl: { w: 96, b: 22 },
+      keyMoments: [1],
+      analyzedAt: '2026-01-02T00:00:00.000Z'
+    },
     ...patch
   })
 
@@ -110,7 +126,11 @@ describe('lessonText', () => {
   })
 
   it('tells the model it has no engine numbers when the game was never analysed', () => {
-    const text = lessonText({ game: game({ analysis: undefined }), language: 'en', pgn: '1. e4 e5 *' })
+    const text = lessonText({
+      game: game({ analysis: undefined }),
+      language: 'en',
+      pgn: '1. e4 e5 *'
+    })
     expect(text).toContain('was not analysed by the engine')
     expect(text).toContain('exactly three')
   })

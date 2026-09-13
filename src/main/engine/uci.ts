@@ -19,7 +19,10 @@ export interface InfoLine {
  * whose score is only a bracket on the real one and would be wrong to display or compare.
  */
 export function parseInfoLine(line: string): InfoLine | null {
-  const tokens = line.trim().split(/\s+/).filter((token) => token.length > 0)
+  const tokens = line
+    .trim()
+    .split(/\s+/)
+    .filter((token) => token.length > 0)
   if (tokens.length === 0 || tokens[0] !== 'info') return null
 
   let multipv = 1
@@ -80,7 +83,10 @@ export function parseInfoLine(line: string): InfoLine | null {
 
 /** `bestmove e2e4 ponder e7e5` → `e2e4`; `bestmove (none)` / `0000` (no legal move) → `null`. */
 export function parseBestMove(line: string): string | null {
-  const tokens = line.trim().split(/\s+/).filter((token) => token.length > 0)
+  const tokens = line
+    .trim()
+    .split(/\s+/)
+    .filter((token) => token.length > 0)
   if (tokens.length < 2 || tokens[0] !== 'bestmove') return null
   const move = tokens[1]!
   if (move === '(none)' || move === '0000') return null

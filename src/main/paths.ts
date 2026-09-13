@@ -48,5 +48,7 @@ export function codexHomeDir(): string {
 
 /** Bundled resources (engine binaries, datasets, licenses) in dev and in the packaged app. */
 export function resourcePath(...segs: string[]): string {
-  return app.isPackaged ? join(process.resourcesPath, ...segs) : join(app.getAppPath(), 'resources', ...segs)
+  return app.isPackaged
+    ? join(process.resourcesPath, ...segs)
+    : join(app.getAppPath(), 'resources', ...segs)
 }

@@ -15,7 +15,9 @@ import { CoachTab, coachDialogue } from './CoachTab'
 
 const FEN = 'rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq e6 0 2'
 
-function entry(patch: Partial<CoachLogEntry> & Pick<CoachLogEntry, 'id' | 'kind' | 'text'>): CoachLogEntry {
+function entry(
+  patch: Partial<CoachLogEntry> & Pick<CoachLogEntry, 'id' | 'kind' | 'text'>
+): CoachLogEntry {
   return { ply: 2, language: 'it', createdAt: '2026-09-13T10:00:00.000Z', ...patch }
 }
 
@@ -27,7 +29,11 @@ function game(log: CoachLogEntry[]): Game {
     kind: 'match',
     status: 'in_progress',
     userColor: 'w',
-    opponent: { model: 'gpt-6-astra', effort: 'low', difficulty: { mode: 'fixed', level: 3, targetElo: 1200 } },
+    opponent: {
+      model: 'gpt-6-astra',
+      effort: 'low',
+      difficulty: { mode: 'fixed', level: 3, targetElo: 1200 }
+    },
     coach: { model: 'gpt-6-astra', effort: 'low' },
     clock: null,
     language: 'it',
@@ -37,7 +43,10 @@ function game(log: CoachLogEntry[]): Game {
   }
 }
 
-function session(log: CoachLogEntry[] = [], coach: Partial<SessionState['coach']> = {}): SessionState {
+function session(
+  log: CoachLogEntry[] = [],
+  coach: Partial<SessionState['coach']> = {}
+): SessionState {
   return {
     ...EMPTY_SESSION,
     game: game(log),
@@ -92,7 +101,9 @@ describe('coachDialogue', () => {
     ]
     const live = { move: 'Nf3', reason: 'Sviluppa e controlla e5.' }
     expect(coachDialogue(game(log), live).map((item) => item.id)).toEqual(['1'])
-    expect(coachDialogue(game(log), { move: 'Bc4', reason: 'Altro.' }).map((item) => item.id)).toEqual(['1', '2'])
+    expect(
+      coachDialogue(game(log), { move: 'Bc4', reason: 'Altro.' }).map((item) => item.id)
+    ).toEqual(['1', '2'])
   })
 })
 
@@ -148,7 +159,9 @@ describe('CoachTab', () => {
 
     rerender(
       <CoachTab
-        session={session([], { hint: { move: 'Nf3', uci: 'g1f3', reason: 'Sviluppa e controlla e5.' } })}
+        session={session([], {
+          hint: { move: 'Nf3', uci: 'g1f3', reason: 'Sviluppa e controlla e5.' }
+        })}
         engineAvailable
       />
     )
@@ -167,9 +180,14 @@ describe('CoachTab', () => {
     expect(screen.getByRole('button', { name: 'Suggerimento' })).toBeDisabled()
 
     act(() => {
-      useGameStore
-        .getState()
-        .applyStream({ streamId: 's-coach', threadId: 't', turnId: 'u', itemId: 'i', kind: 'text', chunk: 'Sviluppa i pezzi.' })
+      useGameStore.getState().applyStream({
+        streamId: 's-coach',
+        threadId: 't',
+        turnId: 'u',
+        itemId: 'i',
+        kind: 'text',
+        chunk: 'Sviluppa i pezzi.'
+      })
     })
     expect(screen.getByText('Sviluppa i pezzi.')).toBeInTheDocument()
   })

@@ -9,7 +9,13 @@ import { Button } from '../../components/ui/Button'
 import { EmptyState } from '../../components/EmptyState'
 import { cx } from '../../components/ui/cx'
 import { useEngineStore } from '../../stores/engineStore'
-import { boardFen, boardLastMove, isBrowsing, startFenOf, useGameStore } from '../../stores/gameStore'
+import {
+  boardFen,
+  boardLastMove,
+  isBrowsing,
+  startFenOf,
+  useGameStore
+} from '../../stores/gameStore'
 import { useUiStore } from '../../stores/uiStore'
 import { ArchiveList } from './ArchiveList'
 import { ClockDisplay } from './ClockDisplay'
@@ -70,8 +76,12 @@ function counts(fen: string): Map<string, number> {
  * otherwise read as a captured pawn (and silently swallow the new piece).
  */
 function missingOf(start: Map<string, number>, now: Map<string, number>, white: boolean): string[] {
-  const at = (map: Map<string, number>, piece: string): number => map.get(white ? piece.toUpperCase() : piece) ?? 0
-  const promoted = PROMOTABLE.reduce((sum, piece) => sum + Math.max(0, at(now, piece) - at(start, piece)), 0)
+  const at = (map: Map<string, number>, piece: string): number =>
+    map.get(white ? piece.toUpperCase() : piece) ?? 0
+  const promoted = PROMOTABLE.reduce(
+    (sum, piece) => sum + Math.max(0, at(now, piece) - at(start, piece)),
+    0
+  )
   return ORDER.flatMap((piece) => {
     const surplus = piece === 'p' ? promoted : 0
     const missing = Math.max(0, at(start, piece) - at(now, piece) - surplus)
@@ -85,11 +95,20 @@ export function capturedPieces(startFen: string, fen: string): Captured {
   const now = counts(fen)
   const w = missingOf(start, now, false)
   const b = missingOf(start, now, true)
-  const value = (pieces: string[]): number => pieces.reduce((sum, piece) => sum + (VALUES[piece] ?? 0), 0)
+  const value = (pieces: string[]): number =>
+    pieces.reduce((sum, piece) => sum + (VALUES[piece] ?? 0), 0)
   return { w, b, balance: value(w) - value(b) }
 }
 
-function CapturedRow({ pieces, balance, label }: { pieces: string[]; balance: number; label: string }): React.JSX.Element {
+function CapturedRow({
+  pieces,
+  balance,
+  label
+}: {
+  pieces: string[]
+  balance: number
+  label: string
+}): React.JSX.Element {
   return (
     <div className={styles.captured} aria-label={label}>
       <span className={styles.capturedPieces} aria-hidden="true">
@@ -97,7 +116,9 @@ function CapturedRow({ pieces, balance, label }: { pieces: string[]; balance: nu
           <span key={`${piece}-${index}`}>{GLYPHS[piece] ?? ''}</span>
         ))}
       </span>
-      {balance > 0 ? <span className={cx(styles.capturedBalance, 'mono')}>{`+${balance}`}</span> : null}
+      {balance > 0 ? (
+        <span className={cx(styles.capturedBalance, 'mono')}>{`+${balance}`}</span>
+      ) : null}
     </div>
   )
 }
@@ -138,7 +159,10 @@ export function PlayScreen(): React.JSX.Element {
   const userColor = game?.userColor ?? 'w'
 
   const evaluation: Eval | null = session.liveEval
-    ? { ...(session.liveEval.cp !== undefined ? { cp: session.liveEval.cp } : {}), ...(session.liveEval.mate !== undefined ? { mate: session.liveEval.mate } : {}) }
+    ? {
+        ...(session.liveEval.cp !== undefined ? { cp: session.liveEval.cp } : {}),
+        ...(session.liveEval.mate !== undefined ? { mate: session.liveEval.mate } : {})
+      }
     : null
   const captured = useMemo(() => capturedPieces(startFenOf(game), fen), [game, fen])
   const check = useMemo(() => gameStatus(fen).check, [fen])
@@ -185,7 +209,12 @@ export function PlayScreen(): React.JSX.Element {
     enabled: view === 'game' && (game?.moves.length ?? 0) > 0
   })
 
-  const movableColor = playing && session.userToMove && !session.ai.thinking && !browsing ? (userColor === 'w' ? 'white' : 'black') : undefined
+  const movableColor =
+    playing && session.userToMove && !session.ai.thinking && !browsing
+      ? userColor === 'w'
+        ? 'white'
+        : 'black'
+      : undefined
 
   return (
     <div className={styles.screen}>
@@ -216,7 +245,11 @@ export function PlayScreen(): React.JSX.Element {
       </header>
 
       {view === 'review' && reviewGameId ? (
-        <ReviewScreen gameId={reviewGameId} ply={reviewPly} onClose={() => setView(game ? 'game' : 'archive')} />
+        <ReviewScreen
+          gameId={reviewGameId}
+          ply={reviewPly}
+          onClose={() => setView(game ? 'game' : 'archive')}
+        />
       ) : view === 'archive' ? (
         <ArchiveList
           onResumed={() => {
@@ -258,7 +291,13 @@ export function PlayScreen(): React.JSX.Element {
                 balance={userColor === 'w' ? -captured.balance : captured.balance}
                 label={t('play.capturedByOpponent')}
               />
-              {aiClock ? <ClockDisplay clock={session.clock} color={aiColor} label={t('play.clockOpponent')} /> : null}
+              {aiClock ? (
+                <ClockDisplay
+                  clock={session.clock}
+                  color={aiColor}
+                  label={t('play.clockOpponent')}
+                />
+              ) : null}
             </div>
 
             <div className={styles.boardRow}>
@@ -300,7 +339,11 @@ export function PlayScreen(): React.JSX.Element {
               </p>
             ) : null}
 
-            <GameControls session={session} onNewGame={() => setDialogOpen(true)} onExit={() => setView('archive')} />
+            <GameControls
+              session={session}
+              onNewGame={() => setDialogOpen(true)}
+              onExit={() => setView('archive')}
+            />
           </div>
 
           <aside className={styles.panel}>

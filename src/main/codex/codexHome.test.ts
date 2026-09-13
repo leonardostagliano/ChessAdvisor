@@ -93,7 +93,12 @@ describe('setConfiguredModel', () => {
   it('keeps comments and unknown keys, and rewrites nothing when the model already matches', async () => {
     const dir = await tmp()
     const file = join(dir, 'config.toml')
-    const original = ['# hand written', 'model   =   "old-model"', 'model_reasoning_effort = "low"', ''].join('\n')
+    const original = [
+      '# hand written',
+      'model   =   "old-model"',
+      'model_reasoning_effort = "low"',
+      ''
+    ].join('\n')
     await writeFile(file, original)
 
     expect(await setConfiguredModel(dir, 'gpt-6-astra')).toBe(true)

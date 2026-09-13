@@ -24,7 +24,10 @@ function item(patch: Partial<StudyPlanItem> = {}): StudyPlanItem {
   }
 }
 
-function view(patch: Partial<StudyPlanView> = {}, items: StudyPlanItem[] = [item()]): StudyPlanView {
+function view(
+  patch: Partial<StudyPlanView> = {},
+  items: StudyPlanItem[] = [item()]
+): StudyPlanView {
   return {
     plan: { generatedAt: '2026-09-13T09:00:00.000Z', items },
     suggestRegenerate: false,
@@ -35,7 +38,9 @@ function view(patch: Partial<StudyPlanView> = {}, items: StudyPlanItem[] = [item
 }
 
 const generate = vi.fn(async (): Promise<StudyPlanView> => view())
-const markDone = vi.fn(async (_id: string, done: boolean): Promise<StudyPlanView> => view({}, [item({ done })]))
+const markDone = vi.fn(async (_id: string, done: boolean): Promise<StudyPlanView> =>
+  view({}, [item({ done })])
+)
 
 function mockApi(): void {
   Object.defineProperty(window, 'api', {
@@ -48,7 +53,14 @@ function mockApi(): void {
 beforeEach(() => {
   vi.clearAllMocks()
   mockApi()
-  useTrainingStore.setState({ tab: 'plan', plan: null, request: null, selectedExercise: null, selectedOpening: null, error: null })
+  useTrainingStore.setState({
+    tab: 'plan',
+    plan: null,
+    request: null,
+    selectedExercise: null,
+    selectedOpening: null,
+    error: null
+  })
   useUiStore.setState({ area: 'training', reviewTarget: null })
 })
 
@@ -70,7 +82,13 @@ describe('StudyPlanTab', () => {
     useTrainingStore.setState({
       plan: view({}, [
         item(),
-        item({ id: 'i2', title: 'Lucena', why: 'Il finale che chiudi peggio.', activity: { type: 'endgame', ref: 'lucena' }, done: true })
+        item({
+          id: 'i2',
+          title: 'Lucena',
+          why: 'Il finale che chiudi peggio.',
+          activity: { type: 'endgame', ref: 'lucena' },
+          done: true
+        })
       ])
     })
     render(<StudyPlanTab />)
@@ -114,10 +132,14 @@ describe('StudyPlanTab', () => {
 
   it('marks an activity whose material is gone and degrades it to its generic form', () => {
     useTrainingStore.setState({
-      plan: view({}, [item({ id: 'i5', activity: { type: 'opening', ref: 'A00' }, invalidRef: true })])
+      plan: view({}, [
+        item({ id: 'i5', activity: { type: 'opening', ref: 'A00' }, invalidRef: true })
+      ])
     })
     render(<StudyPlanTab />)
-    expect(screen.getByText('Il materiale di questa attività non esiste più: resta l’attività generica.')).toBeInTheDocument()
+    expect(
+      screen.getByText('Il materiale di questa attività non esiste più: resta l’attività generica.')
+    ).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Apri' }))
     expect(useTrainingStore.getState().tab).toBe('openings')
     expect(useTrainingStore.getState().selectedOpening).toBeNull()
@@ -128,9 +150,13 @@ describe('StudyPlanTab', () => {
     const { rerender } = render(<StudyPlanTab />)
     expect(screen.getByTestId('plan-stale')).toHaveTextContent('Hai giocato 6 partite')
 
-    useTrainingStore.setState({ plan: view({ suggestRegenerate: true, invalidRefs: 3, gamesSincePlan: 1 }) })
+    useTrainingStore.setState({
+      plan: view({ suggestRegenerate: true, invalidRefs: 3, gamesSincePlan: 1 })
+    })
     rerender(<StudyPlanTab />)
-    expect(screen.getByTestId('plan-stale')).toHaveTextContent('3 attività puntano a materiale che non esiste più')
+    expect(screen.getByTestId('plan-stale')).toHaveTextContent(
+      '3 attività puntano a materiale che non esiste più'
+    )
   })
 
   it('writes a new plan on demand, keeping the same link', async () => {
@@ -144,7 +170,9 @@ describe('StudyPlanTab', () => {
 describe('StudyPlanSummary', () => {
   it('offers the first plan from the dashboard', async () => {
     render(<StudyPlanSummary />)
-    expect(screen.getByText('Il coach non ha ancora scritto un piano di studio.')).toBeInTheDocument()
+    expect(
+      screen.getByText('Il coach non ha ancora scritto un piano di studio.')
+    ).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Genera il piano' }))
     await waitFor(() => expect(generate).toHaveBeenCalledTimes(1))
   })

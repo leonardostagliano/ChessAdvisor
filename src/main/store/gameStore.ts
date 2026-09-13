@@ -5,9 +5,13 @@ import type { Game, GameFilter, GameSummary } from '@shared/types/game'
 import { cleanupTmp, writeJsonAtomic } from './atomicWrite'
 
 /** Everything `create` cannot invent: the rest of a Game is set by the store itself. */
-export type GameInit = Omit<Game, 'id' | 'createdAt' | 'updatedAt' | 'moves' | 'takebacks' | 'coachLog' | 'status'>
+export type GameInit = Omit<
+  Game,
+  'id' | 'createdAt' | 'updatedAt' | 'moves' | 'takebacks' | 'coachLog' | 'status'
+>
 
-const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value)
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value)
 
 /** A file only enters the index when it has the shape the rest of the app relies on. */
 function isGame(value: unknown): value is Game {
@@ -94,7 +98,9 @@ export class GameStore {
   /** Archive rows, newest first. Reads nothing from disk. */
   list(filter?: GameFilter): GameSummary[] {
     const rows = [...this.index.values()].filter(
-      (summary) => (!filter?.status || summary.status === filter.status) && (!filter?.kind || summary.kind === filter.kind)
+      (summary) =>
+        (!filter?.status || summary.status === filter.status) &&
+        (!filter?.kind || summary.kind === filter.kind)
     )
     return rows.sort(newestFirst)
   }

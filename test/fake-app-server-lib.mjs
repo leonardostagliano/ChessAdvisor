@@ -181,7 +181,11 @@ function fakePlanItems(text) {
   }
   for (const theme of refs.thematic.slice(1)) {
     if (items.length >= 4) break
-    items.push({ title: `Tattica finta ${theme}`, why: 'fake', activity: { type: 'thematic', ref: theme } })
+    items.push({
+      title: `Tattica finta ${theme}`,
+      why: 'fake',
+      activity: { type: 'thematic', ref: theme }
+    })
   }
   items.push({ title: 'Gioca una partita', why: 'fake', activity: { type: 'play', ref: null } })
   return items
@@ -295,7 +299,13 @@ export function createFakeServer(io, options = {}) {
     }
     // Labelling of the key moments (spec §6.3): one label per ply listed in the prompt.
     if (properties && 'labels' in properties) {
-      return JSON.stringify({ labels: pliesFrom(text).map((ply, index) => ({ ply, theme: THEMES[index % THEMES.length], note: 'fake label' })) })
+      return JSON.stringify({
+        labels: pliesFrom(text).map((ply, index) => ({
+          ply,
+          theme: THEMES[index % THEMES.length],
+          note: 'fake label'
+        }))
+      })
     }
     // Theme and rating window of a thematic set (spec §6.5).
     if (properties && 'theme' in properties && 'ratingMin' in properties) {

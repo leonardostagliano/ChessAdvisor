@@ -71,7 +71,9 @@ export function OpponentCard({ session, models }: OpponentCardProps): React.JSX.
 
   const info = catalogue.find((model) => model.id === game.opponent.model)
   const displayName = info?.displayName ?? game.opponent.model ?? t('opponent.unknownModel')
-  const effortLabel = t(`newGame.efforts.${game.opponent.effort}`, { defaultValue: game.opponent.effort })
+  const effortLabel = t(`newGame.efforts.${game.opponent.effort}`, {
+    defaultValue: game.opponent.effort
+  })
   const lastAiMove = [...game.moves].reverse().find((move) => move.by === 'ai')
   const rerouted =
     lastAiMove?.effectiveModel && lastAiMove.effectiveModel !== game.opponent.model
@@ -95,7 +97,9 @@ export function OpponentCard({ session, models }: OpponentCardProps): React.JSX.
           ) : null}
           {lastAiMove?.fallback ? (
             <span className={cx(styles.chip, styles.chipWarn)}>
-              {lastAiMove.fallback === 'engine' ? t('opponent.fallbackEngine') : t('opponent.fallbackRandom')}
+              {lastAiMove.fallback === 'engine'
+                ? t('opponent.fallbackEngine')
+                : t('opponent.fallbackRandom')}
             </span>
           ) : null}
         </div>

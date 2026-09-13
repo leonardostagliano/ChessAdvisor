@@ -8,7 +8,11 @@ import { GameStore, type GameInit } from './gameStore'
 const init = (patch: Partial<GameInit> = {}): GameInit => ({
   kind: 'match',
   userColor: 'w',
-  opponent: { model: 'gpt-6-astra', effort: 'medium', difficulty: { mode: 'fixed', level: 3, targetElo: 1200 } },
+  opponent: {
+    model: 'gpt-6-astra',
+    effort: 'medium',
+    difficulty: { mode: 'fixed', level: 3, targetElo: 1200 }
+  },
   coach: { model: 'gpt-6-astra', effort: 'medium' },
   clock: null,
   language: 'it',
@@ -44,7 +48,9 @@ describe('GameStore', () => {
   })
 
   it('reads a created game back from disk', async () => {
-    const game = await store.create(init({ userColor: 'b', startFen: '8/8/8/8/8/8/8/K6k w - - 0 1' }))
+    const game = await store.create(
+      init({ userColor: 'b', startFen: '8/8/8/8/8/8/8/K6k w - - 0 1' })
+    )
     const loaded = await store.get(game.id)
     expect(loaded).toEqual(game)
     expect(await store.get('missing')).toBeNull()
@@ -87,7 +93,12 @@ describe('GameStore', () => {
 
   it('exposes the analysis accuracy in the summary', async () => {
     const game = await store.create(init())
-    game.analysis = { accuracy: { w: 88.5, b: 71 }, acpl: { w: 20, b: 55 }, keyMoments: [7], analyzedAt: new Date(0).toISOString() }
+    game.analysis = {
+      accuracy: { w: 88.5, b: 71 },
+      acpl: { w: 20, b: 55 },
+      keyMoments: [7],
+      analyzedAt: new Date(0).toISOString()
+    }
     await store.save(game)
     expect(store.list()[0].accuracy).toEqual({ w: 88.5, b: 71 })
   })
@@ -115,7 +126,9 @@ describe('GameStore', () => {
     expect(fresh.list().map((s) => s.id)).toEqual([good.id])
     expect(warn).toHaveBeenCalledTimes(2)
     // The unusable files are left alone: the user can still recover them by hand.
-    expect((await readdir(dir)).sort()).toEqual([`${good.id}.json`, 'alien.json', 'broken.json', 'notes.txt'].sort())
+    expect((await readdir(dir)).sort()).toEqual(
+      [`${good.id}.json`, 'alien.json', 'broken.json', 'notes.txt'].sort()
+    )
   })
 
   it('removes stale tmp files left by an interrupted write on load', async () => {

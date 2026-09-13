@@ -1,9 +1,20 @@
 import type { EndgamePosition, Exercise, StudyCatalogue, StudyPlan } from '@shared/types/training'
 import { describe, expect, it } from 'vitest'
 import { THEMES } from '../profile/themes'
-import { buildCatalogue, decoratePlan, planView, validatePlanItems, PLAN_MAX_ITEMS, PLAN_STALE_GAMES } from './studyPlan'
+import {
+  buildCatalogue,
+  decoratePlan,
+  planView,
+  validatePlanItems,
+  PLAN_MAX_ITEMS,
+  PLAN_STALE_GAMES
+} from './studyPlan'
 
-const exercise = (id: string, status: Exercise['status'], kind: Exercise['kind'] = 'own_game'): Exercise => ({
+const exercise = (
+  id: string,
+  status: Exercise['status'],
+  kind: Exercise['kind'] = 'own_game'
+): Exercise => ({
   id,
   kind,
   fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
@@ -48,7 +59,12 @@ describe('buildCatalogue', () => {
 
   it('refuses to label a thematic puzzle or a drill in progress as an own-game exercise', () => {
     const items = validatePlanItems(
-      { items: [{ title: 'T', why: 'p', activity: { type: 'own_game', ref: 'tac-p1' } }, { title: 'T', why: 'p', activity: { type: 'own_game', ref: 'end-queen_mate' } }] },
+      {
+        items: [
+          { title: 'T', why: 'p', activity: { type: 'own_game', ref: 'tac-p1' } },
+          { title: 'T', why: 'p', activity: { type: 'own_game', ref: 'end-queen_mate' } }
+        ]
+      },
       catalogue
     )
     expect(items).toEqual([])
@@ -56,22 +72,48 @@ describe('buildCatalogue', () => {
 })
 
 describe('validatePlanItems', () => {
-  const item = (type: string, ref: string | null, title = 'Titolo'): unknown => ({ title, why: 'perché', activity: { type, ref } })
+  const item = (type: string, ref: string | null, title = 'Titolo'): unknown => ({
+    title,
+    why: 'perché',
+    activity: { type, ref }
+  })
 
   it('keeps the items whose reference exists', () => {
-    const items = validatePlanItems({ items: [item('thematic', 'fork'), item('own_game', 'og-g1-7'), item('play', null)] }, catalogue)
+    const items = validatePlanItems(
+      { items: [item('thematic', 'fork'), item('own_game', 'og-g1-7'), item('play', null)] },
+      catalogue
+    )
     expect(items.map((entry) => entry.activity.ref)).toEqual(['fork', 'og-g1-7', null])
     expect(items.map((entry) => entry.id)).toEqual(['item-1', 'item-2', 'item-3'])
     expect(items.every((entry) => entry.done === false)).toBe(true)
   })
 
   it('drops an item whose reference is not in the catalogue', () => {
-    const items = validatePlanItems({ items: [item('own_game', 'og-does-not-exist'), item('opening', 'C60'), item('endgame', 'lucena')] }, catalogue)
+    const items = validatePlanItems(
+      {
+        items: [
+          item('own_game', 'og-does-not-exist'),
+          item('opening', 'C60'),
+          item('endgame', 'lucena')
+        ]
+      },
+      catalogue
+    )
     expect(items.map((entry) => entry.activity.ref)).toEqual(['C60'])
   })
 
   it('drops an item with no usable type or title, and a repeated reference', () => {
-    const items = validatePlanItems({ items: [item('reading', 'fork'), item('thematic', 'pin', '  '), item('thematic', 'pin'), item('thematic', 'pin')] }, catalogue)
+    const items = validatePlanItems(
+      {
+        items: [
+          item('reading', 'fork'),
+          item('thematic', 'pin', '  '),
+          item('thematic', 'pin'),
+          item('thematic', 'pin')
+        ]
+      },
+      catalogue
+    )
     expect(items).toHaveLength(1)
   })
 
@@ -90,8 +132,20 @@ describe('decoratePlan and planView', () => {
   const plan: StudyPlan = {
     generatedAt: '2026-03-02T09:00:00.000Z',
     items: [
-      { id: 'item-1', title: 'Tattica', why: '', activity: { type: 'thematic', ref: 'fork' }, done: false },
-      { id: 'item-2', title: 'Esercizio', why: '', activity: { type: 'own_game', ref: 'og-gone-3' }, done: false },
+      {
+        id: 'item-1',
+        title: 'Tattica',
+        why: '',
+        activity: { type: 'thematic', ref: 'fork' },
+        done: false
+      },
+      {
+        id: 'item-2',
+        title: 'Esercizio',
+        why: '',
+        activity: { type: 'own_game', ref: 'og-gone-3' },
+        done: false
+      },
       { id: 'item-3', title: 'Gioca', why: '', activity: { type: 'play', ref: null }, done: true }
     ]
   }
@@ -123,6 +177,11 @@ describe('decoratePlan and planView', () => {
   })
 
   it('never proposes anything when there is no plan at all', () => {
-    expect(planView(null, catalogue, 99)).toEqual({ plan: null, suggestRegenerate: false, invalidRefs: 0, gamesSincePlan: 99 })
+    expect(planView(null, catalogue, 99)).toEqual({
+      plan: null,
+      suggestRegenerate: false,
+      invalidRefs: 0,
+      gamesSincePlan: 99
+    })
   })
 })

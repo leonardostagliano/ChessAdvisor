@@ -70,8 +70,10 @@ export function evalPoints(game: Game | null | undefined): EvalPoint[] {
   return points
 }
 
-const x = (index: number, total: number): number => (total <= 1 ? 0 : (index / (total - 1)) * GRAPH_WIDTH)
-const y = (white: number): number => GRAPH_HEIGHT - (Math.min(100, Math.max(0, white)) / 100) * GRAPH_HEIGHT
+const x = (index: number, total: number): number =>
+  total <= 1 ? 0 : (index / (total - 1)) * GRAPH_WIDTH
+const y = (white: number): number =>
+  GRAPH_HEIGHT - (Math.min(100, Math.max(0, white)) / 100) * GRAPH_HEIGHT
 
 export interface EvalGraphProps {
   game: Game | null
@@ -82,13 +84,20 @@ export interface EvalGraphProps {
   className?: string
 }
 
-export function EvalGraph({ game, cursor, onSelect, className }: EvalGraphProps): React.JSX.Element | null {
+export function EvalGraph({
+  game,
+  cursor,
+  onSelect,
+  className
+}: EvalGraphProps): React.JSX.Element | null {
   const { t } = useTranslation()
   const points = evalPoints(game)
   if (points.length === 0) return null
 
   const total = points.length
-  const line = points.map((point, index) => `${x(index, total).toFixed(2)},${y(point.white).toFixed(2)}`).join(' ')
+  const line = points
+    .map((point, index) => `${x(index, total).toFixed(2)},${y(point.white).toFixed(2)}`)
+    .join(' ')
   const area = `0,${GRAPH_HEIGHT} ${line} ${GRAPH_WIDTH},${GRAPH_HEIGHT}`
   const selected = Math.min(Math.max(cursor + 1, 0), total - 1)
   const band = GRAPH_WIDTH / total
@@ -98,7 +107,9 @@ export function EvalGraph({ game, cursor, onSelect, className }: EvalGraphProps)
       ? t('review.pointLabel', {
           ply: point.ply,
           san: point.move.san,
-          judgement: point.classification ? t(`review.classification.${point.classification}`) : t('review.noJudgement'),
+          judgement: point.classification
+            ? t(`review.classification.${point.classification}`)
+            : t('review.noJudgement'),
           percent: Math.round(point.white)
         })
       : t('review.startLabel', { percent: Math.round(point.white) })
@@ -113,14 +124,23 @@ export function EvalGraph({ game, cursor, onSelect, className }: EvalGraphProps)
     >
       <rect className={styles.graphGround} x={0} y={0} width={GRAPH_WIDTH} height={GRAPH_HEIGHT} />
       <polygon className={styles.graphArea} points={area} />
-      <line className={styles.graphMid} x1={0} y1={GRAPH_HEIGHT / 2} x2={GRAPH_WIDTH} y2={GRAPH_HEIGHT / 2} />
+      <line
+        className={styles.graphMid}
+        x1={0}
+        y1={GRAPH_HEIGHT / 2}
+        x2={GRAPH_WIDTH}
+        y2={GRAPH_HEIGHT / 2}
+      />
       <polyline className={styles.graphLine} points={line} fill="none" />
 
       {points.map((point, index) =>
         point.key ? (
           <circle
             key={`key-${point.ply}`}
-            className={cx(styles.graphDot, styles[`dot_${point.classification ?? 'good'}` as const])}
+            className={cx(
+              styles.graphDot,
+              styles[`dot_${point.classification ?? 'good'}` as const]
+            )}
             cx={x(index, total)}
             cy={y(point.white)}
             r={5}
@@ -138,7 +158,12 @@ export function EvalGraph({ game, cursor, onSelect, className }: EvalGraphProps)
         x2={x(selected, total)}
         y2={GRAPH_HEIGHT}
       />
-      <circle className={styles.graphMarker} cx={x(selected, total)} cy={y(points[selected]!.white)} r={4} />
+      <circle
+        className={styles.graphMarker}
+        cx={x(selected, total)}
+        cy={y(points[selected]!.white)}
+        r={4}
+      />
 
       {/* One transparent band per point: clicking anywhere over a ply selects it. */}
       {points.map((point, index) => (

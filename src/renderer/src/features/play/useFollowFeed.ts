@@ -12,7 +12,9 @@ export function scrollContainerOf(node: HTMLElement): HTMLElement | null {
   let current: HTMLElement | null = node
   while (current) {
     const overflowY = getComputedStyle(current).overflowY
-    const scrolls = (overflowY === 'auto' || overflowY === 'scroll') && current.scrollHeight > current.clientHeight + 1
+    const scrolls =
+      (overflowY === 'auto' || overflowY === 'scroll') &&
+      current.scrollHeight > current.clientHeight + 1
     if (scrolls) return current
     if (current.getAttribute('role') === 'tabpanel') return null
     current = current.parentElement

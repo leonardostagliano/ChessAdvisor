@@ -103,8 +103,16 @@ export function MoveList({ moves, browsePly, onSelect }: MoveListProps): React.J
                   {move.fallback ? (
                     <span
                       className={styles.moveFlag}
-                      title={move.fallback === 'engine' ? t('opponent.fallbackEngine') : t('opponent.fallbackRandom')}
-                      aria-label={move.fallback === 'engine' ? t('opponent.fallbackEngine') : t('opponent.fallbackRandom')}
+                      title={
+                        move.fallback === 'engine'
+                          ? t('opponent.fallbackEngine')
+                          : t('opponent.fallbackRandom')
+                      }
+                      aria-label={
+                        move.fallback === 'engine'
+                          ? t('opponent.fallbackEngine')
+                          : t('opponent.fallbackRandom')
+                      }
                     >
                       {move.fallback === 'engine' ? 'SF' : '??'}
                     </span>

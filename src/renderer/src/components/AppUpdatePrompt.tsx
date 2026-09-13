@@ -23,11 +23,17 @@ export interface AppUpdatePromptProps {
 const EMPTY: UpdatePromptState = { status: null, version: null, pending: null, error: '' }
 
 /** Offers one update at a time; a single confirmation covers download and install. */
-export function AppUpdatePrompt({ blocked = false, api }: AppUpdatePromptProps = {}): React.JSX.Element | null {
+export function AppUpdatePrompt({
+  blocked = false,
+  api
+}: AppUpdatePromptProps = {}): React.JSX.Element | null {
   const { t } = useTranslation()
   const [state, setState] = useState<UpdatePromptState>(EMPTY)
   const controller = useRef<UpdatePromptController | null>(null)
-  const messages = useRef({ failed: t('updates.failed'), releaseChanged: t('updates.releaseChanged') })
+  const messages = useRef({
+    failed: t('updates.failed'),
+    releaseChanged: t('updates.releaseChanged')
+  })
   messages.current = { failed: t('updates.failed'), releaseChanged: t('updates.releaseChanged') }
 
   useEffect(() => {
@@ -50,8 +56,13 @@ export function AppUpdatePrompt({ blocked = false, api }: AppUpdatePromptProps =
 
   const progress = state.status.download
   const percent =
-    progress && progress.totalBytes > 0 && Number.isFinite(progress.percent) ? Math.max(0, Math.min(100, progress.percent)) : undefined
-  const canConfirm = !busy && state.status.release?.version === state.version && (state.status.canDownload || state.status.canInstall)
+    progress && progress.totalBytes > 0 && Number.isFinite(progress.percent)
+      ? Math.max(0, Math.min(100, progress.percent))
+      : undefined
+  const canConfirm =
+    !busy &&
+    state.status.release?.version === state.version &&
+    (state.status.canDownload || state.status.canInstall)
   const confirmLabel = busy
     ? state.pending === 'downloading'
       ? t('updates.downloadingShort')
@@ -72,7 +83,11 @@ export function AppUpdatePrompt({ blocked = false, api }: AppUpdatePromptProps =
           <Button variant="secondary" disabled={busy} onClick={() => controller.current?.dismiss()}>
             {t('updates.later')}
           </Button>
-          <Button variant="primary" disabled={!canConfirm} onClick={() => void controller.current?.confirm()}>
+          <Button
+            variant="primary"
+            disabled={!canConfirm}
+            onClick={() => void controller.current?.confirm()}
+          >
             {confirmLabel}
           </Button>
         </div>
@@ -84,14 +99,24 @@ export function AppUpdatePrompt({ blocked = false, api }: AppUpdatePromptProps =
         {busy ? (
           <div className={styles.progress} role="status" aria-live="polite">
             <div className={styles.progressLabel}>
-              <span>{state.pending === 'downloading' ? t('updates.downloading') : t('updates.installing')}</span>
-              {state.pending === 'downloading' && percent !== undefined ? <span className="mono">{Math.round(percent)}%</span> : null}
+              <span>
+                {state.pending === 'downloading'
+                  ? t('updates.downloading')
+                  : t('updates.installing')}
+              </span>
+              {state.pending === 'downloading' && percent !== undefined ? (
+                <span className="mono">{Math.round(percent)}%</span>
+              ) : null}
             </div>
             <div className={styles.track}>
               <div
                 className={styles.fill}
                 data-indeterminate={state.pending !== 'downloading' || percent === undefined}
-                style={state.pending === 'downloading' && percent !== undefined ? { width: `${percent}%` } : undefined}
+                style={
+                  state.pending === 'downloading' && percent !== undefined
+                    ? { width: `${percent}%` }
+                    : undefined
+                }
               />
             </div>
           </div>

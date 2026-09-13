@@ -38,7 +38,10 @@ const clamp = (value: number): number => Math.min(100, Math.max(0, value))
  * as `Profile.history` keeps them. Entries without a usable accuracy are dropped rather than
  * drawn at zero.
  */
-export function trendPoints(history: readonly ProfileHistoryEntry[], limit = TREND_WINDOW): TrendPoint[] {
+export function trendPoints(
+  history: readonly ProfileHistoryEntry[],
+  limit = TREND_WINDOW
+): TrendPoint[] {
   const window = history.filter((entry) => Number.isFinite(entry.accuracy)).slice(-limit)
   const last = Math.max(1, window.length - 1)
   return window.map((entry, index) => ({
@@ -53,7 +56,9 @@ export function trendPoints(history: readonly ProfileHistoryEntry[], limit = TRE
 /** Mean accuracy of the drawn window, one decimal; `0` when there is nothing to average. */
 export function trendAverage(points: readonly TrendPoint[]): number {
   if (points.length === 0) return 0
-  return Math.round((points.reduce((sum, point) => sum + point.accuracy, 0) / points.length) * 10) / 10
+  return (
+    Math.round((points.reduce((sum, point) => sum + point.accuracy, 0) / points.length) * 10) / 10
+  )
 }
 
 export interface AccuracyTrendProps {
@@ -104,7 +109,13 @@ export function AccuracyTrend({ history, className }: AccuracyTrendProps): React
           const y = PAD.top + PLOT_HEIGHT - (value / 100) * PLOT_HEIGHT
           return (
             <g key={value}>
-              <line className={styles.trendGrid} x1={PAD.left} y1={y} x2={TREND_WIDTH - PAD.right} y2={y} />
+              <line
+                className={styles.trendGrid}
+                x1={PAD.left}
+                y1={y}
+                x2={TREND_WIDTH - PAD.right}
+                y2={y}
+              />
               <text className={styles.trendAxis} x={PAD.left - 6} y={y + 3} textAnchor="end">
                 {value}
               </text>
@@ -147,17 +158,28 @@ export function AccuracyTrend({ history, className }: AccuracyTrendProps): React
         <text className={styles.trendAxis} x={PAD.left} y={TREND_HEIGHT - 8}>
           {date(points[0]!.date)}
         </text>
-        <text className={styles.trendAxis} x={TREND_WIDTH - PAD.right} y={TREND_HEIGHT - 8} textAnchor="end">
+        <text
+          className={styles.trendAxis}
+          x={TREND_WIDTH - PAD.right}
+          y={TREND_HEIGHT - 8}
+          textAnchor="end"
+        >
           {date(last.date)}
         </text>
       </svg>
 
       <p className={styles.legend}>
         <span>
-          {t('progress.trendLast')} <span className={styles.legendValue}>{t('progress.percentValue', { value: last.accuracy.toFixed(1) })}</span>
+          {t('progress.trendLast')}{' '}
+          <span className={styles.legendValue}>
+            {t('progress.percentValue', { value: last.accuracy.toFixed(1) })}
+          </span>
         </span>
         <span>
-          {t('progress.trendAverage')} <span className={styles.legendValue}>{t('progress.percentValue', { value: average.toFixed(1) })}</span>
+          {t('progress.trendAverage')}{' '}
+          <span className={styles.legendValue}>
+            {t('progress.percentValue', { value: average.toFixed(1) })}
+          </span>
         </span>
       </p>
     </section>

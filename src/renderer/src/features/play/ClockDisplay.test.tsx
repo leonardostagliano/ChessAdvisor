@@ -80,7 +80,13 @@ describe('ClockDisplay', () => {
   })
 
   it('shows the tenths in the last ten seconds and flags an expired clock', () => {
-    render(<ClockDisplay clock={snapshot({ remainingMs: { w: 9_000, b: 1_000 } })} color="w" label="Il tuo orologio" />)
+    render(
+      <ClockDisplay
+        clock={snapshot({ remainingMs: { w: 9_000, b: 1_000 } })}
+        color="w"
+        label="Il tuo orologio"
+      />
+    )
     expect(screen.getByRole('timer')).toHaveTextContent('00:09.0')
 
     act(() => {

@@ -46,10 +46,20 @@ export interface ArchiveFilters {
   date: DateFilter
 }
 
-export const NO_FILTERS: ArchiveFilters = { result: 'all', color: 'all', model: 'all', kind: 'all', date: 'all' }
+export const NO_FILTERS: ArchiveFilters = {
+  result: 'all',
+  color: 'all',
+  model: 'all',
+  kind: 'all',
+  date: 'all'
+}
 
 const DAY_MS = 24 * 60 * 60 * 1000
-const WINDOWS: Record<Exclude<DateFilter, 'all'>, number> = { week: 7 * DAY_MS, month: 30 * DAY_MS, year: 365 * DAY_MS }
+const WINDOWS: Record<Exclude<DateFilter, 'all'>, number> = {
+  week: 7 * DAY_MS,
+  month: 30 * DAY_MS,
+  year: 365 * DAY_MS
+}
 
 /** Outcome of a finished game from the user's point of view. */
 function outcomeOf(game: GameSummary): Exclude<ResultFilter, 'all' | 'unfinished'> | null {
@@ -59,9 +69,18 @@ function outcomeOf(game: GameSummary): Exclude<ResultFilter, 'all' | 'unfinished
 }
 
 /** Rows kept by the filters, in the order the main process listed them (newest first). */
-export function filterGames(games: GameSummary[], filters: ArchiveFilters, now = Date.now()): GameSummary[] {
+export function filterGames(
+  games: GameSummary[],
+  filters: ArchiveFilters,
+  now = Date.now()
+): GameSummary[] {
   return games.filter((game) => {
-    if (filters.result === 'unfinished' ? !!game.result : filters.result !== 'all' && outcomeOf(game) !== filters.result) return false
+    if (
+      filters.result === 'unfinished'
+        ? !!game.result
+        : filters.result !== 'all' && outcomeOf(game) !== filters.result
+    )
+      return false
     if (filters.color !== 'all' && game.userColor !== filters.color) return false
     if (filters.model !== 'all' && game.opponent.model !== filters.model) return false
     if (filters.kind !== 'all' && game.kind !== filters.kind) return false
@@ -83,7 +102,11 @@ function bridge(): Window['api'] | undefined {
   return typeof window === 'undefined' ? undefined : window.api
 }
 
-export function ArchiveList({ onResumed, onReview, onNewGame }: ArchiveListProps): React.JSX.Element {
+export function ArchiveList({
+  onResumed,
+  onReview,
+  onNewGame
+}: ArchiveListProps): React.JSX.Element {
   const { t, i18n } = useTranslation()
   const models = useCodexStore((state) => state.models)
   const [games, setGames] = useState<GameSummary[] | null>(null)
@@ -125,7 +148,8 @@ export function ArchiveList({ onResumed, onReview, onNewGame }: ArchiveListProps
       } catch (failure) {
         const { code, message, data } = parseIpcError(failure)
         if (code === 'MODEL_UNAVAILABLE') {
-          const suggested = typeof data.suggested === 'string' ? data.suggested : (defaultModel(models)?.id ?? '')
+          const suggested =
+            typeof data.suggested === 'string' ? data.suggested : (defaultModel(models)?.id ?? '')
           const game = games?.find((entry) => entry.id === id)
           setSubstitution({ gameId: id, missing: game?.opponent.model ?? '', chosen: suggested })
           return
@@ -158,7 +182,10 @@ export function ArchiveList({ onResumed, onReview, onNewGame }: ArchiveListProps
 
   // The model filter offers exactly the models the archive contains: a catalogue entry nobody
   // ever played against would only produce an empty list.
-  const playedModels = useMemo(() => [...new Set((games ?? []).map((game) => game.opponent.model))].sort(), [games])
+  const playedModels = useMemo(
+    () => [...new Set((games ?? []).map((game) => game.opponent.model))].sort(),
+    [games]
+  )
   const visible = useMemo(() => filterGames(games ?? [], filters), [games, filters])
   const filtered = (games ?? []).length > 0 && visible.length === 0
 
@@ -178,17 +205,28 @@ export function ArchiveList({ onResumed, onReview, onNewGame }: ArchiveListProps
     {
       key: 'color',
       label: t('archive.filterColor'),
-      options: [option('all', t('archive.all')), option('w', t('newGame.white')), option('b', t('newGame.black'))]
+      options: [
+        option('all', t('archive.all')),
+        option('w', t('newGame.white')),
+        option('b', t('newGame.black'))
+      ]
     },
     {
       key: 'model',
       label: t('archive.filterModel'),
-      options: [option('all', t('archive.all')), ...playedModels.map((model) => option(model, model))]
+      options: [
+        option('all', t('archive.all')),
+        ...playedModels.map((model) => option(model, model))
+      ]
     },
     {
       key: 'kind',
       label: t('archive.filterKind'),
-      options: [option('all', t('archive.all')), option('match', t('archive.kindMatch')), option('endgame_drill', t('archive.kindDrill'))]
+      options: [
+        option('all', t('archive.all')),
+        option('match', t('archive.kindMatch')),
+        option('endgame_drill', t('archive.kindDrill'))
+      ]
     },
     {
       key: 'date',
@@ -274,12 +312,18 @@ export function ArchiveList({ onResumed, onReview, onNewGame }: ArchiveListProps
                   <span className={cx(styles.chip, inProgress ? styles.chipAccent : undefined)}>
                     {inProgress ? t('archive.statusInProgress') : t('archive.statusFinished')}
                   </span>
-                  <span>{game.userColor === 'w' ? t('archive.asWhite') : t('archive.asBlack')}</span>
+                  <span>
+                    {game.userColor === 'w' ? t('archive.asWhite') : t('archive.asBlack')}
+                  </span>
                   <span>{t('archive.plies', { count: game.plies })}</span>
                   {game.result ? <span className="mono">{game.result.outcome}</span> : null}
                   {game.accuracy ? (
                     <span className="mono">
-                      {t('archive.accuracy', { value: (game.userColor === 'w' ? game.accuracy.w : game.accuracy.b).toFixed(1) })}
+                      {t('archive.accuracy', {
+                        value: (game.userColor === 'w' ? game.accuracy.w : game.accuracy.b).toFixed(
+                          1
+                        )
+                      })}
                     </span>
                   ) : null}
                   <span>{new Date(game.updatedAt).toLocaleString(i18n.language)}</span>
@@ -300,7 +344,12 @@ export function ArchiveList({ onResumed, onReview, onNewGame }: ArchiveListProps
                     {t('archive.review')}
                   </Button>
                 ) : null}
-                <Button variant="danger" size="sm" disabled={busyId === game.id} onClick={() => setConfirmDelete(game)}>
+                <Button
+                  variant="danger"
+                  size="sm"
+                  disabled={busyId === game.id}
+                  onClick={() => setConfirmDelete(game)}
+                >
                   {t('archive.delete')}
                 </Button>
               </div>
@@ -350,11 +399,15 @@ export function ArchiveList({ onResumed, onReview, onNewGame }: ArchiveListProps
           </div>
         }
       >
-        <p className={styles.modalBody}>{t('archive.substituteBody', { model: substitution?.missing ?? '' })}</p>
+        <p className={styles.modalBody}>
+          {t('archive.substituteBody', { model: substitution?.missing ?? '' })}
+        </p>
         <Select
           value={substitution?.chosen ?? ''}
           options={modelOptions}
-          onChange={(value) => setSubstitution((current) => (current ? { ...current, chosen: value } : current))}
+          onChange={(value) =>
+            setSubstitution((current) => (current ? { ...current, chosen: value } : current))
+          }
           label={t('archive.substituteModel')}
           disabled={modelOptions.length === 0}
         />

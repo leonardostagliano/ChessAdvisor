@@ -1,4 +1,12 @@
-import type { EndgamePosition, Exercise, StudyActivityType, StudyCatalogue, StudyPlan, StudyPlanItem, StudyPlanView } from '@shared/types/training'
+import type {
+  EndgamePosition,
+  Exercise,
+  StudyActivityType,
+  StudyCatalogue,
+  StudyPlan,
+  StudyPlanItem,
+  StudyPlanView
+} from '@shared/types/training'
 import { THEMES } from '../profile/themes'
 import { PLAN_ACTIVITY_TYPES, PLAN_MAX_ITEMS, PLAN_MIN_ITEMS } from './trainingPrompts'
 
@@ -25,7 +33,8 @@ export const PLAN_STALE_GAMES = 5
 /** Dangling references after which the app proposes a fresh plan (spec §6.8). */
 export const PLAN_MAX_INVALID = 2
 
-const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value)
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value)
 
 /**
  * The catalogue of everything a plan may point at (spec §6.8): the whole taxonomy, the exercises
@@ -36,7 +45,11 @@ const isRecord = (value: unknown): value is Record<string, unknown> => typeof va
  * a drill through its endgame id, and letting either leak in here would let the plan call them
  * "your own game".
  */
-export function buildCatalogue(p: { exercises: Exercise[]; openings: string[]; endgames: EndgamePosition[] }): StudyCatalogue {
+export function buildCatalogue(p: {
+  exercises: Exercise[]
+  openings: string[]
+  endgames: EndgamePosition[]
+}): StudyCatalogue {
   return {
     themes: [...THEMES],
     exercises: p.exercises
@@ -64,7 +77,10 @@ function refsOf(catalogue: StudyCatalogue, type: StudyActivityType): string[] | 
 }
 
 /** True when the reference of an item still points at something that exists. */
-export function isValidRef(catalogue: StudyCatalogue, activity: StudyPlanItem['activity']): boolean {
+export function isValidRef(
+  catalogue: StudyCatalogue,
+  activity: StudyPlanItem['activity']
+): boolean {
   const refs = refsOf(catalogue, activity.type)
   if (refs === null) return true
   return activity.ref !== null && refs.includes(activity.ref)
@@ -84,12 +100,19 @@ export function validatePlanItems(raw: unknown, catalogue: StudyCatalogue): Stud
     if (items.length >= PLAN_MAX_ITEMS) break
     if (!isRecord(row)) continue
     const activity = isRecord(row.activity) ? row.activity : {}
-    const type = typeof activity.type === 'string' && (PLAN_ACTIVITY_TYPES as readonly string[]).includes(activity.type) ? (activity.type as StudyActivityType) : null
+    const type =
+      typeof activity.type === 'string' &&
+      (PLAN_ACTIVITY_TYPES as readonly string[]).includes(activity.type)
+        ? (activity.type as StudyActivityType)
+        : null
     if (!type) continue
     const title = typeof row.title === 'string' ? row.title.trim() : ''
     if (title.length === 0) continue
 
-    const ref = typeof activity.ref === 'string' && activity.ref.trim().length > 0 ? activity.ref.trim() : null
+    const ref =
+      typeof activity.ref === 'string' && activity.ref.trim().length > 0
+        ? activity.ref.trim()
+        : null
     const candidate = { type, ref: type === 'play' ? null : ref }
     // Spec §6.8: an unknown reference is an invention, and the item goes with it.
     if (!isValidRef(catalogue, candidate)) continue
@@ -125,12 +148,17 @@ export function decoratePlan(plan: StudyPlan | null, catalogue: StudyCatalogue):
  * propose a new one — too many analysed games since it was written, or too many dangling
  * references inside it.
  */
-export function planView(plan: StudyPlan | null, catalogue: StudyCatalogue, gamesSincePlan: number): StudyPlanView {
+export function planView(
+  plan: StudyPlan | null,
+  catalogue: StudyCatalogue,
+  gamesSincePlan: number
+): StudyPlanView {
   const decorated = decoratePlan(plan, catalogue)
   const invalidRefs = decorated?.items.filter((item) => item.invalidRef).length ?? 0
   return {
     plan: decorated,
-    suggestRegenerate: decorated !== null && (gamesSincePlan >= PLAN_STALE_GAMES || invalidRefs > PLAN_MAX_INVALID),
+    suggestRegenerate:
+      decorated !== null && (gamesSincePlan >= PLAN_STALE_GAMES || invalidRefs > PLAN_MAX_INVALID),
     invalidRefs,
     gamesSincePlan
   }

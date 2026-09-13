@@ -104,7 +104,11 @@ function rowsOf(moves: Move[]): Row[] {
   return rows
 }
 
-export function ReviewMoveList({ moves, cursor, onSelect }: ReviewMoveListProps): React.JSX.Element {
+export function ReviewMoveList({
+  moves,
+  cursor,
+  onSelect
+}: ReviewMoveListProps): React.JSX.Element {
   const { t } = useTranslation()
   const listRef = useRef<HTMLDivElement>(null)
   const rows = rowsOf(moves)
@@ -113,7 +117,8 @@ export function ReviewMoveList({ moves, cursor, onSelect }: ReviewMoveListProps)
   useEffect(() => {
     const node = listRef.current?.querySelector('[aria-current="true"]')
     // `scrollIntoView` is missing in jsdom and in any environment without a layout engine.
-    if (node instanceof HTMLElement && typeof node.scrollIntoView === 'function') node.scrollIntoView({ block: 'nearest' })
+    if (node instanceof HTMLElement && typeof node.scrollIntoView === 'function')
+      node.scrollIntoView({ block: 'nearest' })
   }, [cursor])
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {

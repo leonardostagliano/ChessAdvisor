@@ -59,8 +59,20 @@ const TOP_OPENINGS = 5
 const RECENT_GAMES = 8
 
 const BAND_NAME: Record<Language, Record<Profile['level']['band'], string>> = {
-  it: { beginner: 'principiante', novice: 'base', intermediate: 'intermedio', advanced: 'avanzato', expert: 'esperto' },
-  en: { beginner: 'beginner', novice: 'novice', intermediate: 'intermediate', advanced: 'advanced', expert: 'expert' }
+  it: {
+    beginner: 'principiante',
+    novice: 'base',
+    intermediate: 'intermedio',
+    advanced: 'avanzato',
+    expert: 'esperto'
+  },
+  en: {
+    beginner: 'beginner',
+    novice: 'novice',
+    intermediate: 'intermediate',
+    advanced: 'advanced',
+    expert: 'expert'
+  }
 }
 
 function levelLine(profile: Profile, language: Language): string {
@@ -75,9 +87,16 @@ function themeLines(profile: Profile, language: Language): string[] {
   const themes = Object.entries(profile.themeStats)
     .sort((a, b) => b[1].occurrences - a[1].occurrences || a[0].localeCompare(b[0]))
     .slice(0, TOP_THEMES)
-  if (themes.length === 0) return [it ? 'Non ci sono ancora temi ricorrenti nei suoi errori.' : 'There are no recurring themes in their mistakes yet.']
+  if (themes.length === 0)
+    return [
+      it
+        ? 'Non ci sono ancora temi ricorrenti nei suoi errori.'
+        : 'There are no recurring themes in their mistakes yet.'
+    ]
   return [
-    it ? 'Temi ricorrenti nei suoi errori (tema · occorrenze):' : 'Recurring themes in their mistakes (theme · occurrences):',
+    it
+      ? 'Temi ricorrenti nei suoi errori (tema · occorrenze):'
+      : 'Recurring themes in their mistakes (theme · occurrences):',
     ...themes.map(([theme, stat]) => `- ${theme} · ${stat.occurrences}`)
   ]
 }
@@ -87,7 +106,11 @@ function themeLines(profile: Profile, language: Language): string[] {
  * puzzles. The window is a suggestion — the library answers with fewer puzzles rather than
  * stepping outside it — and the motivation is shown to the user as the reason for the set.
  */
-export function themePickText(p: { profile: Profile; language: Language; available: { theme: string; count: number }[] }): string {
+export function themePickText(p: {
+  profile: Profile
+  language: Language
+  available: { theme: string; count: number }[]
+}): string {
   const it = p.language === 'it'
   const lines: string[] = [
     it
@@ -100,7 +123,9 @@ export function themePickText(p: { profile: Profile; language: Language; availab
   const available = p.available.filter((entry) => entry.count > 0)
   if (available.length > 0) {
     lines.push(
-      it ? 'Temi disponibili nella libreria (tema · puzzle disponibili):' : 'Themes available in the library (theme · puzzles available):',
+      it
+        ? 'Temi disponibili nella libreria (tema · puzzle disponibili):'
+        : 'Themes available in the library (theme · puzzles available):',
       ...available.map((entry) => `- ${entry.theme} · ${entry.count}`)
     )
   }
@@ -120,19 +145,34 @@ export function themePickText(p: { profile: Profile; language: Language; availab
  * *Spiega* opens the turn on purpose — it is what makes this a request for an explanation and
  * not for a comment on a game.
  */
-export function explainExerciseText(p: { exercise: Exercise; solutionSan: string[]; language: Language; playedSan?: string }): string {
+export function explainExerciseText(p: {
+  exercise: Exercise
+  solutionSan: string[]
+  language: Language
+  playedSan?: string
+}): string {
   const it = p.language === 'it'
-  const colour = p.exercise.sideToMove === 'w' ? (it ? 'il Bianco' : 'White') : it ? 'il Nero' : 'Black'
+  const colour =
+    p.exercise.sideToMove === 'w' ? (it ? 'il Bianco' : 'White') : it ? 'il Nero' : 'Black'
   const lines: string[] = [
-    it ? `Spiega la soluzione di questo esercizio: muove ${colour}.` : `Spiega — explain the solution of this exercise: ${colour} to move.`,
+    it
+      ? `Spiega la soluzione di questo esercizio: muove ${colour}.`
+      : `Spiega — explain the solution of this exercise: ${colour} to move.`,
     `FEN: ${p.exercise.fen}`,
     `${it ? 'Tema' : 'Theme'}: ${p.exercise.theme}`
   ]
-  if (typeof p.exercise.rating === 'number') lines.push(`${it ? 'Rating' : 'Rating'}: ${p.exercise.rating}`)
-  if (p.solutionSan.length > 0) lines.push(`${it ? 'Soluzione' : 'Solution'}: ${p.solutionSan.join(' ')}`)
-  if (p.playedSan) lines.push(`${it ? 'Mossa giocata in partita' : 'Move played in the game'}: ${p.playedSan}`)
+  if (typeof p.exercise.rating === 'number')
+    lines.push(`${it ? 'Rating' : 'Rating'}: ${p.exercise.rating}`)
+  if (p.solutionSan.length > 0)
+    lines.push(`${it ? 'Soluzione' : 'Solution'}: ${p.solutionSan.join(' ')}`)
+  if (p.playedSan)
+    lines.push(`${it ? 'Mossa giocata in partita' : 'Move played in the game'}: ${p.playedSan}`)
   if (p.exercise.kind === 'own_game') {
-    lines.push(it ? 'La posizione viene da una partita della persona che alleni.' : 'The position comes from a game of the person you coach.')
+    lines.push(
+      it
+        ? 'La posizione viene da una partita della persona che alleni.'
+        : 'The position comes from a game of the person you coach.'
+    )
   }
   lines.push(
     it
@@ -157,12 +197,22 @@ export function openingLessonText(p: { entry: OpeningOverviewEntry; language: La
     } ${entry.avgAccuracyFirst10.toFixed(1)}%`
   ]
   if (entry.deviations.length > 0) {
-    lines.push(it ? 'Deviazioni ricorrenti (mossa giocata · volte · mossa migliore · FEN):' : 'Recurring deviations (move played · times · best move · FEN):')
+    lines.push(
+      it
+        ? 'Deviazioni ricorrenti (mossa giocata · volte · mossa migliore · FEN):'
+        : 'Recurring deviations (move played · times · best move · FEN):'
+    )
     for (const deviation of entry.deviations) {
-      lines.push(`- ${deviation.san} · ${deviation.count} · ${deviation.bestSan || (it ? 'non nota' : 'unknown')} · ${deviation.epd}`)
+      lines.push(
+        `- ${deviation.san} · ${deviation.count} · ${deviation.bestSan || (it ? 'non nota' : 'unknown')} · ${deviation.epd}`
+      )
     }
   } else {
-    lines.push(it ? 'Non ci sono deviazioni ricorrenti registrate in questa apertura.' : 'No recurring deviation is on record for this opening.')
+    lines.push(
+      it
+        ? 'Non ci sono deviazioni ricorrenti registrate in questa apertura.'
+        : 'No recurring deviation is on record for this opening.'
+    )
   }
   lines.push(
     it
@@ -183,7 +233,12 @@ export const PLAN_ACTIVITY_TYPES = ['thematic', 'own_game', 'opening', 'endgame'
  * Everything is still validated on this side — an `enum` is a hint, not a guarantee.
  */
 export function planSchema(catalogue: StudyCatalogue): object {
-  const refs = [...catalogue.themes, ...catalogue.exercises, ...catalogue.openings, ...catalogue.endgames]
+  const refs = [
+    ...catalogue.themes,
+    ...catalogue.exercises,
+    ...catalogue.openings,
+    ...catalogue.endgames
+  ]
   return {
     type: 'object',
     required: ['items'],
@@ -223,7 +278,12 @@ export const PLAN_MAX_ITEMS = 8
  * per activity type, with the ids separated by ` | `: the model has to choose inside it, and the
  * validation on this side drops whatever it invents anyway.
  */
-export function planText(p: { catalogue: StudyCatalogue; profile: Profile; language: Language; labels?: Record<string, string> }): string {
+export function planText(p: {
+  catalogue: StudyCatalogue
+  profile: Profile
+  language: Language
+  labels?: Record<string, string>
+}): string {
   const it = p.language === 'it'
   const lines: string[] = [
     it
@@ -235,28 +295,50 @@ export function planText(p: { catalogue: StudyCatalogue; profile: Profile; langu
 
   const recent = p.profile.history.slice(-RECENT_GAMES)
   if (recent.length > 0) {
-    lines.push(it ? `Ultime ${recent.length} partite analizzate (accuratezza · ACPL):` : `Last ${recent.length} analysed games (accuracy · ACPL):`)
-    for (const entry of recent) lines.push(`- ${entry.date.slice(0, 10)}: ${entry.accuracy.toFixed(1)}% · ${Math.round(entry.acpl)}`)
+    lines.push(
+      it
+        ? `Ultime ${recent.length} partite analizzate (accuratezza · ACPL):`
+        : `Last ${recent.length} analysed games (accuracy · ACPL):`
+    )
+    for (const entry of recent)
+      lines.push(
+        `- ${entry.date.slice(0, 10)}: ${entry.accuracy.toFixed(1)}% · ${Math.round(entry.acpl)}`
+      )
   }
 
   const openings = Object.values(p.profile.openingStats)
     .sort((a, b) => b.games - a.games || a.eco.localeCompare(b.eco))
     .slice(0, TOP_OPENINGS)
   if (openings.length > 0) {
-    lines.push(it ? 'Aperture giocate (codice, nome, partite, V/P/S):' : 'Openings played (code, name, games, W/D/L):')
-    for (const opening of openings) lines.push(`- ${opening.eco} ${opening.name} · ${opening.games} · ${opening.wins}/${opening.draws}/${opening.losses}`)
+    lines.push(
+      it
+        ? 'Aperture giocate (codice, nome, partite, V/P/S):'
+        : 'Openings played (code, name, games, W/D/L):'
+    )
+    for (const opening of openings)
+      lines.push(
+        `- ${opening.eco} ${opening.name} · ${opening.games} · ${opening.wins}/${opening.draws}/${opening.losses}`
+      )
   }
 
   // The catalogue: one line per activity type, ids separated by " | ". Nothing outside it is a
   // valid reference, and a reference that is not in it is dropped when the answer comes back.
-  lines.push(it ? 'Catalogo delle attività ammesse (usa esattamente questi ref):' : 'Catalogue of the allowed activities (use exactly these refs):')
+  lines.push(
+    it
+      ? 'Catalogo delle attività ammesse (usa esattamente questi ref):'
+      : 'Catalogue of the allowed activities (use exactly these refs):'
+  )
   lines.push(`- thematic: ${catalogueLine(p.catalogue.themes, p.language)}`)
   lines.push(`- own_game: ${catalogueLine(p.catalogue.exercises, p.language)}`)
   lines.push(`- opening: ${catalogueLine(p.catalogue.openings, p.language)}`)
   lines.push(`- endgame: ${catalogueLine(p.catalogue.endgames, p.language)}`)
   lines.push(`- play: ${it ? 'nessun ref, usa null' : 'no ref, use null'}`)
   if (p.labels && Object.keys(p.labels).length > 0) {
-    lines.push(it ? 'Per orientarti, che cosa sono alcuni di quei ref:' : 'For your orientation, what some of those refs are:')
+    lines.push(
+      it
+        ? 'Per orientarti, che cosa sono alcuni di quei ref:'
+        : 'For your orientation, what some of those refs are:'
+    )
     for (const [ref, label] of Object.entries(p.labels)) lines.push(`- ${ref}: ${label}`)
   }
 

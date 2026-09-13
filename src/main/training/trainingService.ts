@@ -27,11 +27,32 @@ import type { GameStore } from '../store/gameStore'
 import type { ProfileStore } from '../store/profileStore'
 import type { SettingsStore } from '../store/settingsStore'
 import type { StudyPlanStore } from '../store/studyPlanStore'
-import { buildExercise, extractCandidates, judgeAttempt, ownGameExerciseId, startProgress, type ExerciseProgress } from './exercises'
+import {
+  buildExercise,
+  extractCandidates,
+  judgeAttempt,
+  ownGameExerciseId,
+  startProgress,
+  type ExerciseProgress
+} from './exercises'
 import { buildOpeningsOverview } from './openingsStudy'
 import { buildCatalogue, planView, validatePlanItems, PLAN_MIN_ITEMS } from './studyPlan'
-import { puzzleToExercise, rotationPick, sanitizeThemePick, thematicExerciseId, type ThemePick } from './thematic'
-import { explainExerciseText, openingLessonText, planSchema, planText, themePickText, trainingBaseInstructions, THEME_PICK_SCHEMA } from './trainingPrompts'
+import {
+  puzzleToExercise,
+  rotationPick,
+  sanitizeThemePick,
+  thematicExerciseId,
+  type ThemePick
+} from './thematic'
+import {
+  explainExerciseText,
+  openingLessonText,
+  planSchema,
+  planText,
+  themePickText,
+  trainingBaseInstructions,
+  THEME_PICK_SCHEMA
+} from './trainingPrompts'
 
 /**
  * Owner of the training section (spec §3.1 TrainingService, §6.4–§6.8).
@@ -79,7 +100,10 @@ export interface TrainingServiceDeps {
   library: TrainingLibrary
   /** Starts the endgame drill of spec §6.7; the session is owned by the game layer. */
   startGame(opts: NewGameOptions): Promise<SessionState>
-  emit(channel: 'training:changed' | 'profile:changed' | 'stream', payload: TrainingChanged | Profile | StreamEnvelope): void
+  emit(
+    channel: 'training:changed' | 'profile:changed' | 'stream',
+    payload: TrainingChanged | Profile | StreamEnvelope
+  ): void
   now?: () => number
 }
 
@@ -100,7 +124,9 @@ function parseObject(text: string): Record<string, unknown> | null {
   } catch {
     return null
   }
-  return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : null
+  return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
+    ? (parsed as Record<string, unknown>)
+    : null
 }
 
 /** A line of UCI moves rendered in SAN from `fen`; an unplayable tail is simply dropped. */
@@ -161,7 +187,8 @@ export class TrainingService {
   private resolveModel(): { model: string; effort: string } {
     const settings = this.deps.settings.get()
     const effort = settings.defaultEffort || 'medium'
-    if (settings.separateCoach && settings.coachModel) return { model: settings.coachModel, effort: settings.coachEffort || effort }
+    if (settings.separateCoach && settings.coachModel)
+      return { model: settings.coachModel, effort: settings.coachEffort || effort }
     return { model: settings.defaultModel ?? '', effort }
   }
 
@@ -174,13 +201,20 @@ export class TrainingService {
    * `streamId` in time, and a turn that never streamed gets one envelope with the whole answer —
    * the same contract the review turns follow.
    */
-  private async runTurn(p: { text: string; outputSchema?: object; activity: { kind: TrainingActivity['kind']; ref: string | null } }): Promise<string> {
+  private async runTurn(p: {
+    text: string
+    outputSchema?: object
+    activity: { kind: TrainingActivity['kind']; ref: string | null }
+  }): Promise<string> {
     const { model, effort } = this.resolveModel()
     if (!model) throw new TrainingError('TRAINING_NO_MODEL', 'no model is configured for the coach')
     const language = this.language()
     const streamId = randomUUID()
 
-    const threadId = await this.deps.codex.startThread('training', { model, baseInstructions: trainingBaseInstructions(language) })
+    const threadId = await this.deps.codex.startThread('training', {
+      model,
+      baseInstructions: trainingBaseInstructions(language)
+    })
     this.changed({ kind: 'activity', activity: { ...p.activity, streamId, busy: true } })
     let streamed = false
     try {
@@ -202,7 +236,14 @@ export class TrainingService {
       if (!result.ok) throw new TrainingError('TRAINING_TURN_FAILED', result.message)
       const text = result.text.trim()
       if (!streamed && !p.outputSchema && text.length > 0) {
-        this.deps.emit('stream', { streamId, threadId, turnId: result.turnId, itemId: '', kind: 'text', chunk: text })
+        this.deps.emit('stream', {
+          streamId,
+          threadId,
+          turnId: result.turnId,
+          itemId: '',
+          kind: 'text',
+          chunk: text
+        })
       }
       return text
     } finally {
@@ -232,7 +273,9 @@ export class TrainingService {
         for (const candidate of candidates) {
           // An exercise already built for this ply is never rebuilt: it may already be solved.
           if (this.deps.exercises.has(ownGameExerciseId(candidate.gameId, candidate.ply))) continue
-          const exercise = await buildExercise(candidate, this.deps.engine, { now: () => this.now() })
+          const exercise = await buildExercise(candidate, this.deps.engine, {
+            now: () => this.now()
+          })
           if (exercise) built.push(exercise)
         }
       } catch (error) {
@@ -248,9 +291,13 @@ export class TrainingService {
   onGameFinished(game: Game): Promise<void> {
     return this.enqueue(async () => {
       if (game.kind !== 'endgame_drill' || !game.result) return
-      const record = this.deps.exercises.list('endgame').find((exercise) => exercise.sourceGameId === game.id)
+      const record = this.deps.exercises
+        .list('endgame')
+        .find((exercise) => exercise.sourceGameId === game.id)
       if (!record) return
-      const endgame = this.endgamePositions().find((position) => endgameExerciseId(position.id) === record.id)
+      const endgame = this.endgamePositions().find(
+        (position) => endgameExerciseId(position.id) === record.id
+      )
       if (!endgame) return
 
       const draw = game.result.outcome === '1/2-1/2'
@@ -286,8 +333,13 @@ export class TrainingService {
    */
   async attempt(id: string, uci: string): Promise<AttemptResult> {
     const exercise = this.require(id)
-    if (exercise.kind === 'endgame') throw new TrainingError('EXERCISE_NOT_PLAYABLE', 'an endgame is played as a game, not as an exercise')
-    if (exercise.solution.length === 0) throw new TrainingError('EXERCISE_NOT_PLAYABLE', `exercise ${id} has no solution`)
+    if (exercise.kind === 'endgame')
+      throw new TrainingError(
+        'EXERCISE_NOT_PLAYABLE',
+        'an endgame is played as a game, not as an exercise'
+      )
+    if (exercise.solution.length === 0)
+      throw new TrainingError('EXERCISE_NOT_PLAYABLE', `exercise ${id} has no solution`)
 
     const current = this.progress.get(id) ?? startProgress(exercise)
     const { result, progress } = judgeAttempt(exercise, current, uci)
@@ -310,7 +362,11 @@ export class TrainingService {
   async reset(id: string): Promise<Exercise> {
     this.require(id)
     this.progress.delete(id)
-    const updated = await this.deps.exercises.update(id, { status: 'new', attempts: 0, solvedAt: undefined })
+    const updated = await this.deps.exercises.update(id, {
+      status: 'new',
+      attempts: 0,
+      solvedAt: undefined
+    })
     this.changed({ kind: 'exercises' })
     return updated ?? this.require(id)
   }
@@ -328,7 +384,8 @@ export class TrainingService {
       }),
       activity: { kind: 'explain', ref: id }
     })
-    if (text.length === 0) throw new TrainingError('TRAINING_EMPTY_ANSWER', 'the explanation came back empty')
+    if (text.length === 0)
+      throw new TrainingError('TRAINING_EMPTY_ANSWER', 'the explanation came back empty')
     await this.deps.exercises.update(id, { explanation: text })
     this.changed({ kind: 'exercises' })
     return text
@@ -414,7 +471,13 @@ export class TrainingService {
   private drawPuzzles(pick: ThemePick): ReturnType<TrainingLibrary['pick']> {
     const solved = this.deps.exercises.idsWithStatus('solved', 'thematic')
     const exclude = new Set([...solved].map((id) => id.replace(/^tac-/, '')))
-    return this.deps.library.pick({ theme: pick.theme, ratingMin: pick.ratingMin, ratingMax: pick.ratingMax, exclude, count: THEMATIC_SET_SIZE })
+    return this.deps.library.pick({
+      theme: pick.theme,
+      ratingMin: pick.ratingMin,
+      ratingMax: pick.ratingMax,
+      exclude,
+      count: THEMATIC_SET_SIZE
+    })
   }
 
   /** Whether the profile says anything at all: below this the coach has nothing to read. */
@@ -433,14 +496,20 @@ export class TrainingService {
   async openingLesson(eco: string): Promise<string> {
     const entry = (await this.openingsOverview()).find((row) => row.eco === eco)
     if (!entry) throw new TrainingError('OPENING_NOT_FOUND', `no opening ${eco} in the profile`)
-    const text = await this.runTurn({ text: openingLessonText({ entry, language: this.language() }), activity: { kind: 'lesson', ref: eco } })
-    if (text.length === 0) throw new TrainingError('TRAINING_EMPTY_ANSWER', 'the opening lesson came back empty')
+    const text = await this.runTurn({
+      text: openingLessonText({ entry, language: this.language() }),
+      activity: { kind: 'lesson', ref: eco }
+    })
+    if (text.length === 0)
+      throw new TrainingError('TRAINING_EMPTY_ANSWER', 'the opening lesson came back empty')
     return text
   }
 
   /** The analysed matches of the archive, newest first; drills never enter here. */
   private async analysedGames(): Promise<Game[]> {
-    const rows = this.deps.games.list({ kind: 'match', status: 'finished' }).filter((row) => Boolean(row.accuracy))
+    const rows = this.deps.games
+      .list({ kind: 'match', status: 'finished' })
+      .filter((row) => Boolean(row.accuracy))
     const games: Game[] = []
     for (const row of rows) {
       const game = await this.deps.games.get(row.id).catch(() => null)
@@ -476,7 +545,8 @@ export class TrainingService {
     const endgame = this.endgamePositions().find((position) => position.id === id)
     if (!endgame) throw new TrainingError('ENDGAME_NOT_FOUND', `no endgame ${id}`)
     const settings = this.deps.settings.get()
-    if (!settings.defaultModel) throw new TrainingError('TRAINING_NO_MODEL', 'no model is configured')
+    if (!settings.defaultModel)
+      throw new TrainingError('TRAINING_NO_MODEL', 'no model is configured')
     const coach = this.resolveModel()
 
     const state = await this.deps.startGame({
@@ -542,7 +612,8 @@ export class TrainingService {
       const second = await this.requestPlan(catalogue)
       if (second.length > items.length) items = second
     }
-    if (items.length === 0) throw new TrainingError('PLAN_EMPTY', 'the study plan came back without a single usable item')
+    if (items.length === 0)
+      throw new TrainingError('PLAN_EMPTY', 'the study plan came back without a single usable item')
 
     const plan = await this.deps.plans.save({ generatedAt: this.stamp(), items })
     // Spec §6.8: the counter that proposes a new plan starts again from here.
@@ -552,9 +623,16 @@ export class TrainingService {
     return planView(plan, catalogue, 0)
   }
 
-  private async requestPlan(catalogue: StudyCatalogue): Promise<ReturnType<typeof validatePlanItems>> {
+  private async requestPlan(
+    catalogue: StudyCatalogue
+  ): Promise<ReturnType<typeof validatePlanItems>> {
     const answer = await this.runTurn({
-      text: planText({ catalogue, profile: this.deps.profile.get(), language: this.language(), labels: this.catalogueLabels(catalogue) }),
+      text: planText({
+        catalogue,
+        profile: this.deps.profile.get(),
+        language: this.language(),
+        labels: this.catalogueLabels(catalogue)
+      }),
       outputSchema: planSchema(catalogue),
       activity: { kind: 'lesson', ref: null }
     })
@@ -575,7 +653,9 @@ export class TrainingService {
     }
     for (const id of catalogue.exercises) {
       const exercise = this.deps.exercises.get(id)
-      if (exercise) labels[id] = `${exercise.theme}${exercise.sourcePly ? ` · ${language === 'it' ? 'semimossa' : 'ply'} ${exercise.sourcePly}` : ''}`
+      if (exercise)
+        labels[id] =
+          `${exercise.theme}${exercise.sourcePly ? ` · ${language === 'it' ? 'semimossa' : 'ply'} ${exercise.sourcePly}` : ''}`
     }
     return labels
   }

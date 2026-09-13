@@ -29,8 +29,23 @@ const FEN_1 = 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1'
 const FEN_2 = 'rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq e6 0 2'
 const FEN_3 = 'rnbqkbnr/pppp1ppp/8/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 1 2'
 
-function move(ply: number, san: string, uci: string, fenAfter: string, by: Move['by'], patch: Partial<Move> = {}): Move {
-  return { ply, san, uci, fenAfter, epdAfter: fenAfter.split(' ').slice(0, 4).join(' '), by, ...patch }
+function move(
+  ply: number,
+  san: string,
+  uci: string,
+  fenAfter: string,
+  by: Move['by'],
+  patch: Partial<Move> = {}
+): Move {
+  return {
+    ply,
+    san,
+    uci,
+    fenAfter,
+    epdAfter: fenAfter.split(' ').slice(0, 4).join(' '),
+    by,
+    ...patch
+  }
 }
 
 function game(): Game {
@@ -41,7 +56,11 @@ function game(): Game {
     kind: 'match',
     status: 'in_progress',
     userColor: 'w',
-    opponent: { model: 'gpt-6-astra', effort: 'low', difficulty: { mode: 'fixed', level: 3, targetElo: 1200 } },
+    opponent: {
+      model: 'gpt-6-astra',
+      effort: 'low',
+      difficulty: { mode: 'fixed', level: 3, targetElo: 1200 }
+    },
     coach: { model: 'gpt-6-astra', effort: 'low' },
     clock: null,
     language: 'it',
@@ -97,7 +116,11 @@ const archive: GameSummary[] = [
     kind: 'match',
     status: 'in_progress',
     userColor: 'b',
-    opponent: { model: 'gpt-5.5', effort: 'low', difficulty: { mode: 'fixed', level: 2, targetElo: 900 } },
+    opponent: {
+      model: 'gpt-5.5',
+      effort: 'low',
+      difficulty: { mode: 'fixed', level: 2, targetElo: 900 }
+    },
     plies: 8
   },
   {
@@ -107,7 +130,11 @@ const archive: GameSummary[] = [
     kind: 'match',
     status: 'finished',
     userColor: 'w',
-    opponent: { model: 'gpt-6-astra', effort: 'low', difficulty: { mode: 'fixed', level: 3, targetElo: 1200 } },
+    opponent: {
+      model: 'gpt-6-astra',
+      effort: 'low',
+      difficulty: { mode: 'fixed', level: 3, targetElo: 1200 }
+    },
     result: { outcome: '1-0', reason: 'checkmate' },
     plies: 24,
     accuracy: { w: 81.5, b: 64.2 }
@@ -129,7 +156,12 @@ function mockApi(): void {
       settings: { get: async () => null, save: async () => null },
       games: { list: async () => archive, get: async () => null, delete: deleteGame },
       analysis: { run: async () => null, status: async () => ({ state: 'idle' }) },
-      review: { commentMove: async () => '', commentKeyMoments: async () => [], lesson: async () => null, close: async () => undefined },
+      review: {
+        commentMove: async () => '',
+        commentKeyMoments: async () => [],
+        lesson: async () => null,
+        close: async () => undefined
+      },
       game: {
         state: async () => session(),
         resume: resumeGame,
@@ -150,7 +182,9 @@ beforeEach(() => {
   vi.clearAllMocks()
   mockApi()
   useCodexStore.getState().apply(READY)
-  useEngineStore.getState().apply({ available: true, binary: 'avx2', version: 'Stockfish 17', message: null })
+  useEngineStore
+    .getState()
+    .apply({ available: true, binary: 'avx2', version: 'Stockfish 17', message: null })
   useGameStore.setState({
     session: session(),
     browsePly: null,
@@ -170,7 +204,10 @@ afterEach(() => {
 describe('capturedPieces', () => {
   it('lists what each side has taken, strongest first, with the material balance', () => {
     const start = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
-    const captured = capturedPieces(start, 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPP1/RNBQKBN1 w KQkq - 0 1')
+    const captured = capturedPieces(
+      start,
+      'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPP1/RNBQKBN1 w KQkq - 0 1'
+    )
     expect(captured.w).toEqual([])
     expect(captured.b).toEqual(['r', 'p'])
     expect(captured.balance).toBe(-6)
@@ -199,14 +236,22 @@ describe('filterGames', () => {
   })
 
   it('filters by result, from the point of view of the user', () => {
-    expect(filterGames(archive, { ...NO_FILTERS, result: 'win' }).map((game) => game.id)).toEqual(['g2'])
+    expect(filterGames(archive, { ...NO_FILTERS, result: 'win' }).map((game) => game.id)).toEqual([
+      'g2'
+    ])
     expect(filterGames(archive, { ...NO_FILTERS, result: 'loss' })).toEqual([])
-    expect(filterGames(archive, { ...NO_FILTERS, result: 'unfinished' }).map((game) => game.id)).toEqual(['g0'])
+    expect(
+      filterGames(archive, { ...NO_FILTERS, result: 'unfinished' }).map((game) => game.id)
+    ).toEqual(['g0'])
   })
 
   it('filters by colour, effective model and kind', () => {
-    expect(filterGames(archive, { ...NO_FILTERS, color: 'b' }).map((game) => game.id)).toEqual(['g0'])
-    expect(filterGames(archive, { ...NO_FILTERS, model: 'gpt-6-astra' }).map((game) => game.id)).toEqual(['g2'])
+    expect(filterGames(archive, { ...NO_FILTERS, color: 'b' }).map((game) => game.id)).toEqual([
+      'g0'
+    ])
+    expect(
+      filterGames(archive, { ...NO_FILTERS, model: 'gpt-6-astra' }).map((game) => game.id)
+    ).toEqual(['g2'])
     expect(filterGames(archive, { ...NO_FILTERS, kind: 'endgame_drill' })).toEqual([])
   })
 
@@ -229,12 +274,23 @@ describe('PlayScreen', () => {
     expect(screen.getByRole('img', { name: /Valutazione del motore/ })).toBeInTheDocument()
 
     // Commenti, Mosse and Coach (spec §4.3), with the move list open.
-    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Commenti', 'Mosse', 'Coach'])
+    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual([
+      'Commenti',
+      'Mosse',
+      'Coach'
+    ])
     for (const san of ['e4', 'e5', 'Nf3']) {
       expect(screen.getByRole('button', { name: san })).toBeInTheDocument()
     }
 
-    for (const label of ['Nuova partita', 'Annulla mossa', 'Suggerimento', 'Abbandona', 'Proponi patta', 'Salva ed esci']) {
+    for (const label of [
+      'Nuova partita',
+      'Annulla mossa',
+      'Suggerimento',
+      'Abbandona',
+      'Proponi patta',
+      'Salva ed esci'
+    ]) {
       expect(screen.getAllByRole('button', { name: label }).length).toBeGreaterThan(0)
     }
   })
@@ -309,7 +365,10 @@ describe('PlayScreen', () => {
   it('has nothing to take back before the user has moved', () => {
     const fresh = game()
     fresh.moves = []
-    useGameStore.setState({ session: session({ game: fresh, fen: START_FEN, turn: 'w', userToMove: true }), browsePly: null })
+    useGameStore.setState({
+      session: session({ game: fresh, fen: START_FEN, turn: 'w', userToMove: true }),
+      browsePly: null
+    })
 
     render(<PlayScreen />)
     expect(screen.getByRole('button', { name: 'Annulla mossa' })).toBeDisabled()
@@ -319,7 +378,15 @@ describe('PlayScreen', () => {
 
   it('will not offer a draw while the opponent is producing a move', () => {
     useGameStore.setState({
-      session: session({ ai: { thinking: true, startedAt: Date.now() - 65_000, reasoning: '', retries: 0, streamId: 's1' } }),
+      session: session({
+        ai: {
+          thinking: true,
+          startedAt: Date.now() - 65_000,
+          reasoning: '',
+          retries: 0,
+          streamId: 's1'
+        }
+      }),
       browsePly: null,
       aiThinking: true
     })
@@ -334,7 +401,10 @@ describe('PlayScreen', () => {
     const finished = game()
     finished.status = 'finished'
     finished.result = { outcome: '1-0', reason: 'checkmate' }
-    useGameStore.setState({ session: session({ game: finished, status: 'finished' }), browsePly: null })
+    useGameStore.setState({
+      session: session({ game: finished, status: 'finished' }),
+      browsePly: null
+    })
 
     render(<PlayScreen />)
     expect(screen.getByRole('button', { name: 'Abbandona' })).toBeDisabled()
@@ -379,7 +449,9 @@ describe('PlayScreen', () => {
   it('offers a substitution when the saved model is gone', async () => {
     resumeGame.mockRejectedValueOnce(
       Object.assign(
-        new Error("Error invoking remote method 'game:resume': IpcError: MODEL_UNAVAILABLE: gone [[ipcdata]]{\"suggested\":\"gpt-6-astra\"}"),
+        new Error(
+          'Error invoking remote method \'game:resume\': IpcError: MODEL_UNAVAILABLE: gone [[ipcdata]]{"suggested":"gpt-6-astra"}'
+        ),
         {}
       )
     )
@@ -424,8 +496,17 @@ describe('PlayScreen', () => {
 
   it('shows the user clock, and the opponent one only when the AI has a clock', () => {
     const withClock = game()
-    withClock.clock = { initialMs: 300_000, incrementMs: 0, aiClock: false, remainingMs: { w: 297_500, b: 300_000 } }
-    const clock = { remainingMs: { w: 297_500, b: 300_000 }, running: 'w' as const, updatedAt: Date.now() }
+    withClock.clock = {
+      initialMs: 300_000,
+      incrementMs: 0,
+      aiClock: false,
+      remainingMs: { w: 297_500, b: 300_000 }
+    }
+    const clock = {
+      remainingMs: { w: 297_500, b: 300_000 },
+      running: 'w' as const,
+      updatedAt: Date.now()
+    }
     useGameStore.setState({ session: session({ game: withClock, clock }), browsePly: null })
 
     const { rerender } = render(<PlayScreen />)
@@ -433,7 +514,12 @@ describe('PlayScreen', () => {
     expect(screen.queryByRole('timer', { name: /avversario/ })).not.toBeInTheDocument()
 
     const both = game()
-    both.clock = { initialMs: 300_000, incrementMs: 0, aiClock: true, remainingMs: { w: 297_500, b: 300_000 } }
+    both.clock = {
+      initialMs: 300_000,
+      incrementMs: 0,
+      aiClock: true,
+      remainingMs: { w: 297_500, b: 300_000 }
+    }
     useGameStore.setState({ session: session({ game: both, clock }), browsePly: null })
     rerender(<PlayScreen />)
     expect(screen.getByRole('timer', { name: /avversario/ })).toHaveTextContent('05:00')
@@ -443,7 +529,10 @@ describe('PlayScreen', () => {
     const finished = game()
     finished.status = 'finished'
     finished.result = { outcome: '0-1', reason: 'resign' }
-    useGameStore.setState({ session: session({ game: finished, status: 'finished' }), browsePly: null })
+    useGameStore.setState({
+      session: session({ game: finished, status: 'finished' }),
+      browsePly: null
+    })
 
     render(<PlayScreen />)
     expect(screen.getByText('Hai perso per abbandono')).toBeInTheDocument()
@@ -453,7 +542,10 @@ describe('PlayScreen', () => {
     const finished = game()
     finished.status = 'finished'
     finished.result = { outcome: '0-1', reason: 'resign' }
-    useGameStore.setState({ session: session({ game: finished, status: 'finished' }), browsePly: null })
+    useGameStore.setState({
+      session: session({ game: finished, status: 'finished' }),
+      browsePly: null
+    })
 
     render(<PlayScreen />)
     await act(async () => {

@@ -56,7 +56,11 @@ describe('THEME_MAP', () => {
 describe('load', () => {
   it('reads the two datasets', async () => {
     await withTmpDir(async (dir) => {
-      const library = await libraryOf(dir, [puzzle(), puzzle({ id: 'p2', rating: 1500 })], [endgame()])
+      const library = await libraryOf(
+        dir,
+        [puzzle(), puzzle({ id: 'p2', rating: 1500 })],
+        [endgame()]
+      )
       expect(library.size).toBe(2)
       expect(library.endgames()).toHaveLength(1)
       expect(library.get('p2')?.rating).toBe(1500)
@@ -127,21 +131,34 @@ describe('themes', () => {
 
 describe('pick', () => {
   const pool = (): Puzzle[] => [
-    ...Array.from({ length: 20 }, (_, i) => puzzle({ id: `fork-${i}`, rating: 800 + i * 10, themes: ['fork'] })),
-    ...Array.from({ length: 20 }, (_, i) => puzzle({ id: `pin-${i}`, rating: 1600 + i * 10, themes: ['pin'] }))
+    ...Array.from({ length: 20 }, (_, i) =>
+      puzzle({ id: `fork-${i}`, rating: 800 + i * 10, themes: ['fork'] })
+    ),
+    ...Array.from({ length: 20 }, (_, i) =>
+      puzzle({ id: `pin-${i}`, rating: 1600 + i * 10, themes: ['pin'] })
+    )
   ]
 
   it('answers puzzles of the theme inside the rating window, sorted from the easiest', async () => {
     await withTmpDir(async (dir) => {
       const library = await libraryOf(dir, pool(), [])
-      const picked = library.pick({ theme: 'fork', ratingMin: 800, ratingMax: 900, exclude: new Set(), count: 5, seed: 7 })
+      const picked = library.pick({
+        theme: 'fork',
+        ratingMin: 800,
+        ratingMax: 900,
+        exclude: new Set(),
+        count: 5,
+        seed: 7
+      })
       expect(picked).toHaveLength(5)
       for (const p of picked) {
         expect(p.themes).toContain('fork')
         expect(p.rating).toBeGreaterThanOrEqual(800)
         expect(p.rating).toBeLessThanOrEqual(900)
       }
-      expect(picked.map((p) => p.rating)).toEqual([...picked.map((p) => p.rating)].sort((a, b) => a - b))
+      expect(picked.map((p) => p.rating)).toEqual(
+        [...picked.map((p) => p.rating)].sort((a, b) => a - b)
+      )
     })
   })
 
@@ -149,7 +166,14 @@ describe('pick', () => {
     await withTmpDir(async (dir) => {
       const library = await libraryOf(dir, pool(), [])
       const exclude = new Set(['fork-0', 'fork-1', 'fork-2'])
-      const picked = library.pick({ theme: 'fork', ratingMin: 0, ratingMax: 3000, exclude, count: 10, seed: 3 })
+      const picked = library.pick({
+        theme: 'fork',
+        ratingMin: 0,
+        ratingMax: 3000,
+        exclude,
+        count: 10,
+        seed: 3
+      })
       expect(picked).toHaveLength(10)
       expect(picked.some((p) => exclude.has(p.id))).toBe(false)
       expect(new Set(picked.map((p) => p.id)).size).toBe(10)
@@ -160,7 +184,16 @@ describe('pick', () => {
     await withTmpDir(async (dir) => {
       const library = await libraryOf(dir, pool(), [])
       const ids = (seed: number): string[] =>
-        library.pick({ theme: 'fork', ratingMin: 0, ratingMax: 3000, exclude: new Set(), count: 6, seed }).map((p) => p.id)
+        library
+          .pick({
+            theme: 'fork',
+            ratingMin: 0,
+            ratingMax: 3000,
+            exclude: new Set(),
+            count: 6,
+            seed
+          })
+          .map((p) => p.id)
       expect(ids(11)).toEqual(ids(11))
       expect(ids(11)).not.toEqual(ids(12))
     })
@@ -169,8 +202,26 @@ describe('pick', () => {
   it('answers fewer puzzles than asked rather than widening the window', async () => {
     await withTmpDir(async (dir) => {
       const library = await libraryOf(dir, pool(), [])
-      expect(library.pick({ theme: 'fork', ratingMin: 2500, ratingMax: 2600, exclude: new Set(), count: 10, seed: 1 })).toEqual([])
-      expect(library.pick({ theme: 'skewer', ratingMin: 0, ratingMax: 3000, exclude: new Set(), count: 10, seed: 1 })).toEqual([])
+      expect(
+        library.pick({
+          theme: 'fork',
+          ratingMin: 2500,
+          ratingMax: 2600,
+          exclude: new Set(),
+          count: 10,
+          seed: 1
+        })
+      ).toEqual([])
+      expect(
+        library.pick({
+          theme: 'skewer',
+          ratingMin: 0,
+          ratingMax: 3000,
+          exclude: new Set(),
+          count: 10,
+          seed: 1
+        })
+      ).toEqual([])
     })
   })
 })
@@ -187,15 +238,36 @@ describe('the bundled datasets', () => {
     expect(library.size).toBeGreaterThan(5000)
     const themes = library.themes()
     expect(themes.length).toBeGreaterThan(4)
-    const easy = library.pick({ theme: themes[0]!.theme, ratingMin: 400, ratingMax: 800, exclude: new Set(), count: 3, seed: 1 })
-    const hard = library.pick({ theme: themes[0]!.theme, ratingMin: 1800, ratingMax: 2200, exclude: new Set(), count: 3, seed: 1 })
+    const easy = library.pick({
+      theme: themes[0]!.theme,
+      ratingMin: 400,
+      ratingMax: 800,
+      exclude: new Set(),
+      count: 3,
+      seed: 1
+    })
+    const hard = library.pick({
+      theme: themes[0]!.theme,
+      ratingMin: 1800,
+      ratingMax: 2200,
+      exclude: new Set(),
+      count: 3,
+      seed: 1
+    })
     expect(easy.length).toBe(3)
     expect(hard.length).toBe(3)
   })
 
   it('start at the position the user has to solve, with a legal first solution move', async () => {
     const library = await bundled()
-    const sample = library.pick({ theme: 'fork', ratingMin: 400, ratingMax: 2200, exclude: new Set(), count: 20, seed: 42 })
+    const sample = library.pick({
+      theme: 'fork',
+      ratingMin: 400,
+      ratingMax: 2200,
+      exclude: new Set(),
+      count: 20,
+      seed: 42
+    })
     expect(sample.length).toBe(20)
     for (const p of sample) {
       const board = new Chess(p.fen)

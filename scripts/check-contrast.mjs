@@ -124,9 +124,15 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const rows = checkContrast()
   for (const row of rows) {
     const mark = row.ok ? 'ok  ' : 'FAIL'
-    console.log(`${mark} ${row.theme.padEnd(9)} ${row.fg.padEnd(12)} on ${row.bg.padEnd(12)} ${row.ratio.toFixed(2)} (min ${row.min})`)
+    console.log(
+      `${mark} ${row.theme.padEnd(9)} ${row.fg.padEnd(12)} on ${row.bg.padEnd(12)} ${row.ratio.toFixed(2)} (min ${row.min})`
+    )
   }
   const bad = failures(rows)
-  console.log(bad.length === 0 ? `\n${rows.length} pairs checked, all above the minimum.` : `\n${bad.length} pair(s) below the minimum.`)
+  console.log(
+    bad.length === 0
+      ? `\n${rows.length} pairs checked, all above the minimum.`
+      : `\n${bad.length} pair(s) below the minimum.`
+  )
   process.exit(bad.length === 0 ? 0 : 1)
 }

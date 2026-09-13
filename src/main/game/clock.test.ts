@@ -21,7 +21,10 @@ function ticker(start = 1_700_000_000_000): { now: () => number; advance(ms: num
   }
 }
 
-const fresh = (cfg: ClockConfig = config(), start?: number): { clock: GameClock; time: ReturnType<typeof ticker> } => {
+const fresh = (
+  cfg: ClockConfig = config(),
+  start?: number
+): { clock: GameClock; time: ReturnType<typeof ticker> } => {
   const time = ticker(start)
   return { clock: new GameClock(cfg, { w: cfg.initialMs, b: cfg.initialMs }, time.now), time }
 }
@@ -135,7 +138,11 @@ describe('GameClock', () => {
     time.advance(1_500)
     const snapshot = clock.snapshot()
 
-    expect(snapshot).toEqual({ remainingMs: { w: 298_500, b: 300_000 }, running: 'w', updatedAt: 2_500 })
+    expect(snapshot).toEqual({
+      remainingMs: { w: 298_500, b: 300_000 },
+      running: 'w',
+      updatedAt: 2_500
+    })
     // The snapshot is a copy: mutating it never reaches the clock.
     snapshot.remainingMs.w = 0
     expect(clock.remaining().w).toBe(298_500)

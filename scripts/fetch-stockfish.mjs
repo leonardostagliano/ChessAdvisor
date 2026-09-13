@@ -27,8 +27,18 @@ const TAG = 'sf_17.1'
 const BASE = `https://github.com/official-stockfish/Stockfish/releases/download/${TAG}`
 
 const BUILDS = [
-  { name: 'avx2', asset: 'stockfish-windows-x86-64-avx2.zip', bytes: 65_443_094, target: 'stockfish-avx2.exe' },
-  { name: 'popcnt', asset: 'stockfish-windows-x86-64-sse41-popcnt.zip', bytes: 65_448_116, target: 'stockfish-popcnt.exe' }
+  {
+    name: 'avx2',
+    asset: 'stockfish-windows-x86-64-avx2.zip',
+    bytes: 65_443_094,
+    target: 'stockfish-avx2.exe'
+  },
+  {
+    name: 'popcnt',
+    asset: 'stockfish-windows-x86-64-sse41-popcnt.zip',
+    bytes: 65_448_116,
+    target: 'stockfish-popcnt.exe'
+  }
 ]
 
 const force = process.argv.includes('--force')
@@ -44,9 +54,13 @@ const exists = async (path) => {
 
 async function download(url, destination) {
   process.stdout.write(`  downloading ${url}\n`)
-  const response = await fetch(url, { redirect: 'follow', headers: { 'user-agent': 'ChessAdvisor-fetch-stockfish' } })
+  const response = await fetch(url, {
+    redirect: 'follow',
+    headers: { 'user-agent': 'ChessAdvisor-fetch-stockfish' }
+  })
   // A 404 here means the release was re-cut: never write a truncated or HTML "binary".
-  if (response.status !== 200) throw new Error(`${url} answered HTTP ${response.status} ${response.statusText}`)
+  if (response.status !== 200)
+    throw new Error(`${url} answered HTTP ${response.status} ${response.statusText}`)
   if (!response.body) throw new Error(`${url} answered without a body`)
   await pipeline(Readable.fromWeb(response.body), createWriteStream(destination))
   return (await stat(destination)).size
@@ -54,7 +68,11 @@ async function download(url, destination) {
 
 function run(command, args) {
   return new Promise((resolvePromise, rejectPromise) => {
-    const child = spawn(command, args, { shell: false, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] })
+    const child = spawn(command, args, {
+      shell: false,
+      windowsHide: true,
+      stdio: ['ignore', 'pipe', 'pipe']
+    })
     let stderr = ''
     child.stderr.on('data', (chunk) => {
       stderr += chunk.toString('utf8')
@@ -62,7 +80,10 @@ function run(command, args) {
     child.once('error', rejectPromise)
     child.once('exit', (code) => {
       if (code === 0) resolvePromise()
-      else rejectPromise(new Error(`${command} exited with code ${code}${stderr ? `: ${stderr.trim()}` : ''}`))
+      else
+        rejectPromise(
+          new Error(`${command} exited with code ${code}${stderr ? `: ${stderr.trim()}` : ''}`)
+        )
     })
   })
 }
@@ -99,7 +120,9 @@ async function findExecutable(dir) {
 async function fetchBuild(build) {
   const target = join(ENGINE_DIR, build.target)
   if (!force && (await exists(target))) {
-    process.stdout.write(`  ${build.target} already present, skipping (use --force to re-download)\n`)
+    process.stdout.write(
+      `  ${build.target} already present, skipping (use --force to re-download)\n`
+    )
     return
   }
   const archive = join(WORK_DIR, build.asset)
@@ -108,13 +131,17 @@ async function fetchBuild(build) {
 
   const size = await download(`${BASE}/${build.asset}`, archive)
   if (size !== build.bytes) {
-    process.stdout.write(`  warning: ${build.asset} is ${size} bytes, expected ${build.bytes} — the release may have been re-cut\n`)
+    process.stdout.write(
+      `  warning: ${build.asset} is ${size} bytes, expected ${build.bytes} — the release may have been re-cut\n`
+    )
   }
 
   await unzip(archive, extracted)
   const executables = await findExecutable(extracted)
   if (executables.length !== 1) {
-    throw new Error(`expected exactly one .exe in ${build.asset}, found ${executables.length}: ${executables.join(', ')}`)
+    throw new Error(
+      `expected exactly one .exe in ${build.asset}, found ${executables.length}: ${executables.join(', ')}`
+    )
   }
   await rm(target, { force: true })
   await rename(executables[0], target)

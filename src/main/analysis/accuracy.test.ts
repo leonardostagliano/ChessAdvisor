@@ -17,7 +17,10 @@ describe('moveAccuracy', () => {
 
 describe('gameAccuracy', () => {
   /** Twelve quiet moves: White gives away two points a move, Black plays perfectly. */
-  const steady = Array.from({ length: 12 }, (_, index) => ({ loss: index % 2 === 0 ? 2 : 0, winBefore: 50 }))
+  const steady = Array.from({ length: 12 }, (_, index) => ({
+    loss: index % 2 === 0 ? 2 : 0,
+    winBefore: 50
+  }))
 
   it('separates the two colours by ply parity', () => {
     const white = gameAccuracy(steady, 'w')
@@ -28,8 +31,13 @@ describe('gameAccuracy', () => {
   })
 
   it('punishes one catastrophic move more than the plain mean would', () => {
-    const withBlunder = steady.map((entry, index) => (index === 4 ? { loss: 60, winBefore: 50 } : entry))
-    const plainMean = withBlunder.filter((_, index) => index % 2 === 0).reduce((sum, entry) => sum + (entry.loss === 60 ? 0 : 89.6), 0) / 6
+    const withBlunder = steady.map((entry, index) =>
+      index === 4 ? { loss: 60, winBefore: 50 } : entry
+    )
+    const plainMean =
+      withBlunder
+        .filter((_, index) => index % 2 === 0)
+        .reduce((sum, entry) => sum + (entry.loss === 60 ? 0 : 89.6), 0) / 6
     expect(gameAccuracy(withBlunder, 'w')).toBeLessThan(gameAccuracy(steady, 'w'))
     expect(gameAccuracy(withBlunder, 'w')).toBeLessThan(plainMean + 20)
   })
@@ -38,7 +46,10 @@ describe('gameAccuracy', () => {
     // First half of the game dead level, second half swinging from 20% to 80% and back.
     const winBefore = (index: number): number => (index < 10 ? 50 : index % 2 === 0 ? 20 : 80)
     const game = (blunderAt: number): { loss: number; winBefore: number }[] =>
-      Array.from({ length: 20 }, (_, index) => ({ loss: index === blunderAt ? 25 : 0, winBefore: winBefore(index) }))
+      Array.from({ length: 20 }, (_, index) => ({
+        loss: index === blunderAt ? 25 : 0,
+        winBefore: winBefore(index)
+      }))
     const inQuiet = gameAccuracy(game(4), 'w')
     const inSwing = gameAccuracy(game(14), 'w')
     expect(inSwing).toBeLessThan(inQuiet)
@@ -52,7 +63,12 @@ describe('gameAccuracy', () => {
 
 describe('acpl', () => {
   it('averages the losses in centipawns', () => {
-    expect(acpl([{ cpLossInternal: 10, evalBeforeCp: 0 }, { cpLossInternal: 30, evalBeforeCp: 50 }])).toBe(20)
+    expect(
+      acpl([
+        { cpLossInternal: 10, evalBeforeCp: 0 },
+        { cpLossInternal: 30, evalBeforeCp: 50 }
+      ])
+    ).toBe(20)
   })
 
   it('clamps a single loss at 1000', () => {

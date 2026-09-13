@@ -1,6 +1,15 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
-import type { AnalysisProgress, AnalysisStatus, Api, AppVersionInfo, GameFinished, ReviewActivity, ReviewLesson, StreamEnvelope } from '@shared/types/api'
+import type {
+  AnalysisProgress,
+  AnalysisStatus,
+  Api,
+  AppVersionInfo,
+  GameFinished,
+  ReviewActivity,
+  ReviewLesson,
+  StreamEnvelope
+} from '@shared/types/api'
 import type { NewGameOptions, SessionState } from '@shared/types/session'
 import type { Game, GameFilter, GameSummary } from '@shared/types/game'
 import type { CodexState, ModelInfo, QuotaSnapshot } from '@shared/types/codex'
@@ -44,7 +53,8 @@ function subscribe(channel: Channel, cb: (payload: never) => void): () => void {
 const api: Api = {
   settings: {
     get: () => ipcRenderer.invoke('settings:get') as Promise<Settings>,
-    save: (patch: Partial<Settings>) => ipcRenderer.invoke('settings:save', patch) as Promise<Settings>
+    save: (patch: Partial<Settings>) =>
+      ipcRenderer.invoke('settings:save', patch) as Promise<Settings>
   },
   app: {
     version: () => ipcRenderer.invoke('app:version') as Promise<string>,
@@ -57,30 +67,37 @@ const api: Api = {
   // --- Task 7: Stockfish engine ---
   engine: {
     state: () => ipcRenderer.invoke('engine:state') as Promise<EngineState>,
-    analyze: (fen: string, profile: AnalysisProfile) => ipcRenderer.invoke('engine:analyze', fen, profile) as Promise<Analysis>
+    analyze: (fen: string, profile: AnalysisProfile) =>
+      ipcRenderer.invoke('engine:analyze', fen, profile) as Promise<Analysis>
   },
   // --- end Task 7 ---
   // ── Task 8: games archive ──
   games: {
-    list: (filter?: GameFilter) => ipcRenderer.invoke('games:list', filter) as Promise<GameSummary[]>,
+    list: (filter?: GameFilter) =>
+      ipcRenderer.invoke('games:list', filter) as Promise<GameSummary[]>,
     get: (id: string) => ipcRenderer.invoke('games:get', id) as Promise<Game | null>,
     delete: (id: string) => ipcRenderer.invoke('games:delete', id) as Promise<void>
   },
   // ── Task 9: the active game ──
   game: {
     new: (opts: NewGameOptions) => ipcRenderer.invoke('game:new', opts) as Promise<SessionState>,
-    resume: (id: string, opts?: { substituteModel?: string }) => ipcRenderer.invoke('game:resume', id, opts) as Promise<SessionState>,
+    resume: (id: string, opts?: { substituteModel?: string }) =>
+      ipcRenderer.invoke('game:resume', id, opts) as Promise<SessionState>,
     userMove: (uci: string) => ipcRenderer.invoke('game:userMove', uci) as Promise<SessionState>,
     takeback: () => ipcRenderer.invoke('game:takeback') as Promise<SessionState>,
     resign: () => ipcRenderer.invoke('game:resign') as Promise<SessionState>,
-    offerDraw: () => ipcRenderer.invoke('game:offerDraw') as Promise<{ accepted: boolean; reason: string }>,
+    offerDraw: () =>
+      ipcRenderer.invoke('game:offerDraw') as Promise<{ accepted: boolean; reason: string }>,
     navigateEval: (fen: string) => ipcRenderer.invoke('game:navigateEval', fen) as Promise<void>,
     state: () => ipcRenderer.invoke('game:state') as Promise<SessionState>,
     close: () => ipcRenderer.invoke('game:close') as Promise<SessionState>,
-    adaptiveElo: () => ipcRenderer.invoke('game:adaptiveElo') as Promise<{ elo: number; games: number } | null>,
+    adaptiveElo: () =>
+      ipcRenderer.invoke('game:adaptiveElo') as Promise<{ elo: number; games: number } | null>,
     // ── Task 12: the coach in game ──
-    setCommentsVisible: (visible: boolean) => ipcRenderer.invoke('game:setCommentsVisible', visible) as Promise<SessionState>,
-    askCoach: (question: string) => ipcRenderer.invoke('game:askCoach', question) as Promise<SessionState>,
+    setCommentsVisible: (visible: boolean) =>
+      ipcRenderer.invoke('game:setCommentsVisible', visible) as Promise<SessionState>,
+    askCoach: (question: string) =>
+      ipcRenderer.invoke('game:askCoach', question) as Promise<SessionState>,
     requestHint: () => ipcRenderer.invoke('game:requestHint') as Promise<SessionState>,
     clearHint: () => ipcRenderer.invoke('game:clearHint') as Promise<SessionState>,
     commentSkipped: () => ipcRenderer.invoke('game:commentSkipped') as Promise<SessionState>
@@ -88,12 +105,18 @@ const api: Api = {
   // ── Task 15: post-game analysis and review ──
   analysis: {
     run: (gameId: string) => ipcRenderer.invoke('analysis:run', gameId) as Promise<Game>,
-    status: (gameId: string) => ipcRenderer.invoke('analysis:status', gameId) as Promise<AnalysisStatus>
+    status: (gameId: string) =>
+      ipcRenderer.invoke('analysis:status', gameId) as Promise<AnalysisStatus>
   },
   review: {
-    commentMove: (gameId: string, ply: number) => ipcRenderer.invoke('review:commentMove', gameId, ply) as Promise<string>,
-    commentKeyMoments: (gameId: string) => ipcRenderer.invoke('review:commentKeyMoments', gameId) as Promise<{ ply: number; text: string }[]>,
-    lesson: (gameId: string) => ipcRenderer.invoke('review:lesson', gameId) as Promise<ReviewLesson>,
+    commentMove: (gameId: string, ply: number) =>
+      ipcRenderer.invoke('review:commentMove', gameId, ply) as Promise<string>,
+    commentKeyMoments: (gameId: string) =>
+      ipcRenderer.invoke('review:commentKeyMoments', gameId) as Promise<
+        { ply: number; text: string }[]
+      >,
+    lesson: (gameId: string) =>
+      ipcRenderer.invoke('review:lesson', gameId) as Promise<ReviewLesson>,
     close: () => ipcRenderer.invoke('review:close') as Promise<void>
   },
   // ── Task 17: the player profile ──
@@ -104,27 +127,36 @@ const api: Api = {
   // ── Task 20: the training section ──
   training: {
     exercises: {
-      list: (kind?: ExerciseKind) => ipcRenderer.invoke('training:exercises:list', kind) as Promise<Exercise[]>,
-      get: (id: string) => ipcRenderer.invoke('training:exercises:get', id) as Promise<Exercise | null>,
-      attempt: (id: string, uci: string) => ipcRenderer.invoke('training:exercises:attempt', id, uci) as Promise<AttemptResult>,
-      reset: (id: string) => ipcRenderer.invoke('training:exercises:reset', id) as Promise<Exercise>,
-      explain: (id: string) => ipcRenderer.invoke('training:exercises:explain', id) as Promise<string>
+      list: (kind?: ExerciseKind) =>
+        ipcRenderer.invoke('training:exercises:list', kind) as Promise<Exercise[]>,
+      get: (id: string) =>
+        ipcRenderer.invoke('training:exercises:get', id) as Promise<Exercise | null>,
+      attempt: (id: string, uci: string) =>
+        ipcRenderer.invoke('training:exercises:attempt', id, uci) as Promise<AttemptResult>,
+      reset: (id: string) =>
+        ipcRenderer.invoke('training:exercises:reset', id) as Promise<Exercise>,
+      explain: (id: string) =>
+        ipcRenderer.invoke('training:exercises:explain', id) as Promise<string>
     },
     thematic: {
       next: () => ipcRenderer.invoke('training:thematic:next') as Promise<ThematicSet>
     },
     openings: {
-      overview: () => ipcRenderer.invoke('training:openings:overview') as Promise<OpeningOverviewEntry[]>,
-      lesson: (eco: string) => ipcRenderer.invoke('training:openings:lesson', eco) as Promise<string>
+      overview: () =>
+        ipcRenderer.invoke('training:openings:overview') as Promise<OpeningOverviewEntry[]>,
+      lesson: (eco: string) =>
+        ipcRenderer.invoke('training:openings:lesson', eco) as Promise<string>
     },
     endgames: {
       list: () => ipcRenderer.invoke('training:endgames:list') as Promise<EndgameListEntry[]>,
-      start: (id: string) => ipcRenderer.invoke('training:endgames:start', id) as Promise<SessionState>
+      start: (id: string) =>
+        ipcRenderer.invoke('training:endgames:start', id) as Promise<SessionState>
     },
     plan: {
       get: () => ipcRenderer.invoke('training:plan:get') as Promise<StudyPlanView>,
       generate: () => ipcRenderer.invoke('training:plan:generate') as Promise<StudyPlanView>,
-      markDone: (itemId: string, done?: boolean) => ipcRenderer.invoke('training:plan:markDone', itemId, done) as Promise<StudyPlanView>
+      markDone: (itemId: string, done?: boolean) =>
+        ipcRenderer.invoke('training:plan:markDone', itemId, done) as Promise<StudyPlanView>
     }
   },
   // --- Task 6: Codex session ---------------------------------------------------------------
@@ -137,16 +169,32 @@ const api: Api = {
   // --- Task 5: in-app updater ---
   updates: {
     status: () => ipcRenderer.invoke(UPDATES_IPC.status) as Promise<UpdateStatus>,
-    savePreferences: (preferences: UpdatePreferences) => ipcRenderer.invoke(UPDATES_IPC.preferences, preferences) as Promise<UpdateStatus>,
+    savePreferences: (preferences: UpdatePreferences) =>
+      ipcRenderer.invoke(UPDATES_IPC.preferences, preferences) as Promise<UpdateStatus>,
     check: () => ipcRenderer.invoke(UPDATES_IPC.check) as Promise<UpdateStatus>,
     authenticate: () => ipcRenderer.invoke(UPDATES_IPC.authenticate) as Promise<UpdateStatus>,
-    cancelAuthentication: () => ipcRenderer.invoke(UPDATES_IPC.cancelAuthentication) as Promise<UpdateStatus>,
+    cancelAuthentication: () =>
+      ipcRenderer.invoke(UPDATES_IPC.cancelAuthentication) as Promise<UpdateStatus>,
     download: () => ipcRenderer.invoke(UPDATES_IPC.download) as Promise<UpdateStatus>,
     install: () => ipcRenderer.invoke(UPDATES_IPC.install) as Promise<UpdateStatus>,
     openRelease: () => ipcRenderer.invoke(UPDATES_IPC.openRelease) as Promise<void>
   },
-  on: ((channel: Channel, cb: (payload: StreamEnvelope & Settings & EngineState & CodexState & UpdateStatus & SessionState & GameFinished & AnalysisProgress & ReviewActivity & Profile & TrainingChanged) => void) =>
-    subscribe(channel, cb as (payload: never) => void)) as Api['on']
+  on: ((
+    channel: Channel,
+    cb: (
+      payload: StreamEnvelope &
+        Settings &
+        EngineState &
+        CodexState &
+        UpdateStatus &
+        SessionState &
+        GameFinished &
+        AnalysisProgress &
+        ReviewActivity &
+        Profile &
+        TrainingChanged
+    ) => void
+  ) => subscribe(channel, cb as (payload: never) => void)) as Api['on']
 }
 
 if (process.contextIsolated) {

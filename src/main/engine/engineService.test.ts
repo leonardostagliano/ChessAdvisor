@@ -19,9 +19,12 @@ interface Harness {
 const open: Harness[] = []
 
 /** Attaches a handler immediately so a rejection that lands before the assertion is not "unhandled". */
-const captured = <T>(promise: Promise<T>): Promise<T | Error> => promise.catch((error: Error) => error)
+const captured = <T>(promise: Promise<T>): Promise<T | Error> =>
+  promise.catch((error: Error) => error)
 
-async function makeService(opts: { args?: string[]; override?: boolean; searchTimeoutMs?: number } = {}): Promise<Harness> {
+async function makeService(
+  opts: { args?: string[]; override?: boolean; searchTimeoutMs?: number } = {}
+): Promise<Harness> {
   const dir = await makeTmpDir('chessadvisor-engine-')
   const settings = new SettingsStore(join(dir, 'settings.json'))
   await settings.load()
@@ -32,7 +35,10 @@ async function makeService(opts: { args?: string[]; override?: boolean; searchTi
     settings,
     resourcePath: (...segs: string[]) => join(engineDir, ...segs),
     emit,
-    override: opts.override === false ? undefined : { exe: process.execPath, args: [FAKE_ENGINE, ...(opts.args ?? [])] },
+    override:
+      opts.override === false
+        ? undefined
+        : { exe: process.execPath, args: [FAKE_ENGINE, ...(opts.args ?? [])] },
     probeTimeoutMs: 1500,
     ...(opts.searchTimeoutMs === undefined ? {} : { searchTimeoutMs: opts.searchTimeoutMs })
   })
@@ -191,7 +197,9 @@ describe('EngineService analysis', () => {
   it('rejects immediately for an already aborted signal', async () => {
     const { service } = await makeService()
     await service.start()
-    await expect(service.analyze(START_FEN, 'live', { signal: AbortSignal.abort() })).rejects.toMatchObject({ name: 'AbortError' })
+    await expect(
+      service.analyze(START_FEN, 'live', { signal: AbortSignal.abort() })
+    ).rejects.toMatchObject({ name: 'AbortError' })
   })
 
   it('tears the engine down when a search never reports bestmove', async () => {
@@ -204,13 +212,17 @@ describe('EngineService analysis', () => {
     // A hung engine is never reused: a late bestmove would belong to the wrong request.
     expect(service.state().available).toBe(false)
     expect(service.alive).toBe(false)
-    await expect(service.analyze(START_FEN, 'live')).rejects.toMatchObject({ code: 'ENGINE_UNAVAILABLE' })
+    await expect(service.analyze(START_FEN, 'live')).rejects.toMatchObject({
+      code: 'ENGINE_UNAVAILABLE'
+    })
   })
 
   it('refuses to analyze when no engine is available', async () => {
     const { service } = await makeService({ override: false })
     await service.start()
-    await expect(service.analyze(START_FEN, 'live')).rejects.toMatchObject({ code: 'ENGINE_UNAVAILABLE' })
+    await expect(service.analyze(START_FEN, 'live')).rejects.toMatchObject({
+      code: 'ENGINE_UNAVAILABLE'
+    })
   })
 })
 

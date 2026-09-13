@@ -15,8 +15,23 @@ const FEN_1 = 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1'
 const FEN_2 = 'rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq e6 0 2'
 const FEN_3 = 'rnbqkbnr/pppp1ppp/8/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 1 2'
 
-function move(ply: number, san: string, uci: string, fenAfter: string, by: Move['by'], patch: Partial<Move> = {}): Move {
-  return { ply, san, uci, fenAfter, epdAfter: fenAfter.split(' ').slice(0, 4).join(' '), by, ...patch }
+function move(
+  ply: number,
+  san: string,
+  uci: string,
+  fenAfter: string,
+  by: Move['by'],
+  patch: Partial<Move> = {}
+): Move {
+  return {
+    ply,
+    san,
+    uci,
+    fenAfter,
+    epdAfter: fenAfter.split(' ').slice(0, 4).join(' '),
+    by,
+    ...patch
+  }
 }
 
 /** Three plies: the last one is a blunder of the user and the only key moment. */
@@ -28,25 +43,58 @@ export function analysedGame(): Game {
     kind: 'match',
     status: 'finished',
     userColor: 'w',
-    opponent: { model: 'gpt-6-astra', effort: 'low', difficulty: { mode: 'fixed', level: 3, targetElo: 1200 } },
+    opponent: {
+      model: 'gpt-6-astra',
+      effort: 'low',
+      difficulty: { mode: 'fixed', level: 3, targetElo: 1200 }
+    },
     coach: { model: 'gpt-6-astra', effort: 'low' },
     clock: null,
     language: 'it',
     moves: [
       move(1, 'e4', 'e2e4', FEN_1, 'user', {
-        eval: { before: { cp: 20 }, after: { cp: 15 }, cpLoss: 5, winPercentLoss: 0.9, classification: 'best', bestMove: 'e2e4', bestLine: ['e2e4', 'e7e5'] }
+        eval: {
+          before: { cp: 20 },
+          after: { cp: 15 },
+          cpLoss: 5,
+          winPercentLoss: 0.9,
+          classification: 'best',
+          bestMove: 'e2e4',
+          bestLine: ['e2e4', 'e7e5']
+        }
       }),
       move(2, 'e5', 'e7e5', FEN_2, 'ai', {
-        eval: { before: { cp: -15 }, after: { cp: -20 }, cpLoss: 5, winPercentLoss: 0.9, classification: 'excellent', bestMove: 'e7e5', bestLine: ['e7e5'] }
+        eval: {
+          before: { cp: -15 },
+          after: { cp: -20 },
+          cpLoss: 5,
+          winPercentLoss: 0.9,
+          classification: 'excellent',
+          bestMove: 'e7e5',
+          bestLine: ['e7e5']
+        }
       }),
       move(3, 'Nf3', 'g1f3', FEN_3, 'user', {
-        eval: { before: { cp: 20 }, after: { cp: -300 }, cpLoss: 320, winPercentLoss: 45.2, classification: 'blunder', bestMove: 'd2d4', bestLine: ['d2d4', 'd7d5'] }
+        eval: {
+          before: { cp: 20 },
+          after: { cp: -300 },
+          cpLoss: 320,
+          winPercentLoss: 45.2,
+          classification: 'blunder',
+          bestMove: 'd2d4',
+          bestLine: ['d2d4', 'd7d5']
+        }
       })
     ],
     takebacks: 0,
     coachLog: [],
     result: { outcome: '0-1', reason: 'resign' },
-    analysis: { accuracy: { w: 62.4, b: 88.2 }, acpl: { w: 108, b: 12 }, keyMoments: [3], analyzedAt: '2026-09-12T10:06:00.000Z' }
+    analysis: {
+      accuracy: { w: 62.4, b: 88.2 },
+      acpl: { w: 108, b: 12 },
+      keyMoments: [3],
+      analyzedAt: '2026-09-12T10:06:00.000Z'
+    }
   }
 }
 
@@ -109,10 +157,14 @@ describe('EvalGraph', () => {
   })
 
   it('labels itself and every point in words, not by colour alone', () => {
-    const { container } = render(<EvalGraph game={analysedGame()} cursor={-1} onSelect={() => {}} />)
+    const { container } = render(
+      <EvalGraph game={analysedGame()} cursor={-1} onSelect={() => {}} />
+    )
     expect(screen.getByRole('img')).toHaveAttribute('aria-label', expect.stringContaining('3'))
     expect(container.querySelector('[data-ply="3"] title')?.textContent).toContain('Errore grave')
-    expect(container.querySelector('[data-ply="0"] title')?.textContent).toContain('Posizione iniziale')
+    expect(container.querySelector('[data-ply="0"] title')?.textContent).toContain(
+      'Posizione iniziale'
+    )
   })
 
   it('draws a dot on the key moments only', () => {
@@ -122,7 +174,9 @@ describe('EvalGraph', () => {
   })
 
   it('renders nothing at all when the game has no moves', () => {
-    const { container } = render(<EvalGraph game={{ ...analysedGame(), moves: [] }} cursor={-1} onSelect={() => {}} />)
+    const { container } = render(
+      <EvalGraph game={{ ...analysedGame(), moves: [] }} cursor={-1} onSelect={() => {}} />
+    )
     expect(container.querySelector('svg')).toBeNull()
   })
 })

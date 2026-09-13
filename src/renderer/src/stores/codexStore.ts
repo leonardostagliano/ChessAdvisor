@@ -30,7 +30,9 @@ export interface CodexStoreState {
 }
 
 /** True while the Codex status screen must cover the app (spec §8, Task 10). */
-export function codexBlocking(state: Pick<CodexStoreState, 'state' | 'isolationAccepted'>): boolean {
+export function codexBlocking(
+  state: Pick<CodexStoreState, 'state' | 'isolationAccepted'>
+): boolean {
   if (state.state.status === 'ready') return false
   if (state.state.status === 'not-isolated' && state.isolationAccepted) return false
   return true

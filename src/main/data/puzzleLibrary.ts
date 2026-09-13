@@ -97,7 +97,8 @@ export interface PickRequest {
 const THEME_ORDER = new Map<string, number>(THEMES.map((theme, index) => [theme, index]))
 const KNOWN_THEME = new Set<string>(THEMES)
 
-const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value)
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value)
 const isSide = (value: unknown): value is Side => value === 'w' || value === 'b'
 
 /** Deterministic, tiny PRNG (mulberry32): the draw must be reproducible from a seed in tests. */
@@ -131,10 +132,17 @@ function sanitizePuzzle(value: unknown): Puzzle | null {
   if (typeof id !== 'string' || id.length === 0) return null
   if (typeof fen !== 'string' || fen.length === 0) return null
   if (!isSide(sideToMove)) return null
-  if (!Array.isArray(solution) || solution.length === 0 || solution.some((m) => typeof m !== 'string' || m.length < 4)) return null
+  if (
+    !Array.isArray(solution) ||
+    solution.length === 0 ||
+    solution.some((m) => typeof m !== 'string' || m.length < 4)
+  )
+    return null
   if (typeof rating !== 'number' || !Number.isFinite(rating)) return null
   if (!Array.isArray(themes)) return null
-  const known = themes.filter((theme): theme is string => typeof theme === 'string' && KNOWN_THEME.has(theme))
+  const known = themes.filter(
+    (theme): theme is string => typeof theme === 'string' && KNOWN_THEME.has(theme)
+  )
   if (known.length === 0) return null
   return {
     id,
@@ -206,7 +214,8 @@ export class PuzzleLibrary {
       }
     }
     // Cheapest way to keep every answer ordered from the easiest puzzle up.
-    for (const bucket of byTheme.values()) bucket.sort((a, b) => a.rating - b.rating || a.id.localeCompare(b.id))
+    for (const bucket of byTheme.values())
+      bucket.sort((a, b) => a.rating - b.rating || a.id.localeCompare(b.id))
 
     const endgames: EndgamePosition[] = []
     const seen = new Set<string>()
@@ -244,7 +253,8 @@ export class PuzzleLibrary {
     const count = Math.max(0, Math.floor(p.count))
     if (count === 0) return []
     const candidates = (this.byTheme.get(p.theme) ?? []).filter(
-      (puzzle) => puzzle.rating >= p.ratingMin && puzzle.rating <= p.ratingMax && !p.exclude.has(puzzle.id)
+      (puzzle) =>
+        puzzle.rating >= p.ratingMin && puzzle.rating <= p.ratingMax && !p.exclude.has(puzzle.id)
     )
     if (candidates.length === 0) return []
     const next = random(p.seed ?? Math.floor(Math.random() * 0xffffffff))
@@ -257,7 +267,10 @@ export class PuzzleLibrary {
   themes(): { theme: string; count: number }[] {
     return [...this.byTheme.entries()]
       .map(([theme, bucket]) => ({ theme, count: bucket.length }))
-      .sort((a, b) => b.count - a.count || (THEME_ORDER.get(a.theme) ?? 99) - (THEME_ORDER.get(b.theme) ?? 99))
+      .sort(
+        (a, b) =>
+          b.count - a.count || (THEME_ORDER.get(a.theme) ?? 99) - (THEME_ORDER.get(b.theme) ?? 99)
+      )
   }
 
   /** The curated endgames, in dataset order (easiest families first). */

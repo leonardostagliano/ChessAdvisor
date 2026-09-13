@@ -11,7 +11,12 @@ function renderModal(
 ): ReturnType<typeof render> {
   const onClose = props.onClose ?? vi.fn()
   return render(
-    <Modal open={props.open ?? true} title="Titolo" onClose={onClose} footer={<Button>Conferma</Button>}>
+    <Modal
+      open={props.open ?? true}
+      title="Titolo"
+      onClose={onClose}
+      footer={<Button>Conferma</Button>}
+    >
       <Button>Prima</Button>
       <Button>Seconda</Button>
     </Modal>
@@ -80,7 +85,9 @@ describe('Modal', () => {
     renderModal()
     const dialog = screen.getByRole('dialog')
     const focusable = Array.from(
-      dialog.querySelectorAll<HTMLElement>('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')
+      dialog.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      )
     )
     const first = focusable[0]
     const last = focusable[focusable.length - 1]

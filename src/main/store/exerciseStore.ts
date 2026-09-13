@@ -30,7 +30,11 @@ export class ExerciseStore {
   /** Newest first, optionally of one kind only. */
   list(kind?: ExerciseKind): Exercise[] {
     const all = [...this.byId.values()].filter((exercise) => !kind || exercise.kind === kind)
-    return all.sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : a.id.localeCompare(b.id))).map(clone)
+    return all
+      .sort((a, b) =>
+        a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : a.id.localeCompare(b.id)
+      )
+      .map(clone)
   }
 
   get(id: string): Exercise | null {
@@ -97,11 +101,14 @@ function clone(exercise: Exercise): Exercise {
   return {
     ...exercise,
     solution: [...exercise.solution],
-    ...(exercise.alternatives ? { alternatives: exercise.alternatives.map((line) => [...line]) } : {})
+    ...(exercise.alternatives
+      ? { alternatives: exercise.alternatives.map((line) => [...line]) }
+      : {})
   }
 }
 
-const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value)
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value)
 
 const KINDS = new Set<ExerciseKind>(['own_game', 'thematic', 'endgame'])
 const STATUSES = new Set<ExerciseStatus>(['new', 'solved', 'failed'])
@@ -121,8 +128,13 @@ export function sanitizeExercise(raw: unknown): Exercise | null {
   if (sideToMove !== 'w' && sideToMove !== 'b') return null
   if (typeof theme !== 'string' || theme.length === 0) return null
 
-  const alternatives = Array.isArray(raw.alternatives) ? raw.alternatives.map(uciList).filter((line) => line.length > 0) : []
-  const status = typeof raw.status === 'string' && STATUSES.has(raw.status as ExerciseStatus) ? (raw.status as ExerciseStatus) : 'new'
+  const alternatives = Array.isArray(raw.alternatives)
+    ? raw.alternatives.map(uciList).filter((line) => line.length > 0)
+    : []
+  const status =
+    typeof raw.status === 'string' && STATUSES.has(raw.status as ExerciseStatus)
+      ? (raw.status as ExerciseStatus)
+      : 'new'
   return {
     id,
     kind: kind as ExerciseKind,
@@ -131,13 +143,22 @@ export function sanitizeExercise(raw: unknown): Exercise | null {
     solution: uciList(raw.solution),
     ...(alternatives.length > 0 ? { alternatives } : {}),
     theme,
-    ...(typeof raw.rating === 'number' && Number.isFinite(raw.rating) ? { rating: Math.round(raw.rating) } : {}),
-    ...(typeof raw.sourceGameId === 'string' && raw.sourceGameId ? { sourceGameId: raw.sourceGameId } : {}),
-    ...(typeof raw.sourcePly === 'number' && Number.isFinite(raw.sourcePly) ? { sourcePly: Math.round(raw.sourcePly) } : {}),
-    ...(typeof raw.explanation === 'string' && raw.explanation.trim() ? { explanation: raw.explanation } : {}),
+    ...(typeof raw.rating === 'number' && Number.isFinite(raw.rating)
+      ? { rating: Math.round(raw.rating) }
+      : {}),
+    ...(typeof raw.sourceGameId === 'string' && raw.sourceGameId
+      ? { sourceGameId: raw.sourceGameId }
+      : {}),
+    ...(typeof raw.sourcePly === 'number' && Number.isFinite(raw.sourcePly)
+      ? { sourcePly: Math.round(raw.sourcePly) }
+      : {}),
+    ...(typeof raw.explanation === 'string' && raw.explanation.trim()
+      ? { explanation: raw.explanation }
+      : {}),
     status,
     attempts: typeof raw.attempts === 'number' && raw.attempts > 0 ? Math.round(raw.attempts) : 0,
     ...(typeof raw.solvedAt === 'string' && raw.solvedAt ? { solvedAt: raw.solvedAt } : {}),
-    createdAt: typeof raw.createdAt === 'string' && raw.createdAt ? raw.createdAt : new Date(0).toISOString()
+    createdAt:
+      typeof raw.createdAt === 'string' && raw.createdAt ? raw.createdAt : new Date(0).toISOString()
   }
 }

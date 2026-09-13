@@ -30,7 +30,11 @@ function gameOf(sans: string[], patch: Partial<Game> = {}): Game {
     kind: 'match',
     status: 'finished',
     userColor: 'w',
-    opponent: { model: 'gpt-6-astra', effort: 'medium', difficulty: { mode: 'fixed', level: 3, targetElo: 1200 } },
+    opponent: {
+      model: 'gpt-6-astra',
+      effort: 'medium',
+      difficulty: { mode: 'fixed', level: 3, targetElo: 1200 }
+    },
     coach: { model: 'gpt-6-astra', effort: 'medium' },
     clock: null,
     language: 'it',
@@ -89,7 +93,9 @@ describe('analyzeGame', () => {
     engine.script(positionsOf(game))
     const progress: AnalysisProgress[] = []
 
-    await analyzeGame(game, engine, openings(), (event) => progress.push(event), { now: () => Date.parse('2026-02-02T10:00:00.000Z') })
+    await analyzeGame(game, engine, openings(), (event) => progress.push(event), {
+      now: () => Date.parse('2026-02-02T10:00:00.000Z')
+    })
 
     expect(game.moves.every((move) => move.eval !== undefined)).toBe(true)
     expect(game.opening).toEqual({ eco: 'C60', name: 'Ruy Lopez', lastBookPly: 5 })
@@ -130,7 +136,11 @@ describe('analyzeGame', () => {
     await analyzeGame(game, engine, openings())
 
     expect(game.opening?.eco).toBe('C40')
-    expect(game.moves.slice(0, 3).map((move) => move.eval?.classification)).toEqual(['book', 'book', 'book'])
+    expect(game.moves.slice(0, 3).map((move) => move.eval?.classification)).toEqual([
+      'book',
+      'book',
+      'book'
+    ])
     expect(game.moves[3]!.eval?.classification).toBe('blunder')
     expect(game.moves[3]!.eval?.bestMove).toBe(legalMoves(game.moves[2]!.fenAfter)[0]?.uci)
     expect(game.moves[3]!.eval?.bestLine.length).toBeGreaterThan(0)
@@ -141,17 +151,32 @@ describe('analyzeGame', () => {
     // dataset, 5. O-O (ply 9) is back in it. A blunder played in the gap must still be judged.
     const game = gameOf(['e4', 'e5', 'Nf3', 'Nc6', 'Bb5', 'a6', 'Ba4', 'Nf6', 'O-O'])
     const book = openings()
-    const bookPlies = positionsOf(game).map((fen, ply) => (ply > 0 && book.byEpd.has(epdOf(fen)) ? ply : 0)).filter((ply) => ply > 0)
+    const bookPlies = positionsOf(game)
+      .map((fen, ply) => (ply > 0 && book.byEpd.has(epdOf(fen)) ? ply : 0))
+      .filter((ply) => ply > 0)
     expect(bookPlies).toEqual([1, 2, 3, 4, 5, 6, 9])
 
     // Even at +20, White throws the game away with 4. Ba4 (ply 7): the score collapses to −900.
-    const engine = fakeEngine([20, 20, 20, 20, 20, 20, 20, -900, -900, -900], (fen, index) => legalMoves(fen).find((move) => move.uci !== game.moves[index]?.uci)?.uci ?? '')
+    const engine = fakeEngine(
+      [20, 20, 20, 20, 20, 20, 20, -900, -900, -900],
+      (fen, index) => legalMoves(fen).find((move) => move.uci !== game.moves[index]?.uci)?.uci ?? ''
+    )
     engine.script(positionsOf(game))
 
     await analyzeGame(game, engine, book)
 
     expect(game.opening?.lastBookPly).toBe(9)
-    expect(game.moves.map((move) => move.eval?.classification)).toEqual(['book', 'book', 'book', 'book', 'book', 'book', 'blunder', 'excellent', 'book'])
+    expect(game.moves.map((move) => move.eval?.classification)).toEqual([
+      'book',
+      'book',
+      'book',
+      'book',
+      'book',
+      'book',
+      'blunder',
+      'excellent',
+      'book'
+    ])
     expect(game.moves[6]!.eval!.winPercentLoss).toBeGreaterThan(30)
     expect(game.analysis?.keyMoments).toEqual([7])
   })

@@ -21,7 +21,12 @@ const profile: Profile = {
   history: [{ gameId: 'g1', date: '2026-03-01T10:00:00.000Z', accuracy: 71.5, acpl: 62 }]
 }
 
-const catalogue: StudyCatalogue = { themes: ['fork', 'pin'], exercises: ['og-g1-7'], openings: ['C60'], endgames: ['queen_mate'] }
+const catalogue: StudyCatalogue = {
+  themes: ['fork', 'pin'],
+  exercises: ['og-g1-7'],
+  openings: ['C60'],
+  endgames: ['queen_mate']
+}
 
 /** Strict-mode rules of spec §3.1, checked on every schema of the task. */
 function expectStrict(schema: unknown): void {
@@ -58,7 +63,14 @@ describe('THEME_PICK_SCHEMA', () => {
 
 describe('themePickText', () => {
   it('writes the level, the recurring themes and what the library holds', () => {
-    const text = themePickText({ profile, language: 'it', available: [{ theme: 'fork', count: 120 }, { theme: 'pin', count: 0 }] })
+    const text = themePickText({
+      profile,
+      language: 'it',
+      available: [
+        { theme: 'fork', count: 120 },
+        { theme: 'pin', count: 0 }
+      ]
+    })
     expect(text).toContain('950')
     expect(text).toContain('- fork · 5')
     expect(text).toContain('- fork · 120')
@@ -83,7 +95,12 @@ describe('explainExerciseText', () => {
   }
 
   it('opens with the word the fake app-server answers to, and carries the material', () => {
-    const text = explainExerciseText({ exercise, solutionSan: ['Ng5', 'd5'], language: 'it', playedSan: 'd3' })
+    const text = explainExerciseText({
+      exercise,
+      solutionSan: ['Ng5', 'd5'],
+      language: 'it',
+      playedSan: 'd3'
+    })
     expect(text.startsWith('Spiega')).toBe(true)
     expect(text).toContain(`FEN: ${exercise.fen}`)
     expect(text).toContain('Ng5 d5')
@@ -99,7 +116,14 @@ describe('openingLessonText', () => {
     games: 4,
     score: 62.5,
     avgAccuracyFirst10: 82.5,
-    deviations: [{ epd: 'r1bqkbnr/pppp1ppp/2n5/1B2p3/4P3/5N2/PPPP1PPP/RNBQK2R b KQkq -', san: 'a6', count: 3, bestSan: 'Nf6' }]
+    deviations: [
+      {
+        epd: 'r1bqkbnr/pppp1ppp/2n5/1B2p3/4P3/5N2/PPPP1PPP/RNBQK2R b KQkq -',
+        san: 'a6',
+        count: 3,
+        bestSan: 'Nf6'
+      }
+    ]
   }
 
   it('writes the numbers of the user and their recurring deviations', () => {
@@ -110,14 +134,24 @@ describe('openingLessonText', () => {
   })
 
   it('says plainly when there is no deviation on record', () => {
-    expect(openingLessonText({ entry: { ...entry, deviations: [] }, language: 'en' })).toContain('No recurring deviation')
+    expect(openingLessonText({ entry: { ...entry, deviations: [] }, language: 'en' })).toContain(
+      'No recurring deviation'
+    )
   })
 })
 
 describe('the plan prompt', () => {
   it('pins every reference of the schema to the catalogue', () => {
     const schema = planSchema(catalogue) as {
-      properties: { items: { items: { properties: { activity: { properties: { ref: { enum: unknown[] }; type: { enum: unknown[] } } } } } } }
+      properties: {
+        items: {
+          items: {
+            properties: {
+              activity: { properties: { ref: { enum: unknown[] }; type: { enum: unknown[] } } }
+            }
+          }
+        }
+      }
     }
     expectStrict(schema)
     const activity = schema.properties.items.items.properties.activity.properties
@@ -126,7 +160,12 @@ describe('the plan prompt', () => {
   })
 
   it('writes the catalogue as one line per activity type', () => {
-    const text = planText({ catalogue, profile, language: 'it', labels: { queen_mate: 'Matto con la donna' } })
+    const text = planText({
+      catalogue,
+      profile,
+      language: 'it',
+      labels: { queen_mate: 'Matto con la donna' }
+    })
     expect(text).toContain('- thematic: fork | pin')
     expect(text).toContain('- own_game: og-g1-7')
     expect(text).toContain('- opening: C60')
@@ -136,7 +175,11 @@ describe('the plan prompt', () => {
   })
 
   it('says when a kind of material is not available at all', () => {
-    const text = planText({ catalogue: { themes: ['fork'], exercises: [], openings: [], endgames: [] }, profile, language: 'en' })
+    const text = planText({
+      catalogue: { themes: ['fork'], exercises: [], openings: [], endgames: [] },
+      profile,
+      language: 'en'
+    })
     expect(text).toContain('- own_game: none available')
   })
 })

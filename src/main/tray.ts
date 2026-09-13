@@ -37,7 +37,11 @@ export interface TrayHandle {
 }
 
 /** Creates the notification-area icon with a minimal menu (Show / Quit). */
-export function createTray(opts: { onShow: () => void; onQuit: () => void; language?: Language }): TrayHandle {
+export function createTray(opts: {
+  onShow: () => void
+  onQuit: () => void
+  language?: Language
+}): TrayHandle {
   const labels = LABELS[opts.language ?? 'it']
   const tray = new Tray(trayImage())
   tray.setToolTip('ChessAdvisor')

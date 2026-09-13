@@ -46,7 +46,11 @@ describe('parsePuzzleRow', () => {
   })
 
   it('ignores the header, blank lines and truncated rows', () => {
-    expect(parsePuzzleRow('PuzzleId,FEN,Moves,Rating,RatingDeviation,Popularity,NbPlays,Themes,GameUrl,OpeningTags')).toBeNull()
+    expect(
+      parsePuzzleRow(
+        'PuzzleId,FEN,Moves,Rating,RatingDeviation,Popularity,NbPlays,Themes,GameUrl,OpeningTags'
+      )
+    ).toBeNull()
     expect(parsePuzzleRow('')).toBeNull()
     expect(parsePuzzleRow('00008,r6k/8 w - - 0 1,e2e4')).toBeNull()
     expect(parsePuzzleRow('00008,r6k/8 w - - 0 1,e2e4,abc,75,94,6157,fork,url,')).toBeNull()
@@ -55,7 +59,9 @@ describe('parsePuzzleRow', () => {
 
 describe('mapPuzzleThemes', () => {
   it('translates the lichess vocabulary into the app taxonomy and drops the rest', () => {
-    expect(mapPuzzleThemes(['crushing', 'hangingPiece', 'long', 'middlegame'])).toEqual(['hanging_piece'])
+    expect(mapPuzzleThemes(['crushing', 'hangingPiece', 'long', 'middlegame'])).toEqual([
+      'hanging_piece'
+    ])
     expect(mapPuzzleThemes(['backRankMate', 'mateIn2'])).toEqual(['back_rank', 'missed_tactic'])
     expect(mapPuzzleThemes(['rookEndgame', 'endgame'])).toEqual(['endgame_technique'])
     expect(mapPuzzleThemes(['advantage', 'short'])).toEqual([])
@@ -89,7 +95,11 @@ describe('eligiblePuzzle', () => {
   it('accepts the boundaries themselves', () => {
     expect(eligiblePuzzle(row({ rating: PUZZLE_FILTERS.ratingMin }))).toBe(true)
     expect(eligiblePuzzle(row({ rating: PUZZLE_FILTERS.ratingMax }))).toBe(true)
-    expect(eligiblePuzzle(row({ popularity: PUZZLE_FILTERS.popularityMin, nbPlays: PUZZLE_FILTERS.playsMin }))).toBe(true)
+    expect(
+      eligiblePuzzle(
+        row({ popularity: PUZZLE_FILTERS.popularityMin, nbPlays: PUZZLE_FILTERS.playsMin })
+      )
+    ).toBe(true)
   })
 })
 
@@ -158,7 +168,9 @@ describe('selectPuzzles', () => {
 
   it('is deterministic', () => {
     const pool = [...many('fork', 800, 40), ...many('skewer', 1900, 40)]
-    expect(selectPuzzles(pool, 17).map((p) => p.id)).toEqual(selectPuzzles(pool, 17).map((p) => p.id))
+    expect(selectPuzzles(pool, 17).map((p) => p.id)).toEqual(
+      selectPuzzles(pool, 17).map((p) => p.id)
+    )
   })
 })
 
@@ -186,13 +198,15 @@ describe('the curated endgames', () => {
 
   it('refuses a broken position instead of writing it to the dataset', () => {
     expect(() => validateEndgames([{ ...ENDGAMES[0], fen: 'not a fen' }])).toThrow(/fen/i)
-    expect(() => validateEndgames([{ ...ENDGAMES[0], sideToMove: ENDGAMES[0].sideToMove === 'w' ? 'b' : 'w' }])).toThrow(/side to move/i)
+    expect(() =>
+      validateEndgames([{ ...ENDGAMES[0], sideToMove: ENDGAMES[0].sideToMove === 'w' ? 'b' : 'w' }])
+    ).toThrow(/side to move/i)
   })
 })
 
 describe('the openings helpers still answer', () => {
   it('parses a TSV row and computes its EPD', () => {
-    const rows = parseTsv('eco\tname\tpgn\nB00\tKing\'s Pawn Game\t1. e4\n')
+    const rows = parseTsv("eco\tname\tpgn\nB00\tKing's Pawn Game\t1. e4\n")
     expect(rows).toEqual([{ eco: 'B00', name: "King's Pawn Game", pgn: '1. e4' }])
     expect(epdOfPgn('1. e4')).toBe('rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq -')
   })

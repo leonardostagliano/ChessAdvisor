@@ -55,14 +55,26 @@ export function StudyPlanTab(): React.JSX.Element {
   const items = view?.plan?.items ?? []
 
   const generate = (
-    <Button variant="primary" disabled={generating} onClick={() => void useTrainingStore.getState().generatePlan()}>
-      {generating ? t('training.plan.generating') : items.length > 0 ? t('training.plan.regenerate') : t('training.plan.generate')}
+    <Button
+      variant="primary"
+      disabled={generating}
+      onClick={() => void useTrainingStore.getState().generatePlan()}
+    >
+      {generating
+        ? t('training.plan.generating')
+        : items.length > 0
+          ? t('training.plan.regenerate')
+          : t('training.plan.generate')}
     </Button>
   )
 
   if (items.length === 0) {
     return (
-      <EmptyState eyebrow={t('training.plan.title')} title={t('training.plan.emptyTitle')} body={t('training.plan.emptyBody')}>
+      <EmptyState
+        eyebrow={t('training.plan.title')}
+        title={t('training.plan.emptyTitle')}
+        body={t('training.plan.emptyBody')}
+      >
         <div className={styles.actions}>{generate}</div>
       </EmptyState>
     )
@@ -72,7 +84,11 @@ export function StudyPlanTab(): React.JSX.Element {
   const percent = total > 0 ? Math.round((done / total) * 100) : 0
 
   return (
-    <section className={styles.card} aria-label={t('training.plan.listLabel')} data-testid="study-plan">
+    <section
+      className={styles.card}
+      aria-label={t('training.plan.listLabel')}
+      data-testid="study-plan"
+    >
       <div className={styles.cardHead}>
         <h2 className={styles.cardTitle}>{t('training.plan.title')}</h2>
         <div className={styles.actions}>{generate}</div>
@@ -96,7 +112,11 @@ export function StudyPlanTab(): React.JSX.Element {
       </div>
 
       {view?.plan ? (
-        <p className={styles.note}>{t('training.plan.generatedAt', { date: new Date(view.plan.generatedAt).toLocaleDateString(i18n.language) })}</p>
+        <p className={styles.note}>
+          {t('training.plan.generatedAt', {
+            date: new Date(view.plan.generatedAt).toLocaleDateString(i18n.language)
+          })}
+        </p>
       ) : null}
 
       {view?.suggestRegenerate ? (
@@ -120,7 +140,9 @@ export function StudyPlanTab(): React.JSX.Element {
               <input
                 type="checkbox"
                 checked={item.done}
-                onChange={(event) => void useTrainingStore.getState().markDone(item.id, event.target.checked)}
+                onChange={(event) =>
+                  void useTrainingStore.getState().markDone(item.id, event.target.checked)
+                }
               />
               {t('training.plan.done')}
             </label>
@@ -128,8 +150,12 @@ export function StudyPlanTab(): React.JSX.Element {
               <span className={styles.planTitle}>{item.title}</span>
               <span className={styles.planWhy}>{item.why}</span>
               <span className={styles.rowMeta}>
-                <span className={styles.chip}>{t(`training.plan.activity.${item.activity.type}`)}</span>
-                {item.invalidRef ? <span className={styles.note}>{t('training.plan.invalid')}</span> : null}
+                <span className={styles.chip}>
+                  {t(`training.plan.activity.${item.activity.type}`)}
+                </span>
+                {item.invalidRef ? (
+                  <span className={styles.note}>{t('training.plan.invalid')}</span>
+                ) : null}
               </span>
             </div>
             <Button size="sm" onClick={() => openStudyItem(item)}>
@@ -161,11 +187,17 @@ export function StudyPlanSummary({ className }: { className?: string }): React.J
   }
 
   return (
-    <section className={cx(styles.card, className)} aria-label={t('training.plan.title')} data-testid="study-plan-summary">
+    <section
+      className={cx(styles.card, className)}
+      aria-label={t('training.plan.title')}
+      data-testid="study-plan-summary"
+    >
       <div className={styles.cardHead}>
         <h2 className={styles.cardTitle}>{t('training.plan.title')}</h2>
         {total > 0 ? (
-          <span className={cx(styles.note, 'mono')}>{t('training.plan.progress', { done, total })}</span>
+          <span className={cx(styles.note, 'mono')}>
+            {t('training.plan.progress', { done, total })}
+          </span>
         ) : null}
       </div>
 
@@ -173,7 +205,11 @@ export function StudyPlanSummary({ className }: { className?: string }): React.J
         <>
           <p className={styles.note}>{t('training.plan.summaryEmpty')}</p>
           <div className={styles.actions}>
-            <Button variant="primary" disabled={generating} onClick={() => void useTrainingStore.getState().generatePlan()}>
+            <Button
+              variant="primary"
+              disabled={generating}
+              onClick={() => void useTrainingStore.getState().generatePlan()}
+            >
               {generating ? t('training.plan.generating') : t('training.plan.generate')}
             </Button>
           </div>

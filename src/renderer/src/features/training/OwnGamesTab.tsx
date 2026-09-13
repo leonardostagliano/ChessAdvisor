@@ -24,7 +24,8 @@ export function OwnGamesTab(): React.JSX.Element {
   const selected = useTrainingStore((state) => state.selectedExercise)
   const setArea = useUiStore((state) => state.setArea)
   const own = exercisesOfKind(exercises, 'own_game')
-  const current: Exercise | null = own.find((exercise) => exercise.id === selected) ?? own[0] ?? null
+  const current: Exercise | null =
+    own.find((exercise) => exercise.id === selected) ?? own[0] ?? null
   const sourceGameId = current?.sourceGameId ?? null
   const sourcePly = current?.sourcePly ?? null
 
@@ -55,7 +56,11 @@ export function OwnGamesTab(): React.JSX.Element {
         {current ? (
           <ExercisePlayer exercise={current}>
             {sourceGameId ? (
-              <Button size="sm" variant="ghost" onClick={() => useUiStore.getState().openReview(sourceGameId, sourcePly)}>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => useUiStore.getState().openReview(sourceGameId, sourcePly)}
+              >
                 {t('training.own.openReview')}
               </Button>
             ) : null}
@@ -78,10 +83,18 @@ export function OwnGamesTab(): React.JSX.Element {
                 data-status={exercise.status}
                 onClick={() => useTrainingStore.getState().selectExercise(exercise.id)}
               >
-                <span className={styles.rowTitle}>{t(`themes.${exercise.theme}`, { defaultValue: exercise.theme })}</span>
+                <span className={styles.rowTitle}>
+                  {t(`themes.${exercise.theme}`, { defaultValue: exercise.theme })}
+                </span>
                 <span className={styles.rowMeta}>
-                  <span>{t('training.own.source', { date: new Date(exercise.createdAt).toLocaleDateString(i18n.language) })}</span>
-                  {typeof exercise.sourcePly === 'number' ? <span>{t('training.own.ply', { ply: exercise.sourcePly })}</span> : null}
+                  <span>
+                    {t('training.own.source', {
+                      date: new Date(exercise.createdAt).toLocaleDateString(i18n.language)
+                    })}
+                  </span>
+                  {typeof exercise.sourcePly === 'number' ? (
+                    <span>{t('training.own.ply', { ply: exercise.sourcePly })}</span>
+                  ) : null}
                   <span
                     className={cx(
                       styles.chip,

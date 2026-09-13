@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { compareVersions, isApplicationOrigin, stableVersion, UPDATE_PACKAGE_NAME, UPDATE_REPOSITORY } from './source'
+import {
+  compareVersions,
+  isApplicationOrigin,
+  stableVersion,
+  UPDATE_PACKAGE_NAME,
+  UPDATE_REPOSITORY
+} from './source'
 
 describe('stableVersion', () => {
   it('accepts a stable SemVer with or without the v prefix', () => {
@@ -9,7 +15,16 @@ describe('stableVersion', () => {
   })
 
   it('rejects pre-releases, build metadata, padded numbers and non-strings', () => {
-    for (const value of ['1.2.3-rc.1', '1.2.3+build', '01.2.3', '1.2', '1.2.3.4', 'v', '', 'latest']) {
+    for (const value of [
+      '1.2.3-rc.1',
+      '1.2.3+build',
+      '01.2.3',
+      '1.2',
+      '1.2.3.4',
+      'v',
+      '',
+      'latest'
+    ]) {
       expect(stableVersion(value), value).toBeUndefined()
     }
     expect(stableVersion(undefined)).toBeUndefined()

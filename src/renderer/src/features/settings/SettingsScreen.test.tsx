@@ -62,7 +62,11 @@ function mockApi(settings: Partial<Settings> = {}): void {
     value: {
       settings: { get: async () => ({ ...DEFAULT_SETTINGS, ...settings }), save },
       app: {
-        versionInfo: async () => ({ version: '0.1.0', isPackaged: false, testedCodexVersion: '0.154.0' }),
+        versionInfo: async () => ({
+          version: '0.1.0',
+          isPackaged: false,
+          testedCodexVersion: '0.154.0'
+        }),
         readNotices: async () => '# Third-party notices'
       },
       on: () => () => {}
@@ -76,14 +80,18 @@ async function optionsOf(name: string): Promise<string[]> {
     fireEvent.click(screen.getByRole('combobox', { name }))
   })
   const list = await screen.findByRole('listbox', { name })
-  return Array.from(list.querySelectorAll('[role="option"]')).map((node) => (node.textContent ?? '').trim())
+  return Array.from(list.querySelectorAll('[role="option"]')).map((node) =>
+    (node.textContent ?? '').trim()
+  )
 }
 
 beforeEach(() => {
   vi.clearAllMocks()
   mockApi({ defaultModel: 'gpt-6-astra', defaultEffort: 'medium' })
   useCodexStore.setState({ state: READY, models: READY.models, quota: READY.quota, ready: true })
-  useEngineStore.getState().apply({ available: true, binary: 'avx2', version: 'Stockfish 17', message: null })
+  useEngineStore
+    .getState()
+    .apply({ available: true, binary: 'avx2', version: 'Stockfish 17', message: null })
 })
 
 afterEach(() => {
@@ -157,7 +165,9 @@ describe('SettingsScreen', () => {
       fireEvent.click(screen.getByRole('switch', { name: /Impostazioni separate per il coach/ }))
     })
     expect(save).toHaveBeenCalledWith({ separateCoach: true })
-    await waitFor(() => expect(screen.getByRole('combobox', { name: 'Modello del coach' })).toBeInTheDocument())
+    await waitFor(() =>
+      expect(screen.getByRole('combobox', { name: 'Modello del coach' })).toBeInTheDocument()
+    )
     expect(screen.getByRole('combobox', { name: 'Impegno del coach' })).toBeInTheDocument()
   })
 
@@ -198,10 +208,14 @@ describe('SettingsScreen', () => {
 
   it('disables the model pickers and warns when no Codex session is ready', async () => {
     useCodexStore.setState({ state: INITIAL_CODEX_STATE, models: [], quota: null, ready: false })
-    useEngineStore.getState().apply({ available: false, binary: 'none', version: null, message: 'nessun binario' })
+    useEngineStore
+      .getState()
+      .apply({ available: false, binary: 'none', version: null, message: 'nessun binario' })
     render(<SettingsScreen />)
 
-    await waitFor(() => expect(screen.getByRole('combobox', { name: 'Modello predefinito' })).toBeDisabled())
+    await waitFor(() =>
+      expect(screen.getByRole('combobox', { name: 'Modello predefinito' })).toBeDisabled()
+    )
     expect(screen.getByRole('combobox', { name: 'Impegno predefinito' })).toBeDisabled()
     expect(screen.getByText('Non disponibile')).toBeInTheDocument()
     expect(screen.getByText('nessun binario')).toBeInTheDocument()

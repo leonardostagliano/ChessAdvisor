@@ -31,14 +31,22 @@ export function ThematicTab(): React.JSX.Element {
   }, [set])
 
   const newSet = (
-    <Button variant="primary" disabled={drawing} onClick={() => void useTrainingStore.getState().nextThematic()}>
+    <Button
+      variant="primary"
+      disabled={drawing}
+      onClick={() => void useTrainingStore.getState().nextThematic()}
+    >
       {drawing ? t('training.thematic.drawing') : t('training.thematic.newSet')}
     </Button>
   )
 
   if (!set) {
     return (
-      <EmptyState eyebrow={t('training.thematic.title')} title={t('training.thematic.emptyTitle')} body={t('training.thematic.emptyBody')}>
+      <EmptyState
+        eyebrow={t('training.thematic.title')}
+        title={t('training.thematic.emptyTitle')}
+        body={t('training.thematic.emptyBody')}
+      >
         <div className={styles.actions}>{newSet}</div>
       </EmptyState>
     )
@@ -53,13 +61,21 @@ export function ThematicTab(): React.JSX.Element {
 
   return (
     <div className={styles.panel}>
-      <section className={styles.card} aria-label={t('training.thematic.setLabel')} data-testid="thematic-set">
+      <section
+        className={styles.card}
+        aria-label={t('training.thematic.setLabel')}
+        data-testid="thematic-set"
+      >
         <div className={styles.cardHead}>
-          <h2 className={styles.cardTitle}>{t(`themes.${set.theme}`, { defaultValue: set.theme })}</h2>
+          <h2 className={styles.cardTitle}>
+            {t(`themes.${set.theme}`, { defaultValue: set.theme })}
+          </h2>
           <div className={styles.actions}>{newSet}</div>
         </div>
         <div className={styles.chips}>
-          <span className={cx(styles.chip, 'mono')}>{t('training.thematic.range', { min: set.ratingMin, max: set.ratingMax })}</span>
+          <span className={cx(styles.chip, 'mono')}>
+            {t('training.thematic.range', { min: set.ratingMin, max: set.ratingMax })}
+          </span>
           <span className={styles.chip} data-testid="thematic-solved">
             {t('training.thematic.solvedCount', { solved, total })}
           </span>
@@ -70,11 +86,22 @@ export function ThematicTab(): React.JSX.Element {
 
       {exercise ? (
         <section className={styles.card} aria-label={t('training.thematic.title')}>
-          <ExercisePlayer exercise={exercise} position={{ index: Math.min(index, total - 1) + 1, total }}>
-            <Button size="sm" disabled={index <= 0} onClick={() => setIndex((value) => Math.max(0, value - 1))}>
+          <ExercisePlayer
+            exercise={exercise}
+            position={{ index: Math.min(index, total - 1) + 1, total }}
+          >
+            <Button
+              size="sm"
+              disabled={index <= 0}
+              onClick={() => setIndex((value) => Math.max(0, value - 1))}
+            >
               {t('training.exercise.previous')}
             </Button>
-            <Button size="sm" disabled={index >= total - 1} onClick={() => setIndex((value) => Math.min(total - 1, value + 1))}>
+            <Button
+              size="sm"
+              disabled={index >= total - 1}
+              onClick={() => setIndex((value) => Math.min(total - 1, value + 1))}
+            >
               {t('training.exercise.next')}
             </Button>
           </ExercisePlayer>

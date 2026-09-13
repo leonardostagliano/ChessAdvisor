@@ -95,7 +95,10 @@ export function fenAtPly(game: Game | null | undefined, ply: number): string {
 }
 
 /** Origin and destination of the move played at `ply`, for the board highlight. */
-export function lastMoveAtPly(game: Game | null | undefined, ply: number): [string, string] | undefined {
+export function lastMoveAtPly(
+  game: Game | null | undefined,
+  ply: number
+): [string, string] | undefined {
   const move = game?.moves[ply]
   if (!move) return undefined
   return [move.uci.slice(0, 2), move.uci.slice(2, 4)]
@@ -328,7 +331,9 @@ export function initGameStore(): () => void {
   const api = bridge()
   if (!api) return () => {}
   const unsubscribe = api.on('game:state', (session) => useGameStore.getState().apply(session))
-  const unsubscribeStream = api.on('stream', (envelope) => useGameStore.getState().applyStream(envelope))
+  const unsubscribeStream = api.on('stream', (envelope) =>
+    useGameStore.getState().applyStream(envelope)
+  )
   void useGameStore.getState().refresh()
   return () => {
     unsubscribe()

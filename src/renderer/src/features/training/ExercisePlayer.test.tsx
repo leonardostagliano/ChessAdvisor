@@ -28,7 +28,12 @@ vi.mock('../../board/Board', () => ({
     viewOnly?: boolean
     movable?: { color?: string }
   }) => (
-    <div data-testid="board" data-fen={fen} data-viewonly={viewOnly ? 'true' : 'false'} data-movable={movable?.color ?? ''}>
+    <div
+      data-testid="board"
+      data-fen={fen}
+      data-viewonly={viewOnly ? 'true' : 'false'}
+      data-movable={movable?.color ?? ''}
+    >
       <button type="button" data-testid="play" onClick={() => onMove?.(board.move)}>
         play
       </button>
@@ -73,14 +78,32 @@ function mockApi(): void {
   })
 }
 
-const CORRECT: AttemptResult = { correct: true, done: false, reply: 'e7e5', fen: AFTER_E5, alternativesAccepted: false }
-const WRONG: AttemptResult = { correct: false, done: false, fen: START, alternativesAccepted: false }
+const CORRECT: AttemptResult = {
+  correct: true,
+  done: false,
+  reply: 'e7e5',
+  fen: AFTER_E5,
+  alternativesAccepted: false
+}
+const WRONG: AttemptResult = {
+  correct: false,
+  done: false,
+  fen: START,
+  alternativesAccepted: false
+}
 
 beforeEach(() => {
   vi.clearAllMocks()
   board.move = 'e2e4'
   mockApi()
-  useTrainingStore.setState({ request: null, activity: null, stream: null, explanations: {}, exercises: [], error: null })
+  useTrainingStore.setState({
+    request: null,
+    activity: null,
+    stream: null,
+    explanations: {},
+    exercises: [],
+    error: null
+  })
 })
 
 afterEach(() => {
@@ -106,7 +129,9 @@ describe('ExercisePlayer', () => {
     render(<ExercisePlayer exercise={exercise()} />)
     fireEvent.click(screen.getByTestId('play'))
 
-    await waitFor(() => expect(screen.getByTestId('exercise-feedback')).toHaveTextContent('Mossa corretta.'))
+    await waitFor(() =>
+      expect(screen.getByTestId('exercise-feedback')).toHaveTextContent('Mossa corretta.')
+    )
     expect(attempt).toHaveBeenCalledWith('ex1', 'e2e4')
     // The user's move lands first, the reply a moment later: never one single jump.
     expect(screen.getByTestId('board')).toHaveAttribute('data-fen', AFTER_E4_PLAYED)
@@ -115,22 +140,38 @@ describe('ExercisePlayer', () => {
 
   it('announces the exercise as solved and says so to whoever is showing it', async () => {
     const onSolved = vi.fn()
-    attempt.mockResolvedValueOnce({ correct: true, done: true, fen: AFTER_E4, alternativesAccepted: false })
+    attempt.mockResolvedValueOnce({
+      correct: true,
+      done: true,
+      fen: AFTER_E4,
+      alternativesAccepted: false
+    })
     render(<ExercisePlayer exercise={exercise({ solution: ['e2e4'] })} onSolved={onSolved} />)
     fireEvent.click(screen.getByTestId('play'))
 
-    await waitFor(() => expect(screen.getByTestId('exercise-feedback')).toHaveTextContent('Esercizio risolto.'))
+    await waitFor(() =>
+      expect(screen.getByTestId('exercise-feedback')).toHaveTextContent('Esercizio risolto.')
+    )
     expect(onSolved).toHaveBeenCalledTimes(1)
     // A solved exercise is not playable any more.
-    await waitFor(() => expect(screen.getByTestId('board')).toHaveAttribute('data-viewonly', 'true'))
+    await waitFor(() =>
+      expect(screen.getByTestId('board')).toHaveAttribute('data-viewonly', 'true')
+    )
   })
 
   it('says an equally good alternative was accepted', async () => {
-    attempt.mockResolvedValueOnce({ correct: true, done: true, fen: AFTER_E4, alternativesAccepted: true })
+    attempt.mockResolvedValueOnce({
+      correct: true,
+      done: true,
+      fen: AFTER_E4,
+      alternativesAccepted: true
+    })
     render(<ExercisePlayer exercise={exercise()} />)
     fireEvent.click(screen.getByTestId('play'))
     await waitFor(() =>
-      expect(screen.getByTestId('exercise-feedback')).toHaveTextContent('Mossa corretta: un’alternativa altrettanto buona.')
+      expect(screen.getByTestId('exercise-feedback')).toHaveTextContent(
+        'Mossa corretta: un’alternativa altrettanto buona.'
+      )
     )
   })
 
@@ -140,7 +181,9 @@ describe('ExercisePlayer', () => {
     render(<ExercisePlayer exercise={exercise()} />)
 
     fireEvent.click(screen.getByTestId('play'))
-    await waitFor(() => expect(screen.getByTestId('exercise-feedback')).toHaveTextContent('Non è la mossa migliore'))
+    await waitFor(() =>
+      expect(screen.getByTestId('exercise-feedback')).toHaveTextContent('Non è la mossa migliore')
+    )
     expect(screen.getByTestId('board')).toHaveAttribute('data-fen', START)
     expect(screen.queryByRole('button', { name: 'Mostra soluzione' })).toBeNull()
 
@@ -164,7 +207,11 @@ describe('ExercisePlayer', () => {
     expect(screen.getByTestId('explanation-card')).toHaveTextContent('Il cavallo forchetta')
 
     act(() => {
-      useTrainingStore.setState({ activity: null, stream: null, explanations: { ex1: 'Spiegazione finta.' } })
+      useTrainingStore.setState({
+        activity: null,
+        stream: null,
+        explanations: { ex1: 'Spiegazione finta.' }
+      })
     })
     expect(screen.getByTestId('explanation-card')).toHaveTextContent('Spiegazione finta.')
   })

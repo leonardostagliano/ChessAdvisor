@@ -1,6 +1,14 @@
 import type { CoachLogEntry, Move } from '@shared/types/game'
 import { describe, expect, it } from 'vitest'
-import { HINT_SCHEMA, adviceText, coachBaseInstructions, commentText, hintText, resumeSummaryText, type EngineContext } from './coachPrompts'
+import {
+  HINT_SCHEMA,
+  adviceText,
+  coachBaseInstructions,
+  commentText,
+  hintText,
+  resumeSummaryText,
+  type EngineContext
+} from './coachPrompts'
 
 const FEN_BEFORE = 'rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq e6 0 2'
 const FEN_AFTER = 'rnbqkbnr/pppp1ppp/8/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 1 2'
@@ -83,7 +91,14 @@ describe('commentText', () => {
   })
 
   it('says there is no engine data at all in the oracle-less mode', () => {
-    const text = commentText({ move, by: 'user', fen: FEN_AFTER, pgn: PGN, engine: null, language: 'it' })
+    const text = commentText({
+      move,
+      by: 'user',
+      fen: FEN_AFTER,
+      pgn: PGN,
+      engine: null,
+      language: 'it'
+    })
     expect(text).toMatch(/senza oracolo/)
     expect(text).not.toMatch(/Stockfish \(valutazioni/)
     expect(text).not.toContain('+0.35')
@@ -100,7 +115,13 @@ describe('commentText', () => {
 
 describe('adviceText', () => {
   it('quotes the question and the position, and asks for prose', () => {
-    const text = adviceText({ question: '  Perché non posso arroccare?  ', fen: FEN_BEFORE, pgn: PGN, engine, language: 'it' })
+    const text = adviceText({
+      question: '  Perché non posso arroccare?  ',
+      fen: FEN_BEFORE,
+      pgn: PGN,
+      engine,
+      language: 'it'
+    })
     expect(text).toContain('Domanda: Perché non posso arroccare?')
     expect(text).toContain(`FEN: ${FEN_BEFORE}`)
     expect(text).toContain('PGN: 1. e4 e5 2. Nf3')
@@ -111,7 +132,13 @@ describe('adviceText', () => {
   })
 
   it('keeps working without the engine', () => {
-    const text = adviceText({ question: 'che piano ho?', fen: FEN_BEFORE, pgn: PGN, engine: null, language: 'it' })
+    const text = adviceText({
+      question: 'che piano ho?',
+      fen: FEN_BEFORE,
+      pgn: PGN,
+      engine: null,
+      language: 'it'
+    })
     expect(text).toMatch(/senza oracolo/)
     expect(text).toContain('Domanda: che piano ho?')
   })
@@ -148,7 +175,9 @@ describe('resumeSummaryText', () => {
   })
 
   it('keeps only the last ten entries, in order', () => {
-    const log = Array.from({ length: 14 }, (_, index) => entry(index + 1, index % 2 === 0 ? 'question' : 'answer'))
+    const log = Array.from({ length: 14 }, (_, index) =>
+      entry(index + 1, index % 2 === 0 ? 'question' : 'answer')
+    )
     const text = resumeSummaryText(log, 'it')
     expect(text).not.toContain('testo 4')
     expect(text).toContain('testo 5')

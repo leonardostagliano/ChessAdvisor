@@ -11,10 +11,13 @@ const ENGINE_BINARIES = ['avx2', 'popcnt', 'none'] as const
 const MIN_TURN_TIMEOUT_SEC = 10
 const MAX_TURN_TIMEOUT_SEC = 3600
 
-const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value)
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value)
 
 function oneOf<T extends string>(value: unknown, allowed: readonly T[], fallback: T): T {
-  return typeof value === 'string' && (allowed as readonly string[]).includes(value) ? (value as T) : fallback
+  return typeof value === 'string' && (allowed as readonly string[]).includes(value)
+    ? (value as T)
+    : fallback
 }
 
 function bool(value: unknown, fallback: boolean): boolean {
@@ -26,19 +29,26 @@ function nullableString(value: unknown, fallback: string | null): string | null 
   return typeof value === 'string' && value.length > 0 ? value : fallback
 }
 
-function engineBinary(value: unknown, fallback: Settings['engineBinary']): Settings['engineBinary'] {
+function engineBinary(
+  value: unknown,
+  fallback: Settings['engineBinary']
+): Settings['engineBinary'] {
   if (value === null) return null
-  if (typeof value === 'string' && (ENGINE_BINARIES as readonly string[]).includes(value)) return value as 'avx2' | 'popcnt' | 'none'
+  if (typeof value === 'string' && (ENGINE_BINARIES as readonly string[]).includes(value))
+    return value as 'avx2' | 'popcnt' | 'none'
   return fallback
 }
 
 /** Task 9: the new-game dialog remembers the last difficulty; an unknown shape falls back. */
 function difficulty(value: unknown, fallback: DifficultyChoice): DifficultyChoice {
   if (!isRecord(value)) return { ...fallback }
-  const mode = value.mode === 'adaptive' ? 'adaptive' : value.mode === 'fixed' ? 'fixed' : fallback.mode
+  const mode =
+    value.mode === 'adaptive' ? 'adaptive' : value.mode === 'fixed' ? 'fixed' : fallback.mode
   const raw = value.level
   const level: DifficultyLevel =
-    typeof raw === 'number' && Number.isInteger(raw) && raw >= 1 && raw <= 6 ? (raw as DifficultyLevel) : fallback.level
+    typeof raw === 'number' && Number.isInteger(raw) && raw >= 1 && raw <= 6
+      ? (raw as DifficultyLevel)
+      : fallback.level
   return { mode, level }
 }
 
@@ -91,7 +101,11 @@ export class SettingsStore {
   }
 
   get(): Settings {
-    return { ...this.current, lastDifficulty: { ...this.current.lastDifficulty }, updates: { ...this.current.updates } }
+    return {
+      ...this.current,
+      lastDifficulty: { ...this.current.lastDifficulty },
+      updates: { ...this.current.updates }
+    }
   }
 
   async save(patch: Partial<Settings>): Promise<Settings> {

@@ -88,7 +88,10 @@ function parseAnswer(text: string): { move: string; shortComment: string | null 
   const record = parsed as Record<string, unknown>
   if (typeof record.move !== 'string' || record.move.trim().length === 0) return null
   const comment = record.shortComment
-  return { move: record.move, shortComment: typeof comment === 'string' && comment.length > 0 ? comment : null }
+  return {
+    move: record.move,
+    shortComment: typeof comment === 'string' && comment.length > 0 ? comment : null
+  }
 }
 
 function retryText(previous: string, raw: string, language: 'it' | 'en'): string {
@@ -101,7 +104,13 @@ function retryText(previous: string, raw: string, language: 'it' | 'en'): string
 }
 
 /** Failures that are worth another attempt; `quota` and `interrupted` never are. */
-const RETRYABLE: readonly TurnFailureReason[] = ['failed', 'timeout', 'invalid-items', 'no-message', 'server-request']
+const RETRYABLE: readonly TurnFailureReason[] = [
+  'failed',
+  'timeout',
+  'invalid-items',
+  'no-message',
+  'server-request'
+]
 
 function describeFailure(result: Extract<TurnResult, { ok: false }>): string {
   return `${result.reason}: ${result.message}`
@@ -120,7 +129,10 @@ async function engineMove(deps: OpponentDeps, fen: string): Promise<LegalMove | 
   }
 }
 
-export async function playOpponentTurn(deps: OpponentDeps, p: OpponentTurnParams): Promise<OpponentMove> {
+export async function playOpponentTurn(
+  deps: OpponentDeps,
+  p: OpponentTurnParams
+): Promise<OpponentMove> {
   const legal = legalMoves(p.fen)
   if (legal.length === 0) throw new Error(`no legal move in ${p.fen}`)
 

@@ -22,19 +22,25 @@ const read = async (): Promise<RuntimeState> => {
 export async function recordPid(name: string, pid: number): Promise<void> {
   const state = await read()
   state.pids[name] = pid
-  await writeJsonAtomic(runtimeFile(), state).catch((error) => console.error('[runtime] could not record pid:', error))
+  await writeJsonAtomic(runtimeFile(), state).catch((error) =>
+    console.error('[runtime] could not record pid:', error)
+  )
 }
 
 export async function forgetPid(name: string): Promise<void> {
   const state = await read()
   if (!(name in state.pids)) return
   delete state.pids[name]
-  await writeJsonAtomic(runtimeFile(), state).catch((error) => console.error('[runtime] could not forget pid:', error))
+  await writeJsonAtomic(runtimeFile(), state).catch((error) =>
+    console.error('[runtime] could not forget pid:', error)
+  )
 }
 
 const run = (exe: string, args: string[]): Promise<string> =>
   new Promise((resolve) => {
-    execFile(exe, args, { windowsHide: true, timeout: 5000 }, (error, stdout) => resolve(error ? '' : stdout))
+    execFile(exe, args, { windowsHide: true, timeout: 5000 }, (error, stdout) =>
+      resolve(error ? '' : stdout)
+    )
   })
 
 /** Image name of a running pid, or null when the pid is gone (Windows only). */
@@ -64,6 +70,8 @@ export async function killStalePids(): Promise<string[]> {
       killed.push(name)
     }
   }
-  await writeJsonAtomic(runtimeFile(), EMPTY).catch((error) => console.error('[runtime] could not reset runtime.json:', error))
+  await writeJsonAtomic(runtimeFile(), EMPTY).catch((error) =>
+    console.error('[runtime] could not reset runtime.json:', error)
+  )
   return killed
 }

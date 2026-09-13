@@ -1,6 +1,11 @@
 import { create } from 'zustand'
 import { parseIpcError } from '@shared/ipcError'
-import type { AnalysisProgress, AnalysisStatus, ReviewActivity, StreamEnvelope } from '@shared/types/api'
+import type {
+  AnalysisProgress,
+  AnalysisStatus,
+  ReviewActivity,
+  StreamEnvelope
+} from '@shared/types/api'
 import type { Game } from '@shared/types/game'
 
 /**
@@ -108,7 +113,10 @@ export const useReviewStore = create<ReviewStoreState>((set, get) => {
    * One review turn. Like the coach's, it is deliberately outside any global "busy" flag: a
    * comment can take half a minute and must not grey the whole screen out, only its own button.
    */
-  async function turn(kind: ReviewRequest, run: (api: Window['api'], gameId: string) => Promise<void>): Promise<void> {
+  async function turn(
+    kind: ReviewRequest,
+    run: (api: Window['api'], gameId: string) => Promise<void>
+  ): Promise<void> {
     const api = bridge()
     const gameId = get().gameId
     if (!api || !gameId) return
@@ -139,7 +147,12 @@ export const useReviewStore = create<ReviewStoreState>((set, get) => {
         if (get().gameId !== gameId) return
         const status = await api.analysis.status(gameId)
         if (get().gameId !== gameId) return
-        set({ game, status, loading: false, cursor: clampCursor(game, (game?.moves.length ?? 0) - 1) })
+        set({
+          game,
+          status,
+          loading: false,
+          cursor: clampCursor(game, (game?.moves.length ?? 0) - 1)
+        })
         // The analysis of a game that has just finished is already running: joining it costs
         // nothing (the main process hands back the very same promise) and fills the screen.
         if (status.state === 'running') void get().analyze()

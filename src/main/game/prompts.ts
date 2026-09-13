@@ -1,5 +1,10 @@
 import type { LegalMove } from '@shared/chess/notation'
-import { DIFFICULTY_LEVELS, nearestLevel, type DifficultyLevel, type OpponentDifficulty } from '@shared/types/session'
+import {
+  DIFFICULTY_LEVELS,
+  nearestLevel,
+  type DifficultyLevel,
+  type OpponentDifficulty
+} from '@shared/types/session'
 
 /**
  * The opponent's prompts (spec §4.1).
@@ -20,19 +25,23 @@ const PERSONAS: Record<'it' | 'en', Record<DifficultyLevel, Persona>> = {
   it: {
     1: {
       name: 'Principiante',
-      description: 'conosci le regole e giochi mosse naturali, senza piani; lasci spesso pezzi in presa'
+      description:
+        'conosci le regole e giochi mosse naturali, senza piani; lasci spesso pezzi in presa'
     },
     2: {
       name: 'Facile',
-      description: 'conosci i principi di base dell’apertura e vedi le catture in una mossa, ma ti sfuggono spesso le tattiche in due'
+      description:
+        'conosci i principi di base dell’apertura e vedi le catture in una mossa, ma ti sfuggono spesso le tattiche in due'
     },
     3: {
       name: 'Medio',
-      description: 'apertura solida e tattiche semplici, con occasionali errori posizionali; ti sfuggono le combinazioni profonde'
+      description:
+        'apertura solida e tattiche semplici, con occasionali errori posizionali; ti sfuggono le combinazioni profonde'
     },
     4: {
       name: 'Impegnativo',
-      description: 'giocatore di circolo: tattica a due o tre mosse, piani coerenti, imprecisioni occasionali'
+      description:
+        'giocatore di circolo: tattica a due o tre mosse, piani coerenti, imprecisioni occasionali'
     },
     5: {
       name: 'Forte',
@@ -46,15 +55,18 @@ const PERSONAS: Record<'it' | 'en', Record<DifficultyLevel, Persona>> = {
   en: {
     1: {
       name: 'Beginner',
-      description: 'you know the rules and play natural moves without plans; you often leave pieces hanging'
+      description:
+        'you know the rules and play natural moves without plans; you often leave pieces hanging'
     },
     2: {
       name: 'Easy',
-      description: 'you know basic opening principles and see one-move captures, but you often miss two-move tactics'
+      description:
+        'you know basic opening principles and see one-move captures, but you often miss two-move tactics'
     },
     3: {
       name: 'Medium',
-      description: 'solid openings and simple tactics with occasional positional mistakes; you miss deep combinations'
+      description:
+        'solid openings and simple tactics with occasional positional mistakes; you miss deep combinations'
     },
     4: {
       name: 'Challenging',
@@ -80,11 +92,17 @@ const COLOR_NAME: Record<'it' | 'en', { w: string; b: string }> = {
  * `baseInstructions` of the opponent thread: the whole system prompt, difficulty included.
  * Recreated for every game (and on resume), never mid-game.
  */
-export function opponentBaseInstructions(p: { color: 'w' | 'b'; difficulty: OpponentDifficulty; language: 'it' | 'en' }): string {
+export function opponentBaseInstructions(p: {
+  color: 'w' | 'b'
+  difficulty: OpponentDifficulty
+  language: 'it' | 'en'
+}): string {
   const { language, difficulty } = p
   // Adaptive plays the persona of the closest rated level with its own exact target Elo.
-  const level: DifficultyLevel = difficulty.mode === 'adaptive' ? nearestLevel(difficulty.targetElo ?? 1200) : difficulty.level
-  const targetElo = difficulty.mode === 'adaptive' ? (difficulty.targetElo ?? 1200) : DIFFICULTY_LEVELS[level].elo
+  const level: DifficultyLevel =
+    difficulty.mode === 'adaptive' ? nearestLevel(difficulty.targetElo ?? 1200) : difficulty.level
+  const targetElo =
+    difficulty.mode === 'adaptive' ? (difficulty.targetElo ?? 1200) : DIFFICULTY_LEVELS[level].elo
   const persona = PERSONAS[language][level]
   const lines: string[] = []
 
@@ -98,7 +116,9 @@ export function opponentBaseInstructions(p: { color: 'w' | 'b'; difficulty: Oppo
       `Livello di gioco: ${persona.name} — ${persona.description}.`
     )
     if (targetElo === null) {
-      lines.push('Gioca la mossa migliore che riesci a trovare: non limitare volontariamente la tua forza.')
+      lines.push(
+        'Gioca la mossa migliore che riesci a trovare: non limitare volontariamente la tua forza.'
+      )
     } else {
       lines.push(
         `Elo obiettivo: circa ${targetElo}.`,
@@ -169,9 +189,15 @@ export function opponentTurnText(p: {
   const lines: string[] = []
 
   if (p.lastUserMove) {
-    lines.push(it ? `Ultima mossa dell’avversario: ${p.lastUserMove}` : `Your opponent's last move: ${p.lastUserMove}`)
+    lines.push(
+      it
+        ? `Ultima mossa dell’avversario: ${p.lastUserMove}`
+        : `Your opponent's last move: ${p.lastUserMove}`
+    )
   } else {
-    lines.push(it ? 'Tocca a te muovere in questa posizione.' : 'It is your turn to move in this position.')
+    lines.push(
+      it ? 'Tocca a te muovere in questa posizione.' : 'It is your turn to move in this position.'
+    )
   }
   if (p.takebackNotice !== null && p.takebackNotice > 0) {
     lines.push(
@@ -201,7 +227,10 @@ export const OPPONENT_MOVE_SCHEMA = {
   required: ['move', 'shortComment'],
   additionalProperties: false,
   properties: {
-    move: { type: 'string', description: 'una mossa presa esattamente dalla lista fornita, in SAN' },
+    move: {
+      type: 'string',
+      description: 'una mossa presa esattamente dalla lista fornita, in SAN'
+    },
     shortComment: { type: ['string', 'null'] }
   }
 } as const

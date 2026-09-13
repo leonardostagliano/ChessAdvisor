@@ -29,7 +29,13 @@ export interface LevelCardProps {
   className?: string
 }
 
-export function LevelCard({ level, qualitative, busy = false, onRefresh, className }: LevelCardProps): React.JSX.Element {
+export function LevelCard({
+  level,
+  qualitative,
+  busy = false,
+  onRefresh,
+  className
+}: LevelCardProps): React.JSX.Element {
   const { t, i18n } = useTranslation()
   const confidence = Math.round(Math.min(1, Math.max(0, level.confidence)) * 100)
   const band = t(`progress.band.${level.band}`)
@@ -75,11 +81,15 @@ export function LevelCard({ level, qualitative, busy = false, onRefresh, classNa
         <div className={styles.levelTexts}>
           <p className={styles.band}>{band}</p>
           <p className={styles.estimate}>
-            {estimated ? t('progress.estimateValue', { value: level.estimate }) : t('progress.noEstimate')}
+            {estimated
+              ? t('progress.estimateValue', { value: level.estimate })
+              : t('progress.noEstimate')}
           </p>
           <p className={styles.note}>{t('progress.confidenceHint')}</p>
           {Number.isNaN(updated.getTime()) || updated.getTime() === 0 ? null : (
-            <p className={styles.note}>{t('progress.updated', { date: updated.toLocaleDateString(i18n.language) })}</p>
+            <p className={styles.note}>
+              {t('progress.updated', { date: updated.toLocaleDateString(i18n.language) })}
+            </p>
           )}
         </div>
       </div>

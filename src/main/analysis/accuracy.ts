@@ -8,7 +8,8 @@
  * position that was already swinging.
  */
 
-const clamp = (value: number, min: number, max: number): number => Math.min(max, Math.max(min, value))
+const clamp = (value: number, min: number, max: number): number =>
+  Math.min(max, Math.max(min, value))
 
 /** Bounds of the volatility weights, as in lichess. */
 const MIN_WEIGHT = 0.5
@@ -40,7 +41,10 @@ function standardDeviation(values: number[]): number {
  *
  * A colour that never moved gets 100: there is nothing to judge, and nothing was lost.
  */
-export function gameAccuracy(perMove: { loss: number; winBefore: number; mover?: 'w' | 'b' }[], color: 'w' | 'b'): number {
+export function gameAccuracy(
+  perMove: { loss: number; winBefore: number; mover?: 'w' | 'b' }[],
+  color: 'w' | 'b'
+): number {
   const series = perMove.map((entry) => (Number.isFinite(entry.winBefore) ? entry.winBefore : 50))
   const total = series.length
   if (total === 0) return 100
@@ -64,8 +68,12 @@ export function gameAccuracy(perMove: { loss: number; winBefore: number; mover?:
   if (mine.length === 0) return 100
 
   const weightSum = mine.reduce((sum, entry) => sum + entry.weight, 0)
-  const weighted = weightSum > 0 ? mine.reduce((sum, entry) => sum + entry.accuracy * entry.weight, 0) / weightSum : mine.reduce((sum, entry) => sum + entry.accuracy, 0) / mine.length
-  const harmonic = mine.length / mine.reduce((sum, entry) => sum + 1 / Math.max(HARMONIC_FLOOR, entry.accuracy), 0)
+  const weighted =
+    weightSum > 0
+      ? mine.reduce((sum, entry) => sum + entry.accuracy * entry.weight, 0) / weightSum
+      : mine.reduce((sum, entry) => sum + entry.accuracy, 0) / mine.length
+  const harmonic =
+    mine.length / mine.reduce((sum, entry) => sum + 1 / Math.max(HARMONIC_FLOOR, entry.accuracy), 0)
 
   return clamp((weighted + harmonic) / 2, 0, 100)
 }
@@ -76,8 +84,14 @@ export function gameAccuracy(perMove: { loss: number; winBefore: number; mover?:
  * says nothing about how well you play.
  */
 export function acpl(moves: { cpLossInternal: number; evalBeforeCp: number }[]): number {
-  const counted = moves.filter((move) => Number.isFinite(move.evalBeforeCp) && Math.abs(move.evalBeforeCp) <= 800)
+  const counted = moves.filter(
+    (move) => Number.isFinite(move.evalBeforeCp) && Math.abs(move.evalBeforeCp) <= 800
+  )
   if (counted.length === 0) return 0
-  const sum = counted.reduce((total, move) => total + clamp(Number.isFinite(move.cpLossInternal) ? move.cpLossInternal : 0, 0, 1000), 0)
+  const sum = counted.reduce(
+    (total, move) =>
+      total + clamp(Number.isFinite(move.cpLossInternal) ? move.cpLossInternal : 0, 0, 1000),
+    0
+  )
   return sum / counted.length
 }

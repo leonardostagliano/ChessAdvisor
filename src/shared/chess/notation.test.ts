@@ -96,15 +96,27 @@ describe('gameStatus', () => {
   })
 
   it('detects stalemate', () => {
-    expect(gameStatus('7k/5Q2/6K1/8/8/8/8/8 b - - 0 1')).toEqual({ over: true, reason: 'stalemate', check: false })
+    expect(gameStatus('7k/5Q2/6K1/8/8/8/8/8 b - - 0 1')).toEqual({
+      over: true,
+      reason: 'stalemate',
+      check: false
+    })
   })
 
   it('detects insufficient material', () => {
-    expect(gameStatus('8/8/8/4k3/8/8/4K3/7B w - - 0 1')).toEqual({ over: true, reason: 'insufficient', check: false })
+    expect(gameStatus('8/8/8/4k3/8/8/4K3/7B w - - 0 1')).toEqual({
+      over: true,
+      reason: 'insufficient',
+      check: false
+    })
   })
 
   it('detects the fifty-move rule from the halfmove clock', () => {
-    expect(gameStatus('8/8/4k3/8/8/4K3/8/6R1 w - - 100 60')).toEqual({ over: true, reason: 'fifty', check: false })
+    expect(gameStatus('8/8/4k3/8/8/4K3/8/6R1 w - - 100 60')).toEqual({
+      over: true,
+      reason: 'fifty',
+      check: false
+    })
   })
 
   it('detects threefold repetition from the position history', () => {
@@ -122,7 +134,10 @@ describe('gameStatus', () => {
   })
 
   it('reports an ongoing position with check', () => {
-    expect(gameStatus('r1bqkbnr/pppp1Qpp/2n5/4p3/4P3/8/PPPP1PPP/RNB1KBNR b KQkq - 0 3')).toEqual({ over: false, check: true })
+    expect(gameStatus('r1bqkbnr/pppp1Qpp/2n5/4p3/4P3/8/PPPP1PPP/RNB1KBNR b KQkq - 0 3')).toEqual({
+      over: false,
+      check: true
+    })
   })
 
   it('never reports a broken FEN as finished', () => {

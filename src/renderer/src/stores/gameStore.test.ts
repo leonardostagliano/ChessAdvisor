@@ -27,7 +27,11 @@ function game(): Game {
     kind: 'match',
     status: 'in_progress',
     userColor: 'w',
-    opponent: { model: 'gpt-6-astra', effort: 'low', difficulty: { mode: 'fixed', level: 3, targetElo: 1200 } },
+    opponent: {
+      model: 'gpt-6-astra',
+      effort: 'low',
+      difficulty: { mode: 'fixed', level: 3, targetElo: 1200 }
+    },
     coach: { model: 'gpt-6-astra', effort: 'low' },
     clock: null,
     language: 'it',
@@ -42,7 +46,15 @@ function game(): Game {
 }
 
 function session(patch: Partial<SessionState> = {}): SessionState {
-  return { ...EMPTY_SESSION, game: game(), fen: FEN_3, turn: 'b', userToMove: false, status: 'playing', ...patch }
+  return {
+    ...EMPTY_SESSION,
+    game: game(),
+    fen: FEN_3,
+    turn: 'b',
+    userToMove: false,
+    status: 'playing',
+    ...patch
+  }
 }
 
 beforeEach(() => {
@@ -67,7 +79,11 @@ describe('gameStore', () => {
   })
 
   it('mirrors game:state, including the derived aiThinking flag', () => {
-    useGameStore.getState().apply(session({ ai: { thinking: true, startedAt: 10, reasoning: 'ok', retries: 0, streamId: 's1' } }))
+    useGameStore.getState().apply(
+      session({
+        ai: { thinking: true, startedAt: 10, reasoning: 'ok', retries: 0, streamId: 's1' }
+      })
+    )
     const state = useGameStore.getState()
     expect(state.session.fen).toBe(FEN_3)
     expect(state.aiThinking).toBe(true)
@@ -157,7 +173,12 @@ describe('gameStore', () => {
   it('never marks the store busy for a browse eval, so the controls stay usable', async () => {
     // Held in an object so TypeScript cannot narrow the assignment away to `null`.
     const deferred = { resolve: () => {} }
-    const navigateEval = vi.fn(() => new Promise<void>((resolve) => { deferred.resolve = resolve }))
+    const navigateEval = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          deferred.resolve = resolve
+        })
+    )
     vi.stubGlobal('window', Object.assign(window, { api: { game: { navigateEval } } }))
 
     const pending = useGameStore.getState().navigateEval(FEN_2)
@@ -179,7 +200,12 @@ describe('gameStore', () => {
 
   it('runs a coach turn without marking the store busy, and remembers what it asked for', async () => {
     const deferred = { resolve: (_: SessionState) => {} }
-    const askCoach = vi.fn(() => new Promise<SessionState>((resolve) => { deferred.resolve = resolve }))
+    const askCoach = vi.fn(
+      () =>
+        new Promise<SessionState>((resolve) => {
+          deferred.resolve = resolve
+        })
+    )
     vi.stubGlobal('window', Object.assign(window, { api: { game: { askCoach } } }))
 
     const pending = useGameStore.getState().askCoach('  Che piano seguo?  ')
@@ -196,13 +222,46 @@ describe('gameStore', () => {
   })
 
   it('collects the deltas of the coach turn in flight and ignores every other stream', () => {
-    useGameStore.getState().apply(session({ coach: { ...EMPTY_SESSION.coach, busy: true, streamId: 's-coach' } }))
+    useGameStore
+      .getState()
+      .apply(session({ coach: { ...EMPTY_SESSION.coach, busy: true, streamId: 's-coach' } }))
     const store = useGameStore.getState()
-    store.applyStream({ streamId: 's-ai', threadId: 't', turnId: 'u', itemId: 'i', kind: 'text', chunk: 'ignored' })
-    store.applyStream({ streamId: 's-coach', threadId: 't', turnId: 'u', itemId: 'i', kind: 'reasoning', chunk: 'ignored' })
-    store.applyStream({ streamId: 's-coach', threadId: 't', turnId: 'u', itemId: 'i', kind: 'text', chunk: 'Buona ' })
-    store.applyStream({ streamId: 's-coach', threadId: 't', turnId: 'u', itemId: 'i', kind: 'text', chunk: 'apertura.' })
-    expect(useGameStore.getState().coachStream).toEqual({ streamId: 's-coach', text: 'Buona apertura.' })
+    store.applyStream({
+      streamId: 's-ai',
+      threadId: 't',
+      turnId: 'u',
+      itemId: 'i',
+      kind: 'text',
+      chunk: 'ignored'
+    })
+    store.applyStream({
+      streamId: 's-coach',
+      threadId: 't',
+      turnId: 'u',
+      itemId: 'i',
+      kind: 'reasoning',
+      chunk: 'ignored'
+    })
+    store.applyStream({
+      streamId: 's-coach',
+      threadId: 't',
+      turnId: 'u',
+      itemId: 'i',
+      kind: 'text',
+      chunk: 'Buona '
+    })
+    store.applyStream({
+      streamId: 's-coach',
+      threadId: 't',
+      turnId: 'u',
+      itemId: 'i',
+      kind: 'text',
+      chunk: 'apertura.'
+    })
+    expect(useGameStore.getState().coachStream).toEqual({
+      streamId: 's-coach',
+      text: 'Buona apertura.'
+    })
 
     // A different game starts with an empty feed.
     useGameStore.getState().apply(session({ game: { ...game(), id: 'g2' } }))
@@ -210,7 +269,13 @@ describe('gameStore', () => {
   })
 
   it('keeps the failure of a call in the store instead of throwing at the caller', async () => {
-    const resign = vi.fn().mockRejectedValue(new Error("Error invoking remote method 'game:resign': GameError: NO_GAME: no game is running"))
+    const resign = vi
+      .fn()
+      .mockRejectedValue(
+        new Error(
+          "Error invoking remote method 'game:resign': GameError: NO_GAME: no game is running"
+        )
+      )
     vi.stubGlobal('window', Object.assign(window, { api: { game: { resign } } }))
 
     await expect(useGameStore.getState().resign()).resolves.toBeUndefined()

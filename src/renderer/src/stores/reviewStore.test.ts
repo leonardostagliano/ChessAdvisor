@@ -1,14 +1,35 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { encodeIpcErrorMessage } from '@shared/ipcError'
 import type { Game, Move } from '@shared/types/game'
-import { IDLE_STATUS, clampCursor, cursorOfPly, initReviewStore, useReviewStore } from './reviewStore'
+import {
+  IDLE_STATUS,
+  clampCursor,
+  cursorOfPly,
+  initReviewStore,
+  useReviewStore
+} from './reviewStore'
 
 const FEN_1 = 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1'
 const FEN_2 = 'rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq e6 0 2'
 const FEN_3 = 'rnbqkbnr/pppp1ppp/8/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 1 2'
 
-function move(ply: number, san: string, uci: string, fenAfter: string, by: Move['by'], patch: Partial<Move> = {}): Move {
-  return { ply, san, uci, fenAfter, epdAfter: fenAfter.split(' ').slice(0, 4).join(' '), by, ...patch }
+function move(
+  ply: number,
+  san: string,
+  uci: string,
+  fenAfter: string,
+  by: Move['by'],
+  patch: Partial<Move> = {}
+): Move {
+  return {
+    ply,
+    san,
+    uci,
+    fenAfter,
+    epdAfter: fenAfter.split(' ').slice(0, 4).join(' '),
+    by,
+    ...patch
+  }
 }
 
 function game(patch: Partial<Game> = {}): Game {
@@ -19,11 +40,19 @@ function game(patch: Partial<Game> = {}): Game {
     kind: 'match',
     status: 'finished',
     userColor: 'w',
-    opponent: { model: 'gpt-6-astra', effort: 'low', difficulty: { mode: 'fixed', level: 3, targetElo: 1200 } },
+    opponent: {
+      model: 'gpt-6-astra',
+      effort: 'low',
+      difficulty: { mode: 'fixed', level: 3, targetElo: 1200 }
+    },
     coach: { model: 'gpt-6-astra', effort: 'low' },
     clock: null,
     language: 'it',
-    moves: [move(1, 'e4', 'e2e4', FEN_1, 'user'), move(2, 'e5', 'e7e5', FEN_2, 'ai'), move(3, 'Nf3', 'g1f3', FEN_3, 'user')],
+    moves: [
+      move(1, 'e4', 'e2e4', FEN_1, 'user'),
+      move(2, 'e5', 'e7e5', FEN_2, 'ai'),
+      move(3, 'Nf3', 'g1f3', FEN_3, 'user')
+    ],
     takebacks: 0,
     coachLog: [],
     result: { outcome: '1-0', reason: 'resign' },
@@ -33,7 +62,12 @@ function game(patch: Partial<Game> = {}): Game {
 
 const analysed = (): Game =>
   game({
-    analysis: { accuracy: { w: 88.2, b: 61.5 }, acpl: { w: 21, b: 84 }, keyMoments: [3], analyzedAt: '2026-09-12T10:06:00.000Z' }
+    analysis: {
+      accuracy: { w: 88.2, b: 61.5 },
+      acpl: { w: 21, b: 84 },
+      keyMoments: [3],
+      analyzedAt: '2026-09-12T10:06:00.000Z'
+    }
   })
 
 const getGame = vi.fn(async () => game())
@@ -41,7 +75,9 @@ const status = vi.fn(async () => ({ state: 'idle' }) as const)
 const run = vi.fn(async () => analysed())
 const commentMove = vi.fn(async () => 'Commento finto in revisione.')
 const commentKeyMoments = vi.fn(async () => [{ ply: 3, text: 'Momento chiave.' }])
-const lesson = vi.fn(async () => ({ takeaways: ['a', 'b', 'c'], summary: 'fake', language: 'it' }) as const)
+const lesson = vi.fn(
+  async () => ({ takeaways: ['a', 'b', 'c'], summary: 'fake', language: 'it' }) as const
+)
 const close = vi.fn(async () => undefined)
 const listeners = new Map<string, (payload: never) => void>()
 const off = vi.fn()
@@ -153,7 +189,9 @@ describe('reviewStore review turns', () => {
     await useReviewStore.getState().open('g1')
     await useReviewStore.getState().commentMove(3)
     expect(commentMove).toHaveBeenCalledWith('g1', 3)
-    expect(useReviewStore.getState().game?.moves[2]?.coachComment).toBe('Commento finto in revisione.')
+    expect(useReviewStore.getState().game?.moves[2]?.coachComment).toBe(
+      'Commento finto in revisione.'
+    )
     expect(useReviewStore.getState().request).toBeNull()
   })
 
@@ -172,7 +210,9 @@ describe('reviewStore review turns', () => {
 
   it('keeps a failed turn as an error and clears the request', async () => {
     await useReviewStore.getState().open('g1')
-    commentMove.mockRejectedValueOnce(new Error(encodeIpcErrorMessage('REVIEW_TURN_FAILED', 'the turn failed')))
+    commentMove.mockRejectedValueOnce(
+      new Error(encodeIpcErrorMessage('REVIEW_TURN_FAILED', 'the turn failed'))
+    )
     await useReviewStore.getState().commentMove(1)
     expect(useReviewStore.getState().error).toContain('the turn failed')
     expect(useReviewStore.getState().request).toBeNull()
@@ -190,14 +230,20 @@ describe('reviewStore events', () => {
 
   it('collects the deltas of the announced stream and drops the others', async () => {
     await useReviewStore.getState().open('g1')
-    useReviewStore.getState().applyActivity({ gameId: 'g1', kind: 'move', ply: 3, streamId: 's1', busy: true })
+    useReviewStore
+      .getState()
+      .applyActivity({ gameId: 'g1', kind: 'move', ply: 3, streamId: 's1', busy: true })
     const delta = (streamId: string, chunk: string): void =>
-      useReviewStore.getState().applyStream({ streamId, threadId: 't', turnId: 'u', itemId: 'i', kind: 'text', chunk })
+      useReviewStore
+        .getState()
+        .applyStream({ streamId, threadId: 't', turnId: 'u', itemId: 'i', kind: 'text', chunk })
     delta('s1', 'Il ')
     delta('other', 'no')
     delta('s1', 'commento')
     expect(useReviewStore.getState().stream?.text).toBe('Il commento')
-    useReviewStore.getState().applyActivity({ gameId: 'g1', kind: 'move', ply: 3, streamId: null, busy: false })
+    useReviewStore
+      .getState()
+      .applyActivity({ gameId: 'g1', kind: 'move', ply: 3, streamId: null, busy: false })
     expect(useReviewStore.getState().activity).toBeNull()
   })
 

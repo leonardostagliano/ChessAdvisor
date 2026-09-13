@@ -7,7 +7,12 @@ type Handler = (event: unknown, ...args: unknown[]) => Promise<unknown>
 const bus = vi.hoisted(() => ({ handlers: new Map<string, Handler>() }))
 
 vi.mock('electron', () => ({
-  app: { getVersion: () => '1.0.0', getAppPath: () => process.cwd(), getPath: () => process.cwd(), isPackaged: false },
+  app: {
+    getVersion: () => '1.0.0',
+    getAppPath: () => process.cwd(),
+    getPath: () => process.cwd(),
+    isPackaged: false
+  },
   shell: { openExternal: vi.fn() },
   BrowserWindow: { getAllWindows: () => [] },
   ipcMain: {
@@ -40,7 +45,11 @@ describe('the IPC error contract', () => {
 
   it('carries the code and the structured payload of a GameError to the renderer', async () => {
     handle('test:modelGone', async () => {
-      throw new GameError('MODEL_UNAVAILABLE', 'the model ghost-1 is no longer available', 'gpt-6-astra')
+      throw new GameError(
+        'MODEL_UNAVAILABLE',
+        'the model ghost-1 is no longer available',
+        'gpt-6-astra'
+      )
     })
 
     expect(parseIpcError(await invoke('test:modelGone'))).toEqual({
@@ -55,11 +64,17 @@ describe('the IPC error contract', () => {
       throw new GameError('NOT_YOUR_TURN', 'it is not your turn')
     })
 
-    expect(parseIpcError(await invoke('test:notYourTurn'))).toEqual({ code: 'NOT_YOUR_TURN', message: 'it is not your turn', data: {} })
+    expect(parseIpcError(await invoke('test:notYourTurn'))).toEqual({
+      code: 'NOT_YOUR_TURN',
+      message: 'it is not your turn',
+      data: {}
+    })
   })
 
   it('keeps `code: message` as the IpcError text when there is no payload', () => {
-    expect(new IpcError('E_BAD_URL', 'unsupported protocol').message).toBe('E_BAD_URL: unsupported protocol')
+    expect(new IpcError('E_BAD_URL', 'unsupported protocol').message).toBe(
+      'E_BAD_URL: unsupported protocol'
+    )
   })
 
   it('serializes a plain error without inventing a payload', () => {

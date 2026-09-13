@@ -5,7 +5,12 @@ import { useRef, useState, type RefObject } from 'react'
 import { FOLLOW_THRESHOLD_PX, isNearEnd, scrollContainerOf, useFollowFeed } from './useFollowFeed'
 
 /** jsdom lays nothing out: give an element explicit scroll geometry. */
-function geometry(el: HTMLElement, scrollHeight: number, clientHeight: number, overflowY = 'auto'): void {
+function geometry(
+  el: HTMLElement,
+  scrollHeight: number,
+  clientHeight: number,
+  overflowY = 'auto'
+): void {
   Object.defineProperty(el, 'scrollHeight', { configurable: true, get: () => scrollHeight })
   Object.defineProperty(el, 'clientHeight', { configurable: true, get: () => clientHeight })
   el.style.overflowY = overflowY
@@ -51,7 +56,11 @@ describe('isNearEnd', () => {
   })
 })
 
-function Feed({ onRef }: { onRef: (ref: RefObject<HTMLDivElement | null>, bump: () => void) => void }): React.JSX.Element {
+function Feed({
+  onRef
+}: {
+  onRef: (ref: RefObject<HTMLDivElement | null>, bump: () => void) => void
+}): React.JSX.Element {
   const ref = useRef<HTMLDivElement>(null)
   const [count, setCount] = useState(0)
   useFollowFeed(ref, [count])
@@ -63,7 +72,14 @@ describe('useFollowFeed', () => {
   it('pins the feed to its end when content grows and the reader was at the end', () => {
     let feedRef: RefObject<HTMLDivElement | null> | null = null
     let bump: () => void = () => {}
-    render(<Feed onRef={(r, b) => { feedRef = r; bump = b }} />)
+    render(
+      <Feed
+        onRef={(r, b) => {
+          feedRef = r
+          bump = b
+        }}
+      />
+    )
     const feed = feedRef!.current!
     geometry(feed, 1000, 300)
     feed.scrollTop = 700 // at the end
@@ -76,12 +92,21 @@ describe('useFollowFeed', () => {
   it('leaves the reader alone after they scrolled up', () => {
     let feedRef: RefObject<HTMLDivElement | null> | null = null
     let bump: () => void = () => {}
-    render(<Feed onRef={(r, b) => { feedRef = r; bump = b }} />)
+    render(
+      <Feed
+        onRef={(r, b) => {
+          feedRef = r
+          bump = b
+        }}
+      />
+    )
     const feed = feedRef!.current!
     geometry(feed, 1000, 300)
     act(() => bump())
     feed.scrollTop = 100
-    act(() => { feed.dispatchEvent(new Event('scroll')) })
+    act(() => {
+      feed.dispatchEvent(new Event('scroll'))
+    })
     geometry(feed, 1400, 300)
     act(() => bump())
     expect(feed.scrollTop).toBe(100)

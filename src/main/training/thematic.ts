@@ -36,9 +36,11 @@ export interface ThemePick {
   fallback: boolean
 }
 
-const clampRating = (value: number): number => Math.min(RATING_CEILING, Math.max(RATING_FLOOR, Math.round(value)))
+const clampRating = (value: number): number =>
+  Math.min(RATING_CEILING, Math.max(RATING_FLOOR, Math.round(value)))
 
-const finite = (value: unknown): number | null => (typeof value === 'number' && Number.isFinite(value) ? value : null)
+const finite = (value: unknown): number | null =>
+  typeof value === 'number' && Number.isFinite(value) ? value : null
 
 /**
  * The theme of the next set when the coach cannot be asked (spec §6.5): the taxonomy in its own
@@ -72,7 +74,8 @@ export function rotationPick(rotation: number, available: readonly string[]): Th
  */
 export function sanitizeThemePick(raw: Record<string, unknown> | null): ThemePick | null {
   if (!raw) return null
-  const theme = typeof raw.theme === 'string' && raw.theme.trim().length > 0 ? normalizeTheme(raw.theme) : null
+  const theme =
+    typeof raw.theme === 'string' && raw.theme.trim().length > 0 ? normalizeTheme(raw.theme) : null
   if (!theme) return null
 
   let min = finite(raw.ratingMin)
@@ -93,7 +96,8 @@ export function sanitizeThemePick(raw: Record<string, unknown> | null): ThemePic
   if (ratingMax - ratingMin < MIN_RATING_SPAN) {
     ratingMax = clampRating(ratingMin + DEFAULT_RATING_SPAN)
     // A window pinned against the ceiling grows downwards instead.
-    if (ratingMax - ratingMin < MIN_RATING_SPAN) ratingMin = clampRating(ratingMax - DEFAULT_RATING_SPAN)
+    if (ratingMax - ratingMin < MIN_RATING_SPAN)
+      ratingMin = clampRating(ratingMax - DEFAULT_RATING_SPAN)
   }
 
   const motivation = typeof raw.motivation === 'string' ? raw.motivation.trim() : ''

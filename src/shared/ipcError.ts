@@ -37,7 +37,11 @@ export function errorData(error: unknown): Record<string, unknown> | undefined {
 }
 
 /** The message an `IpcError` is built with: `code: text`, plus the payload when there is one. */
-export function encodeIpcErrorMessage(code: string, message: string, data?: Record<string, unknown>): string {
+export function encodeIpcErrorMessage(
+  code: string,
+  message: string,
+  data?: Record<string, unknown>
+): string {
   const head = `${code}: ${message}`
   if (!data || Object.keys(data).length === 0) return head
   return `${head}${IPC_ERROR_DATA_MARK}${JSON.stringify(data)}`
@@ -56,7 +60,10 @@ export function parseIpcError(error: unknown): IpcErrorInfo {
   const body = text.replace(REMOTE_PREFIX, '').replace(NAME_PREFIX, '')
   const codeMatch = CODE_PREFIX.exec(body)
   const declared = (error as { code?: unknown } | null)?.code
-  const code = typeof declared === 'string' && declared.length > 0 ? declared : (codeMatch?.[1] ?? 'E_UNEXPECTED')
+  const code =
+    typeof declared === 'string' && declared.length > 0
+      ? declared
+      : (codeMatch?.[1] ?? 'E_UNEXPECTED')
   const message = (codeMatch ? body.slice(codeMatch[0].length) : body).trim()
 
   return { code, message, data: decode(encoded) ?? errorData(error) ?? {} }

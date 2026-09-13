@@ -255,7 +255,8 @@ export async function runTurn(
     // `itemsView: 'summary'` while still carrying the final agentMessage in `turn.items`, so the
     // payload is used whenever it holds a message; `thread/items/list` is the second choice and
     // the items completed during the turn are the last resort.
-    const hasMessage = (list: ThreadItemLike[]): boolean => list.some((item) => item.type === 'agentMessage')
+    const hasMessage = (list: ThreadItemLike[]): boolean =>
+      list.some((item) => item.type === 'agentMessage')
     const payloadItems = normalizeItems(Array.isArray(turn.items) ? turn.items : [])
     const listedItems =
       turn.itemsView !== 'full' && !hasMessage(payloadItems)

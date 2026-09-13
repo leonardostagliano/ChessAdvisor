@@ -49,24 +49,40 @@ function game(id: string, classifications: MoveClassification[]): Game {
     kind: 'match',
     status: 'finished',
     userColor: 'w',
-    opponent: { model: 'gpt-6-astra', effort: 'low', difficulty: { mode: 'fixed', level: 3, targetElo: 1200 } },
+    opponent: {
+      model: 'gpt-6-astra',
+      effort: 'low',
+      difficulty: { mode: 'fixed', level: 3, targetElo: 1200 }
+    },
     coach: { model: 'gpt-6-astra', effort: 'low' },
     clock: null,
     language: 'it',
     moves: [
-      ...classifications.map((classification, index) => move(index * 2 + 1, 'user', classification)),
+      ...classifications.map((classification, index) =>
+        move(index * 2 + 1, 'user', classification)
+      ),
       move(2, 'ai', 'best')
     ],
     takebacks: 0,
     coachLog: [],
     result: { outcome: '1-0', reason: 'resign' },
-    analysis: { accuracy: { w: 74, b: 60 }, acpl: { w: 42, b: 80 }, keyMoments: [], analyzedAt: '2026-09-10T10:31:00.000Z' }
+    analysis: {
+      accuracy: { w: 74, b: 60 },
+      acpl: { w: 42, b: 80 },
+      keyMoments: [],
+      analyzedAt: '2026-09-10T10:31:00.000Z'
+    }
   }
 }
 
 function profile(patch: Partial<Profile> = {}): Profile {
   return {
-    level: { band: 'intermediate', estimate: 1345, confidence: 0.62, updatedAt: '2026-09-12T09:00:00.000Z' },
+    level: {
+      band: 'intermediate',
+      estimate: 1345,
+      confidence: 0.62,
+      updatedAt: '2026-09-12T09:00:00.000Z'
+    },
     qualitative: {
       strengths: ['Apri con criterio', 'Difendi bene i pedoni'],
       weaknesses: ['Perdi pezzi in presa', 'Calcoli poco nei finali'],
@@ -81,8 +97,24 @@ function profile(patch: Partial<Profile> = {}): Profile {
       king_safety: { occurrences: 1, lastSeen: '2026-09-07T09:00:00.000Z' }
     },
     openingStats: {
-      C40: { eco: 'C40', name: "King's Knight Opening", games: 2, wins: 1, draws: 0, losses: 1, avgAccuracyFirst10: 71.5 },
-      B20: { eco: 'B20', name: 'Sicilian Defense', games: 5, wins: 1, draws: 1, losses: 3, avgAccuracyFirst10: 64.2 }
+      C40: {
+        eco: 'C40',
+        name: "King's Knight Opening",
+        games: 2,
+        wins: 1,
+        draws: 0,
+        losses: 1,
+        avgAccuracyFirst10: 71.5
+      },
+      B20: {
+        eco: 'B20',
+        name: 'Sicilian Defense',
+        games: 5,
+        wins: 1,
+        draws: 1,
+        losses: 3,
+        avgAccuracyFirst10: 64.2
+      }
     },
     history: [
       { gameId: 'g1', date: '2026-09-11T10:00:00.000Z', accuracy: 66.5, acpl: 55 },
@@ -96,7 +128,9 @@ function profile(patch: Partial<Profile> = {}): Profile {
 const get = vi.fn(async () => profile())
 const refreshQualitative = vi.fn(async () => profile())
 const getGame = vi.fn(async (id: string) =>
-  id === 'g1' ? game('g1', ['best', 'good', 'blunder', 'good']) : game('g2', ['best', 'best', 'inaccuracy', 'good'])
+  id === 'g1'
+    ? game('g1', ['best', 'good', 'blunder', 'good'])
+    : game('g2', ['best', 'best', 'inaccuracy', 'good'])
 )
 const listeners = new Map<string, (payload: never) => void>()
 const off = vi.fn()
@@ -197,7 +231,10 @@ describe('ProgressScreen', () => {
   it('sorts the openings table on the column that was clicked', async () => {
     render(<ProgressScreen />)
     const table = await screen.findByTestId('openings-table')
-    const codes = (): string[] => Array.from(table.querySelectorAll('tbody tr')).map((row) => row.getAttribute('data-eco') ?? '')
+    const codes = (): string[] =>
+      Array.from(table.querySelectorAll('tbody tr')).map(
+        (row) => row.getAttribute('data-eco') ?? ''
+      )
     // Most played first by default.
     expect(codes()).toEqual(['B20', 'C40'])
     fireEvent.click(screen.getByRole('button', { name: /ECO/ }))
@@ -206,19 +243,26 @@ describe('ProgressScreen', () => {
     expect(codes()).toEqual(['C40', 'B20'])
     fireEvent.click(screen.getByRole('button', { name: /Accuratezza/ }))
     expect(codes()).toEqual(['C40', 'B20'])
-    expect(screen.getByRole('columnheader', { name: /Accuratezza/ })).toHaveAttribute('aria-sort', 'descending')
+    expect(screen.getByRole('columnheader', { name: /Accuratezza/ })).toHaveAttribute(
+      'aria-sort',
+      'descending'
+    )
   })
 
   it('ends on the study plan, offering to write the first one (spec §6.8)', async () => {
     render(<ProgressScreen />)
     await screen.findByTestId('openings-table')
     const plan = screen.getByTestId('study-plan-summary')
-    expect(within(plan).getByText('Il coach non ha ancora scritto un piano di studio.')).toBeInTheDocument()
+    expect(
+      within(plan).getByText('Il coach non ha ancora scritto un piano di studio.')
+    ).toBeInTheDocument()
     expect(within(plan).getByRole('button', { name: 'Genera il piano' })).toBeInTheDocument()
   })
 
   it('reports a failing read without losing the screen', async () => {
-    get.mockRejectedValueOnce(new Error(encodeIpcErrorMessage('PROFILE_UNAVAILABLE', 'Profilo non leggibile')))
+    get.mockRejectedValueOnce(
+      new Error(encodeIpcErrorMessage('PROFILE_UNAVAILABLE', 'Profilo non leggibile'))
+    )
     render(<ProgressScreen />)
     expect(await screen.findByRole('alert')).toHaveTextContent('Profilo non leggibile')
   })
@@ -228,7 +272,16 @@ describe('ProgressScreen', () => {
     await screen.findByRole('region', { name: 'Livello stimato' })
     const changed = listeners.get('profile:changed')
     expect(changed).toBeTypeOf('function')
-    changed?.(profile({ level: { band: 'advanced', estimate: 1720, confidence: 0.8, updatedAt: '2026-09-13T09:00:00.000Z' } }) as never)
+    changed?.(
+      profile({
+        level: {
+          band: 'advanced',
+          estimate: 1720,
+          confidence: 0.8,
+          updatedAt: '2026-09-13T09:00:00.000Z'
+        }
+      }) as never
+    )
     expect(await screen.findByText('Avanzato')).toBeInTheDocument()
   })
 })
