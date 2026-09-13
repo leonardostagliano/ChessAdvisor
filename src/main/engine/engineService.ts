@@ -122,15 +122,8 @@ export class EngineService {
     const cached = this.deps.settings.get().engineBinary
     const override = this.deps.override
 
-    if (cached === 'none') {
-      return this.setState({
-        available: false,
-        binary: 'none',
-        version: null,
-        message: 'a previous probe found no usable Stockfish build (settings.engineBinary = "none")'
-      })
-    }
-
+    // A failed probe is never remembered: antivirus scans, a busy machine or a missing download can
+    // all make one launch fail, and the engine must come back on its own at the next start.
     const candidates = override
       ? [{ binary: (cached === 'avx2' || cached === 'popcnt' ? cached : 'avx2') as 'avx2' | 'popcnt', exe: override.exe, args: override.args }]
       : BINARIES.slice()
@@ -152,7 +145,7 @@ export class EngineService {
       failures.push(`${candidate.exe}: ${failure}`)
     }
 
-    await this.persistBinary('none')
+    if (cached === 'none') await this.persistBinary(null)
     return this.setState({
       available: false,
       binary: 'none',
@@ -209,7 +202,7 @@ export class EngineService {
     })
   }
 
-  private async persistBinary(binary: 'avx2' | 'popcnt' | 'none'): Promise<void> {
+  private async persistBinary(binary: 'avx2' | 'popcnt' | null): Promise<void> {
     if (this.deps.settings.get().engineBinary === binary) return
     await this.deps.settings.save({ engineBinary: binary }).catch((error) => {
       console.error('[engine] could not persist the probe result:', error)

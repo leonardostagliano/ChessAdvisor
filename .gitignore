@@ -11,3 +11,4 @@ codex-home/
 release/
 *.tsbuildinfo
 resources/engine/.download/
+test/e2e/shots/

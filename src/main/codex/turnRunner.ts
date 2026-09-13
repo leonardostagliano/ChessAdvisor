@@ -102,6 +102,7 @@ export async function runTurn(
 ): Promise<TurnResult> {
   const startedAt = Date.now()
   const buffers = new Map<string, string>()
+  const completed = new Map<string, ThreadItemLike>()
   const queued: { method: string; params: Params }[] = []
   let turnId: string | null = null
   let effectiveModel: string | null = null
@@ -149,6 +150,9 @@ export async function runTurn(
             typeof item.text === 'string' ? item.text : (buffers.get(item.id) ?? '')
           )
         }
+        // Every completed item of this turn is kept: it is the authoritative fallback when the
+        // `turn/completed` payload is partial and `thread/items/list` is unavailable.
+        if (item && typeof item.id === 'string') completed.set(item.id, item)
         return
       }
       case 'model/rerouted': {
@@ -247,15 +251,24 @@ export async function runTurn(
       return { ok: false, reason, message, turnId }
     }
 
-    const rawItems: unknown[] =
-      turn.itemsView === 'full'
-        ? Array.isArray(turn.items)
-          ? turn.items
-          : []
-        : await opts.itemsList(req.threadId, turnId).catch(() => [])
-    const items = normalizeItems(rawItems)
+    // Sources of the turn's items, most authoritative first. The real app-server reports
+    // `itemsView: 'summary'` while still carrying the final agentMessage in `turn.items`, so the
+    // payload is used whenever it holds a message; `thread/items/list` is the second choice and
+    // the items completed during the turn are the last resort.
+    const hasMessage = (list: ThreadItemLike[]): boolean => list.some((item) => item.type === 'agentMessage')
+    const payloadItems = normalizeItems(Array.isArray(turn.items) ? turn.items : [])
+    const listedItems =
+      turn.itemsView !== 'full' && !hasMessage(payloadItems)
+        ? normalizeItems(await opts.itemsList(req.threadId, turnId).catch(() => []))
+        : []
+    const completedItems = [...completed.values()]
+    const items = hasMessage(payloadItems)
+      ? payloadItems
+      : hasMessage(listedItems)
+        ? listedItems
+        : completedItems
 
-    const invalid = items.find((item) =>
+    const invalid = [...payloadItems, ...listedItems, ...completedItems].find((item) =>
       (INVALID_ITEM_TYPES as readonly string[]).includes(item.type ?? '')
     )
     if (invalid) {

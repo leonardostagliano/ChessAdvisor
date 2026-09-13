@@ -22,9 +22,9 @@ import { UpdatesSection } from './UpdatesSection'
  */
 
 /** Efforts of `model`, or an empty list while the catalogue has not arrived. */
-function effortsOf(models: ModelInfo[], id: string | null): SelectOption[] {
+function effortsOf(models: ModelInfo[], id: string | null, label: (effortId: string) => string = (effortId) => effortId): SelectOption[] {
   const model = models.find((entry) => entry.id === id)
-  return (model?.efforts ?? []).map((effort) => ({ value: effort.id, label: effort.id, hint: effort.description }))
+  return (model?.efforts ?? []).map((effort) => ({ value: effort.id, label: label(effort.id), hint: effort.description }))
 }
 
 /** Epoch seconds (what the app-server sends) or milliseconds, whichever the number looks like. */
@@ -113,8 +113,10 @@ export function SettingsScreen(): React.JSX.Element {
 
   const ready = codex.status === 'ready' ? (codex as Extract<CodexState, { status: 'ready' }>) : null
   const separateCoach = settings?.separateCoach ?? false
-  const defaultEfforts = effortsOf(models, settings?.defaultModel ?? null)
-  const coachEfforts = effortsOf(models, settings?.coachModel ?? settings?.defaultModel ?? null)
+  // Same wording as the New game dialog; unknown effort ids fall back to the raw id.
+  const effortLabel = (id: string): string => t(`newGame.efforts.${id}`, { defaultValue: id })
+  const defaultEfforts = effortsOf(models, settings?.defaultModel ?? null, effortLabel)
+  const coachEfforts = effortsOf(models, settings?.coachModel ?? settings?.defaultModel ?? null, effortLabel)
   const resetDate = quota?.primary ? quotaResetDate(quota.primary.resetsAt) : null
 
   return (

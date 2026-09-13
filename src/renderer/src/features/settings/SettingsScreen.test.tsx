@@ -116,9 +116,10 @@ describe('SettingsScreen', () => {
 
     const options = await optionsOf('Impegno predefinito')
     expect(options).toHaveLength(3)
-    expect(options[0]).toContain('low')
+    // Same localized wording as the New game dialog, plus the catalogue description as hint.
+    expect(options[0]).toContain('Basso')
     expect(options[0]).toContain('rapido')
-    expect(options[2]).toContain('high')
+    expect(options[2]).toContain('Alto')
   })
 
   it('narrows the effort list when the selected model offers fewer of them', async () => {
@@ -128,7 +129,7 @@ describe('SettingsScreen', () => {
 
     const options = await optionsOf('Impegno predefinito')
     expect(options).toHaveLength(1)
-    expect(options[0]).toContain('low')
+    expect(options[0]).toContain('Basso')
   })
 
   it('saves a chosen model through the bridge', async () => {

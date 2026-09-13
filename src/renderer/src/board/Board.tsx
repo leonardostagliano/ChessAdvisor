@@ -101,6 +101,26 @@ export function turnColorOf(fen: string): Color {
   return String(fen ?? '').split(/\s+/)[1] === 'b' ? 'black' : 'white'
 }
 
+/** Stable fingerprint of everything in a config that changes what chessground shows or allows. */
+export function configSignature(config: Config): string {
+  const dests = config.movable?.dests
+  const destsSig = dests ? [...dests.entries()].map(([from, to]) => `${from}:${to.join('')}`).sort().join('|') : ''
+  const shapes = (config.drawable?.autoShapes ?? []).map((s) => `${s.orig}${s.dest ?? ''}${s.brush ?? ''}`).join('|')
+  return [
+    config.fen,
+    config.orientation,
+    config.turnColor,
+    config.check === true ? 'check' : String(config.check ?? ''),
+    config.coordinates,
+    config.viewOnly,
+    (config.lastMove ?? []).join(''),
+    config.movable?.color ?? '',
+    destsSig,
+    config.animation?.enabled,
+    shapes
+  ].join('#')
+}
+
 /** `from → [to, …]` for every legal move of `fen`; promotions collapse onto their target square. */
 export function destsOf(fen: string): Map<Key, Key[]> {
   const dests = new Map<Key, Key[]>()
@@ -208,8 +228,15 @@ export function Board({
     }
   }, [])
 
+  // Only push a new config when something the board renders actually changed: parents re-render on
+  // every session tick (live eval, timers) with fresh object references, and a redundant `set()`
+  // interrupts the user's click-to-move selection.
+  const signatureRef = useRef<string>(configSignature(config))
   useEffect(() => {
     if (initialConfigRef.current === config) return
+    const signature = configSignature(config)
+    if (signature === signatureRef.current) return
+    signatureRef.current = signature
     apiRef.current?.set(config)
   }, [config])
 
@@ -234,6 +261,28 @@ export function Board({
   useEffect(() => {
     apiRef.current?.redrawAll()
   }, [size])
+
+  // chessground caches the board's bounding rect and maps pointer positions through it. A layout
+  // shift that does not change the board's size (the opponent card growing, a banner appearing)
+  // leaves that cache stale, so clicks and drops land on the wrong square. Refresh it in the
+  // capture phase, before chessground's own handler reads the position.
+  useEffect(() => {
+    const host = hostRef.current
+    if (!host) return
+    // Unconditional: a redraw of 32 pieces costs a few milliseconds and it is the only way to be
+    // sure the very first interaction after mount uses a rect measured after layout.
+    const refresh = (): void => {
+      apiRef.current?.redrawAll()
+    }
+    const settle = requestAnimationFrame(() => apiRef.current?.redrawAll())
+    host.addEventListener('mousedown', refresh, true)
+    host.addEventListener('touchstart', refresh, true)
+    return () => {
+      cancelAnimationFrame(settle)
+      host.removeEventListener('mousedown', refresh, true)
+      host.removeEventListener('touchstart', refresh, true)
+    }
+  }, [])
 
   return (
     <div ref={frameRef} className={cx(styles.frame, className)} role="group" aria-label={label ?? t('board.label')}>

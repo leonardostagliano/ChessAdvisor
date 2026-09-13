@@ -39,7 +39,7 @@ describe('Rail version badge', () => {
     render(<Rail />)
 
     const pill = await screen.findByTestId('rail-version')
-    expect(pill.textContent).toBe('Sviluppo · base 1.4.0-dev')
+    expect(pill.textContent).toBe('dev 1.4.0-dev')
   })
 
   it('renders no pill at all while the version is unknown', async () => {

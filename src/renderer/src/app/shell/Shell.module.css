@@ -46,14 +46,17 @@
 
 .version {
   display: inline-flex;
-  padding: 2px 7px;
+  max-width: 64px;
+  padding: 1px 6px;
   border: 1px solid var(--border);
   border-radius: var(--radius-pill);
   background: var(--surface-2);
   color: var(--text-2);
-  font: 500 12px/1.4 var(--font-mono);
+  font: 500 10px/1.4 var(--font-mono);
   letter-spacing: 0.02em;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /*

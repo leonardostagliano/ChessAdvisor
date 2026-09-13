@@ -19,7 +19,10 @@ export const USER_DATA_DIR_NAME = 'chessadvisor'
  */
 export function pinUserDataPath(): void {
   try {
-    const dir = join(app.getPath('appData'), USER_DATA_DIR_NAME)
+    // Test harnesses (test/e2e) point the whole data folder elsewhere so a run never touches
+    // the user's games; Electron itself ignores the APPDATA environment variable on Windows.
+    const override = process.env.CHESSADVISOR_USER_DATA?.trim()
+    const dir = override ? override : join(app.getPath('appData'), USER_DATA_DIR_NAME)
     mkdirSync(dir, { recursive: true })
     app.setPath('userData', dir)
   } catch (error) {

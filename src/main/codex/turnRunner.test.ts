@@ -208,6 +208,46 @@ describe('runTurn', () => {
     expect(result).toEqual(expect.objectContaining({ ok: true, text: 'from items/list' }))
   })
 
+  // The real app-server (0.154.0) answers `itemsView: 'summary'` while the payload already carries
+  // the final agentMessage: it must be used as is, without a round trip to thread/items/list.
+  it('uses the summary payload when it already holds the final message', async () => {
+    const h = harness()
+    const itemsList = vi.fn(async () => [])
+    const promise = runTurn(h.rpc, h.bus, req(), h.events, { itemsList })
+    await h.respond('turn/start', startedTurn)
+    h.emit('turn/completed', {
+      threadId: THREAD,
+      turn: turn({ itemsView: 'summary', items: [agentMessage('m1', '{"move":"c5"}', 'final_answer')] })
+    })
+    const result = await promise
+    expect(itemsList).not.toHaveBeenCalled()
+    expect(result).toEqual(expect.objectContaining({ ok: true, text: '{"move":"c5"}' }))
+  })
+
+  it('falls back to the items completed during the turn when the list call fails', async () => {
+    const h = harness()
+    const itemsList = vi.fn(async () => { throw new Error('unsupported') })
+    const promise = runTurn(h.rpc, h.bus, req(), h.events, { itemsList })
+    await h.respond('turn/start', startedTurn)
+    h.emit('item/completed', { threadId: THREAD, turnId: TURN, item: agentMessage('m1', '{"move":"e5"}', 'final_answer') })
+    h.emit('turn/completed', { threadId: THREAD, turn: turn({ itemsView: 'notLoaded', items: [] }) })
+    const result = await promise
+    expect(result).toEqual(expect.objectContaining({ ok: true, text: '{"move":"e5"}' }))
+  })
+
+  it('still rejects a tool call that only shows up among the completed items', async () => {
+    const h = harness()
+    const promise = runTurn(h.rpc, h.bus, req(), h.events, noItems)
+    await h.respond('turn/start', startedTurn)
+    h.emit('item/completed', { threadId: THREAD, turnId: TURN, item: { type: 'commandExecution', id: 'c1' } })
+    h.emit('turn/completed', {
+      threadId: THREAD,
+      turn: turn({ itemsView: 'summary', items: [agentMessage('m1', '{"move":"c5"}', 'final_answer')] })
+    })
+    const result = await promise
+    expect(result).toEqual(expect.objectContaining({ ok: false, reason: 'invalid-items' }))
+  })
+
   it('rejects a turn that used a tool', async () => {
     const h = harness()
     const promise = runTurn(h.rpc, h.bus, req(), h.events, noItems)

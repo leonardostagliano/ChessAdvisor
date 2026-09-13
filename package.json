@@ -19,7 +19,9 @@
     "fetch:stockfish": "node scripts/fetch-stockfish.mjs",
     "gen-icon": "node scripts/gen-icon.mjs",
     "build:win": "electron-vite build && electron-builder --win nsis portable --x64 --publish never --config electron-builder.yml",
-    "smoke:win": "node scripts/smoke-windows.cjs"
+    "smoke:win": "node scripts/smoke-windows.cjs",
+    "e2e": "node test/e2e/play.e2e.mjs",
+    "e2e:real": "node test/e2e/play.e2e.mjs --real"
   },
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.2",
@@ -51,6 +53,7 @@
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
     "jsdom": "^26.1.0",
+    "playwright-core": "^1.63.0",
     "png-to-ico": "^3.0.2",
     "prettier": "^3.7.4",
     "react": "^19.2.1",

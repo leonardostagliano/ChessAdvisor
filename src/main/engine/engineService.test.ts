@@ -84,16 +84,16 @@ describe('EngineService probe', () => {
     expect(state.binary).toBe('none')
     expect(state.message).toContain('stockfish-avx2.exe')
     expect(state.message).toContain('stockfish-popcnt.exe')
-    // The failed probe is remembered so it is not repeated at every start.
-    expect(settings.get().engineBinary).toBe('none')
+    // A failed probe is never remembered: the next start must try again.
+    expect(settings.get().engineBinary).toBeNull()
   })
 
-  it('honours a cached engineBinary of none without spawning anything', async () => {
+  it('re-probes despite a cached engineBinary of none left by an older build', async () => {
     const { service, settings } = await makeService()
     await settings.save({ engineBinary: 'none' })
     const state = await service.start()
-    expect(state.available).toBe(false)
-    expect(service.alive).toBe(false)
+    expect(state.available).toBe(true)
+    expect(settings.get().engineBinary).toBe('avx2')
   })
 
   it('persists the probed binary and reuses it on the next start', async () => {
