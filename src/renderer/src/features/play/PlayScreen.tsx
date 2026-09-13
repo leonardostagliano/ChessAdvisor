@@ -18,6 +18,7 @@ import { MoveList } from './MoveList'
 import { NewGameDialog } from './NewGameDialog'
 import { OpponentCard } from './OpponentCard'
 import { ResultBanner } from './ResultBanner'
+import { ReviewScreen } from '../review/ReviewScreen'
 import styles from './PlayScreen.module.css'
 
 /**
@@ -25,7 +26,8 @@ import styles from './PlayScreen.module.css'
  * captured pieces above and below, and the tabbed panel on the right — Commenti, Mosse, Coach.
  *
  * The archive lives here too, as a second view of the same area, because resuming a game is the
- * other way into the board.
+ * other way into the board, and so does the post-game review (spec §4.4), which is opened from the
+ * result banner of the game just played or from any finished game of the archive.
  */
 
 const GLYPHS: Record<string, string> = { p: '♟', n: '♞', b: '♝', r: '♜', q: '♛' }
@@ -107,7 +109,8 @@ export function PlayScreen(): React.JSX.Element {
   const storeError = useGameStore((state) => state.error)
   const engineAvailable = useEngineStore((state) => state.available)
 
-  const [view, setView] = useState<'game' | 'archive'>('game')
+  const [view, setView] = useState<'game' | 'archive' | 'review'>('game')
+  const [reviewGameId, setReviewGameId] = useState<string | null>(null)
   const [tab, setTab] = useState<PanelTab>('moves')
   const [dialogOpen, setDialogOpen] = useState(false)
 
@@ -186,10 +189,16 @@ export function PlayScreen(): React.JSX.Element {
         </div>
       </header>
 
-      {view === 'archive' ? (
+      {view === 'review' && reviewGameId ? (
+        <ReviewScreen gameId={reviewGameId} onClose={() => setView(game ? 'game' : 'archive')} />
+      ) : view === 'archive' ? (
         <ArchiveList
           onResumed={() => {
             setView('game')
+          }}
+          onReview={(id) => {
+            setReviewGameId(id)
+            setView('review')
           }}
         />
       ) : !game ? (
@@ -203,7 +212,16 @@ export function PlayScreen(): React.JSX.Element {
         <div className={styles.layout}>
           <div className={styles.column}>
             <OpponentCard session={session} />
-            {game.result ? <ResultBanner game={game} onNewGame={() => setDialogOpen(true)} /> : null}
+            {game.result ? (
+              <ResultBanner
+                game={game}
+                onNewGame={() => setDialogOpen(true)}
+                onReview={() => {
+                  setReviewGameId(game.id)
+                  setView('review')
+                }}
+              />
+            ) : null}
 
             <div className={styles.aside}>
               <CapturedRow

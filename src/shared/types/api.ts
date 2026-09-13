@@ -1,4 +1,4 @@
-import type { Game, GameFilter, GameSummary } from './game'
+import type { Game, GameAnalysis, GameFilter, GameSummary } from './game'
 import type { CodexState, ModelInfo, QuotaSnapshot } from './codex'
 import type { NewGameOptions, SessionState } from './session'
 import type { Settings } from './settings'
@@ -131,4 +131,58 @@ export interface GameApi {
   clearHint(): Promise<SessionState>
   /** Comments the last uncommented moves, at most six (spec §4.2). */
   commentSkipped(): Promise<SessionState>
+}
+
+// ─── Task 15: post-game analysis and review (spec §3.1, §4.4) ─────────────────
+// The pipeline runs in the main process and pushes its progress; the review's AI calls resolve
+// with their own text and stream it meanwhile on the usual `stream` channel.
+
+export interface AnalysisStatus {
+  state: 'idle' | 'running' | 'done' | 'unavailable'
+  /** Plies already analysed and plies in total, while the state is `running` or `done`. */
+  ply?: number
+  total?: number
+}
+
+export interface AnalysisProgress {
+  gameId: string
+  /** Ply just analysed; `0` is emitted once when the run starts. */
+  ply: number
+  total: number
+}
+
+/** Announces a review turn *before* it starts, so the screen can subscribe to `streamId` in time. */
+export interface ReviewActivity {
+  gameId: string
+  kind: 'move' | 'keyMoments' | 'lesson'
+  /** Ply the turn is about; `null` for the lesson of the whole game. */
+  ply: number | null
+  streamId: string | null
+  busy: boolean
+}
+
+export type ReviewLesson = NonNullable<GameAnalysis['lesson']>
+
+export interface AnalysisApi {
+  /** Analyses the game (or joins the run already in flight) and resolves with the saved game. */
+  run(gameId: string): Promise<Game>
+  status(gameId: string): Promise<AnalysisStatus>
+}
+
+export interface ReviewApi {
+  /** Comments one past ply; the text is saved into `Move.coachComment`. */
+  commentMove(gameId: string, ply: number): Promise<string>
+  /** One comment per key moment, at most eight (spec §4.4). */
+  commentKeyMoments(gameId: string): Promise<{ ply: number; text: string }[]>
+  /** Three takeaways and a summary, saved into `Game.analysis.lesson`. */
+  lesson(gameId: string): Promise<ReviewLesson>
+  /** Closes the `training` thread of the review; the next call opens a new one. */
+  close(): Promise<void>
+}
+
+export interface Api {
+  analysis: AnalysisApi
+  review: ReviewApi
+  on(channel: 'analysis:progress', cb: (e: AnalysisProgress) => void): () => void
+  on(channel: 'review:activity', cb: (e: ReviewActivity) => void): () => void
 }

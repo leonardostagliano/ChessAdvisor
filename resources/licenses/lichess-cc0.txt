@@ -9,6 +9,8 @@ ChessAdvisor bundles data derived from open Lichess datasets in
 - `openings.json` — derived from lichess-org/chess-openings
   (https://github.com/lichess-org/chess-openings); the EPD of each position is
   computed by ChessAdvisor's own preparation script
+  (`scripts/build-datasets.mjs openings`, snapshot taken on 2026-09-13 from the
+  `a.tsv`…`e.tsv` files of the `master` branch: 3810 positions)
 - `endgames.json` — derived from the same public-domain Lichess material
 
 These datasets are released by Lichess under the Creative Commons CC0 1.0

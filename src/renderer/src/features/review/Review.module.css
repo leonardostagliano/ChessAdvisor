@@ -1,0 +1,479 @@
+/* Post-game review (spec §4.4): the graph and the board first, the coach's prose beside them. */
+.screen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  min-width: 0;
+}
+
+.head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s-4);
+  flex-wrap: wrap;
+  padding: var(--s-4);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border-2);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+}
+
+.head_win {
+  border-left-color: var(--eval-good);
+}
+
+.head_loss {
+  border-left-color: var(--eval-bad);
+}
+
+.head_draw {
+  border-left-color: var(--accent);
+}
+
+.headTexts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  min-width: 0;
+}
+
+.title {
+  font-size: var(--fs-lg);
+  color: var(--text);
+}
+
+.chips {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  flex-wrap: wrap;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 9px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  flex-wrap: wrap;
+}
+
+/* Accuracy and ACPL, one block per colour. */
+.stats {
+  display: flex;
+  gap: var(--s-3);
+  flex-wrap: wrap;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 132px;
+  padding: var(--s-3);
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+}
+
+.statLabel {
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+
+.statValue {
+  font-size: var(--fs-lg);
+  color: var(--text);
+}
+
+.statHint {
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+}
+
+.progress {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+}
+
+.progressTrack {
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--bg-3);
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  background: var(--accent);
+  transition: width var(--dur-2) var(--ease);
+}
+
+.note {
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+
+.error {
+  font-size: var(--fs-sm);
+  color: var(--danger);
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s-2);
+  padding: var(--s-4);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: var(--s-4);
+  align-items: start;
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  min-width: 0;
+}
+
+.aside {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  min-width: 0;
+}
+
+.boardRow {
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  gap: var(--s-3);
+  min-height: 0;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding: var(--s-3);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+}
+
+.cardHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2);
+  flex-wrap: wrap;
+}
+
+.cardTitle {
+  font-size: var(--fs-md);
+  color: var(--text);
+}
+
+/* Evaluation graph */
+.graph {
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--bg-2);
+}
+
+.graphGround {
+  fill: var(--bg-2);
+}
+
+.graphArea {
+  fill: color-mix(in srgb, var(--eval-good) 26%, transparent);
+}
+
+.graphMid {
+  stroke: var(--border-2);
+  stroke-width: 1;
+  stroke-dasharray: 4 4;
+}
+
+.graphLine {
+  stroke: var(--text-2);
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+
+.graphCursor {
+  stroke: var(--accent);
+  stroke-width: 1.5;
+}
+
+.graphMarker {
+  fill: var(--accent);
+}
+
+.graphDot {
+  stroke: var(--bg-2);
+  stroke-width: 1.5;
+}
+
+.graphHit {
+  fill: transparent;
+  cursor: pointer;
+}
+
+.graphHit:hover {
+  fill: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+/* Classification colours; every use carries a word or a symbol as well (spec §7). */
+.dot_book,
+.mark_book {
+  color: var(--text-3);
+}
+
+.dot_best,
+.mark_best,
+.dot_excellent,
+.mark_excellent {
+  color: var(--eval-good);
+}
+
+.dot_good,
+.mark_good {
+  color: var(--text-2);
+}
+
+.dot_inaccuracy,
+.mark_inaccuracy {
+  color: var(--accent);
+}
+
+.dot_mistake,
+.mark_mistake {
+  color: color-mix(in srgb, var(--eval-bad) 70%, var(--accent));
+}
+
+.dot_blunder,
+.mark_blunder {
+  color: var(--eval-bad);
+}
+
+/* Move list of the review */
+.moveList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  max-height: 320px;
+  overflow: auto;
+}
+
+.moveRows {
+  display: flex;
+  flex-direction: column;
+}
+
+.moveRow {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--s-1);
+}
+
+.moveNumber {
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+  text-align: right;
+}
+
+.move {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+  padding: 4px var(--s-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--text);
+  font-size: var(--fs-sm);
+  text-align: left;
+  transition:
+    background var(--dur-1) var(--ease),
+    color var(--dur-1) var(--ease);
+}
+
+.move:hover {
+  background: var(--surface-2);
+}
+
+.moveSelected {
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  color: var(--accent);
+}
+
+.moveEmpty {
+  min-height: 26px;
+}
+
+.moveStart {
+  align-self: flex-start;
+  padding: 4px var(--s-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+}
+
+.mark {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+}
+
+/* Key moments */
+.moments {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.moment {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2);
+  width: 100%;
+  padding: var(--s-2) var(--s-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--bg-2);
+  color: var(--text);
+  text-align: left;
+}
+
+.moment:hover {
+  background: var(--surface-2);
+}
+
+.momentSelected {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  background: var(--accent-soft);
+}
+
+.momentTexts {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.momentTitle {
+  font-size: var(--fs-sm);
+}
+
+.momentMeta {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  flex-wrap: wrap;
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+
+/* Per-move panel */
+.details {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--s-2);
+}
+
+.detail {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.detailLabel {
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+
+.detailValue {
+  font-size: var(--fs-sm);
+  color: var(--text);
+}
+
+.bestLine {
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+  word-break: break-word;
+}
+
+/* Lesson */
+.takeaways {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  counter-reset: takeaway;
+}
+
+.takeaway {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-2);
+  font-family: var(--font-serif);
+  font-size: var(--fs-md);
+  line-height: var(--lh-prose);
+  color: var(--text-2);
+}
+
+.takeawayIndex {
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+}
+
+.summary {
+  font-family: var(--font-serif);
+  font-size: var(--fs-md);
+  line-height: var(--lh-prose);
+  color: var(--text-2);
+}
+
+.badge {
+  padding: 2px 9px;
+  border: 1px solid color-mix(in srgb, var(--danger) 45%, var(--border));
+  border-radius: var(--radius-pill);
+  color: var(--danger);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+}
+
+@media (max-width: 1100px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

@@ -269,6 +269,13 @@
   border-left-color: var(--accent);
 }
 
+.resultActions {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  flex-wrap: wrap;
+}
+
 .resultTitle {
   font-size: var(--fs-lg);
   color: var(--text);
@@ -418,6 +425,25 @@
 }
 
 /* Archive */
+.archiveFilters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--s-2);
+  align-items: end;
+}
+
+.archiveFilter {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  min-width: 0;
+}
+
+.archiveFilterLabel {
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+
 .archive {
   display: flex;
   flex-direction: column;

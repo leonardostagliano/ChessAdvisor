@@ -431,6 +431,28 @@ FEN: ${OPENING_FEN}`, HINT_SCHEMA)
     expect(await runTextTurn(harness, threadId, 'Domanda: che piano ho?')).toBe('Risposta finta.')
   })
 
+  it('recognises a review turn and answers the lesson schema', async () => {
+    const harness = startServer()
+    await harness.client.request('initialize', {
+      clientInfo: { name: 'chessadvisor', title: 'ChessAdvisor', version: '0.1.0' },
+      capabilities: null
+    })
+    const threadId = await startThread(harness)
+    // A review turn is recognised even though its text also asks to comment (spec §4.4).
+    expect(await runTextTurn(harness, threadId, 'Rivedi la mossa 7 di una partita già conclusa.')).toBe('Commento finto in revisione.')
+
+    const lesson = JSON.parse(
+      await runTextTurn(harness, threadId, 'Ricava la lezione di questa partita.', {
+        type: 'object',
+        required: ['takeaways', 'summary'],
+        additionalProperties: false,
+        properties: { takeaways: { type: 'array', items: { type: 'string' } }, summary: { type: 'string' } }
+      })
+    ) as { takeaways: string[]; summary: string }
+    expect(lesson.takeaways).toHaveLength(3)
+    expect(lesson.summary).toBe('fake')
+  })
+
   it('reports a logged-out account when FAKE_CODEX_LOGGED_OUT=1', async () => {
     const harness = startServer({ FAKE_CODEX_LOGGED_OUT: '1' })
     const account = await harness.client.request<{
