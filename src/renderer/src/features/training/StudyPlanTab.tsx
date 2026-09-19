@@ -50,8 +50,8 @@ export function planProgress(view: StudyPlanView | null): { done: number; total:
 export function StudyPlanTab(): React.JSX.Element {
   const { t, i18n } = useTranslation()
   const view = useTrainingStore((state) => state.plan)
-  const request = useTrainingStore((state) => state.request)
-  const generating = request?.kind === 'plan'
+  const requests = useTrainingStore((state) => state.requests)
+  const generating = requests.some((request) => request.kind === 'plan')
   const items = view?.plan?.items ?? []
 
   const generate = (
@@ -175,8 +175,8 @@ export function StudyPlanTab(): React.JSX.Element {
 export function StudyPlanSummary({ className }: { className?: string }): React.JSX.Element {
   const { t } = useTranslation()
   const view = useTrainingStore((state) => state.plan)
-  const request = useTrainingStore((state) => state.request)
-  const generating = request?.kind === 'plan'
+  const requests = useTrainingStore((state) => state.requests)
+  const generating = requests.some((request) => request.kind === 'plan')
   const items = view?.plan?.items ?? []
   const { done, total } = planProgress(view)
   const next = items.filter((item) => !item.done).slice(0, 3)

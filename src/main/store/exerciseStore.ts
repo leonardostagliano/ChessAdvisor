@@ -14,8 +14,13 @@ import { readJson, writeJsonAtomic } from './atomicWrite'
  */
 export class ExerciseStore {
   private readonly byId = new Map<string, Exercise>()
+  /** A failed write must not poison later saves. */
+  private writeQueue: Promise<void> = Promise.resolve()
 
-  constructor(private readonly file: string) {}
+  constructor(
+    private readonly file: string,
+    private readonly write: typeof writeJsonAtomic = writeJsonAtomic
+  ) {}
 
   async load(): Promise<void> {
     const raw = await readJson<unknown>(this.file, null)
@@ -92,8 +97,13 @@ export class ExerciseStore {
     await this.flush()
   }
 
-  private async flush(): Promise<void> {
-    await writeJsonAtomic(this.file, [...this.byId.values()])
+  private flush(): Promise<void> {
+    // Mutations update memory synchronously, but disk snapshots must commit in order. Build the
+    // snapshot only when this write reaches the head of the queue, so it includes every mutation
+    // that happened while an earlier atomic rename was still pending.
+    const write = this.writeQueue.then(() => this.write(this.file, [...this.byId.values()]))
+    this.writeQueue = write.catch(() => undefined)
+    return write
   }
 }
 

@@ -140,9 +140,9 @@ beforeEach(() => {
     selectedExercise: null,
     selectedOpening: null,
     loading: false,
-    request: null,
-    activity: null,
-    stream: null,
+    requests: [],
+    activities: {},
+    streams: {},
     error: null
   })
   useUiStore.setState({ area: 'training', reviewTarget: null })

@@ -56,7 +56,7 @@ beforeEach(() => {
   useTrainingStore.setState({
     tab: 'plan',
     plan: null,
-    request: null,
+    requests: [],
     selectedExercise: null,
     selectedOpening: null,
     error: null

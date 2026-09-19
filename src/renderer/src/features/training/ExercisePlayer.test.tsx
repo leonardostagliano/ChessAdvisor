@@ -97,9 +97,9 @@ beforeEach(() => {
   board.move = 'e2e4'
   mockApi()
   useTrainingStore.setState({
-    request: null,
-    activity: null,
-    stream: null,
+    requests: [],
+    activities: {},
+    streams: {},
     explanations: {},
     exercises: [],
     error: null
@@ -200,16 +200,18 @@ describe('ExercisePlayer', () => {
 
     act(() => {
       useTrainingStore.setState({
-        activity: { kind: 'explain', ref: 'ex1', streamId: 's1', busy: true },
-        stream: { streamId: 's1', text: 'Il cavallo forchetta' }
+        activities: {
+          '["explain","ex1"]': { kind: 'explain', ref: 'ex1', streamId: 's1', busy: true }
+        },
+        streams: { s1: 'Il cavallo forchetta' }
       })
     })
     expect(screen.getByTestId('explanation-card')).toHaveTextContent('Il cavallo forchetta')
 
     act(() => {
       useTrainingStore.setState({
-        activity: null,
-        stream: null,
+        activities: {},
+        streams: {},
         explanations: { ex1: 'Spiegazione finta.' }
       })
     })

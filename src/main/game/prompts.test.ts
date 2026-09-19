@@ -41,7 +41,7 @@ describe('nearestLevel', () => {
 })
 
 describe('opponentBaseInstructions', () => {
-  it('writes the persona, the target Elo and the depth limit of every rated level', () => {
+  it('writes the persona and target Elo of every rated level without an artificial depth cap', () => {
     const personas: Record<DifficultyLevel, RegExp> = {
       1: /Principiante/,
       2: /Facile/,
@@ -58,22 +58,41 @@ describe('opponentBaseInstructions', () => {
       })
       expect(text).toMatch(personas[level])
       expect(text).toContain(String(DIFFICULTY_LEVELS[level].elo))
-      expect(text).toContain(`Non calcolare oltre ${level} semimosse`)
       expect(text).toContain('preferisci la mossa naturale')
+      expect(text).not.toMatch(/calcolare oltre \d+ semimosse/i)
     }
   })
 
-  it('forbids giving material away from level 3 up only', () => {
-    const give = 'Non regalare mai materiale'
-    expect(
-      opponentBaseInstructions({ color: 'b', difficulty: fixed(2), language: 'it' })
-    ).not.toContain(give)
-    expect(
-      opponentBaseInstructions({ color: 'b', difficulty: fixed(3), language: 'it' })
-    ).toContain(give)
-    expect(
-      opponentBaseInstructions({ color: 'b', difficulty: fixed(5), language: 'it' })
-    ).toContain(give)
+  it('gives Medium and every stronger tier the same immediate tactical floor', () => {
+    for (const language of ['it', 'en'] as const) {
+      for (const level of [3, 4, 5, 6] as DifficultyLevel[]) {
+        const text = opponentBaseInstructions({ color: 'b', difficulty: fixed(level), language })
+        if (language === 'it') {
+          expect(text).toMatch(/scacchi, catture(?:,| e) minacce/)
+          expect(text).toContain('risposta immediata più forte dell’avversario')
+        } else {
+          expect(text).toMatch(/checks, captures(?:,| and) threats/)
+          expect(text).toContain("opponent's strongest immediate reply")
+        }
+      }
+    }
+  })
+
+  it('escalates from immediate checks to stable forcing lines without numeric ply ceilings', () => {
+    const medium = opponentBaseInstructions({ color: 'b', difficulty: fixed(3), language: 'en' })
+    const challenging = opponentBaseInstructions({
+      color: 'b',
+      difficulty: fixed(4),
+      language: 'en'
+    })
+    const strong = opponentBaseInstructions({ color: 'b', difficulty: fixed(5), language: 'en' })
+    expect(medium).toContain("opponent's strongest immediate reply")
+    expect(medium).not.toContain('tactically stable')
+    expect(challenging).toContain('forcing lines until the position is tactically stable')
+    expect(strong).toContain('every forcing line until the position is tactically stable')
+    for (const text of [medium, challenging, strong]) {
+      expect(text).not.toMatch(/deeper than \d+ plies/i)
+    }
   })
 
   it('asks level 6 for the best play it can find, with no Elo and no depth limit', () => {

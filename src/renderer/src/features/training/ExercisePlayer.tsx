@@ -60,7 +60,7 @@ export function ExercisePlayer({
   const [revealed, setRevealed] = useState(false)
   const [lastMove, setLastMove] = useState<[string, string] | null>(null)
   const [pending, setPending] = useState(false)
-  const request = useTrainingStore((state) => state.request)
+  const requests = useTrainingStore((state) => state.requests)
   const explanation = useTrainingStore(
     (state) => state.explanations[exercise.id] ?? exercise.explanation ?? ''
   )
@@ -95,7 +95,9 @@ export function ExercisePlayer({
 
   useEffect(() => clearTimer, [])
 
-  const explaining = request?.kind === 'explain' && request.ref === exercise.id
+  const explaining = requests.some(
+    (request) => request.kind === 'explain' && request.ref === exercise.id
+  )
   const turn = sideToMove(fen)
   const orientation = exercise.sideToMove === 'w' ? 'white' : 'black'
   const movable = done || pending || revealed ? undefined : turn === 'w' ? 'white' : 'black'

@@ -143,7 +143,14 @@ try {
   await page.getByRole('button', { name: /Inizia partita/ }).click()
   await page.locator('cg-board').first().waitFor({ timeout: 60000 })
   await sleep(400) // let the first paint and the initial live eval settle, as a person would
-  const s0 = await state()
+  const s0 = await until(
+    async () => {
+      const current = await state()
+      return current.status === 'playing' && current.game ? current : null
+    },
+    60000,
+    'new game ready'
+  )
   ok(
     'game started',
     s0.status === 'playing' && !!s0.game,
@@ -617,6 +624,46 @@ try {
   await sleep(300)
   await shot('08c-training.png')
 
+  // Regressions: each coach action must settle and leave the other training actions usable.
+  await player.getByRole('button', { name: /^Spiega$/ }).click()
+  const explained = await until(
+    async () => {
+      const saved = await api((id) => window.api.training.exercises.get(id), exercise.id)
+      return saved?.explanation?.trim() || null
+    },
+    120000,
+    'exercise explanation'
+  ).catch(() => null)
+  await player.getByRole('button', { name: /^Spiega$/ }).waitFor({ timeout: 30000 })
+  const explanationCard = await player.getByTestId('explanation-card').textContent()
+  ok(
+    'Explain returns text and releases the training controls',
+    !!explained && explanationCard.includes(explained),
+    explanationCard.slice(0, 160)
+  )
+
+  await page.getByRole('tab', { name: 'Aperture', exact: true }).click()
+  const openingRows = page.locator('[data-testid="training-openings"] tbody tr')
+  await openingRows.first().waitFor({ timeout: 30000 })
+  await openingRows.first().getByRole('button').click()
+  const openingDetail = page.getByTestId('opening-detail')
+  await openingDetail.getByRole('button', { name: 'Mini-lezione', exact: true }).click()
+  const lessonText = await until(
+    async () => {
+      if (!(await openingDetail.getByRole('button', { name: 'Mini-lezione', exact: true }).count()))
+        return null
+      if (!(await openingDetail.getByTestId('explanation-card').count())) return null
+      return await openingDetail.getByTestId('explanation-card').textContent()
+    },
+    120000,
+    'opening lesson'
+  )
+  ok(
+    'opening Mini-lezione displays the completed lesson',
+    !!lessonText && !lessonText.includes('sta scrivendo'),
+    lessonText.slice(0, 160)
+  )
+
   await page.getByRole('tab', { name: 'Piano di studio' }).click()
   await page.getByRole('button', { name: /^Genera il piano$/ }).click()
   const planItems = await until(
@@ -630,6 +677,28 @@ try {
   ok('the study plan lists at least four activities', planItems >= 4, `${planItems} items`)
   await sleep(300)
   await shot('08d-plan.png')
+
+  await page.getByRole('tab', { name: 'Finali', exact: true }).click()
+  const endgameCard = page.locator('[data-testid="endgames"] [data-endgame]').first()
+  const endgameId = await endgameCard.getAttribute('data-endgame')
+  const endgame = (await api(() => window.api.training.endgames.list())).find(
+    (entry) => entry.id === endgameId
+  )
+  await endgameCard.getByRole('button', { name: 'Gioca', exact: true }).click()
+  const drill = await until(
+    async () => {
+      const current = await state()
+      return current.status === 'playing' && current.game?.kind === 'endgame_drill' ? current : null
+    },
+    60000,
+    'endgame drill'
+  )
+  await page.locator('cg-board').first().waitFor()
+  ok(
+    'endgame Gioca opens the selected position at maximum difficulty',
+    drill.game.startFen === endgame.fen && drill.game.opponent.difficulty.level === 6,
+    endgameId
+  )
 
   await page
     .getByRole('button', { name: /^Gioca$/ })

@@ -8,7 +8,9 @@ section built from your own games.
 
 - **Play** a full game against a model you pick, at six difficulty levels or in adaptive mode,
   with optional clocks (yours only, or one for the model too), takebacks, draw offers and
-  autosave: an interrupted game is always on disk and can be resumed from the archive.
+  autosave: an interrupted game is always on disk and can be resumed from the archive. Difficulty
+  ratings are requested playing styles, not measured Elo; actual strength depends on the model
+  and reasoning effort.
 - **Coach**: comments on every move as they are played, free questions with streamed answers, and
   a hint drawn on the board. With Stockfish present the coach reasons on real evaluations;
   without it, it says so and reasons on its own.
@@ -88,6 +90,10 @@ plays real chess moves, streams comments and never opens a network connection. I
 data folder through `CHESSADVISOR_USER_DATA` and writes screenshots to `test/e2e/shots/fake/`.
 `npm run e2e:real` runs the same script against the real CLI and does spend quota, so it is a
 release check, not a habit.
+
+`node test/e2e/training.e2e.mjs` exercises Explain across navigation, opening mini-lessons,
+study-plan generation and endgame launch with isolated fixtures. Add `--real` for three small
+coach requests using GPT-5.6 Luna at high effort; this spends quota and requires that model.
 
 ### Packaging
 

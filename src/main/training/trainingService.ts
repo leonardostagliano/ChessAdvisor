@@ -248,7 +248,11 @@ export class TrainingService {
       return text
     } finally {
       this.changed({ kind: 'activity', activity: { ...p.activity, streamId: null, busy: false } })
-      await this.deps.codex.closeThread(threadId).catch(() => undefined)
+      // The answer (or the failure) is already final at this point. Unsubscribing the ephemeral
+      // thread is housekeeping and must not keep the renderer's IPC request busy when the Codex
+      // transport is degraded: `thread/unsubscribe` has its own RPC timeout and used to leave the
+      // training screen apparently stuck even after the turn itself had finished.
+      void this.deps.codex.closeThread(threadId).catch(() => undefined)
     }
   }
 

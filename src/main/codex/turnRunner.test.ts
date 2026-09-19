@@ -354,6 +354,28 @@ describe('runTurn', () => {
     expect(await promise).toEqual(expect.objectContaining({ ok: false, reason: 'server-request' }))
   })
 
+  it('bounds cancellation when the server never acknowledges an interrupt', async () => {
+    const h = harness()
+    const promise = runTurn(h.rpc, h.bus, req({ timeoutMs: 20 }), h.events, noItems)
+    await h.respond('turn/start', startedTurn)
+    await h.request('turn/interrupt')
+    await expect(promise).resolves.toMatchObject({ ok: false, reason: 'timeout' })
+    h.rpc.close('test finished')
+  })
+
+  it('fails immediately when the transport closes after turn/start', async () => {
+    const h = harness()
+    const promise = runTurn(h.rpc, h.bus, req(), h.events, noItems)
+    await h.respond('turn/start', startedTurn)
+    h.rpc.close('the codex app-server exited')
+    await expect(promise).resolves.toMatchObject({
+      ok: false,
+      reason: 'failed',
+      message: 'the codex app-server exited',
+      turnId: TURN
+    })
+  })
+
   it('ignores notifications of other turns and other threads', async () => {
     const h = harness()
     const promise = runTurn(h.rpc, h.bus, req(), h.events, noItems)

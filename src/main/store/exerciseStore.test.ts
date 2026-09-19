@@ -3,7 +3,16 @@ import { join } from 'node:path'
 import type { Exercise } from '@shared/types/training'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { makeTmpDir, removeTmpDir } from '../../../test/helpers/tmpDir'
+import { writeJsonAtomic } from './atomicWrite'
 import { ExerciseStore, sanitizeExercise } from './exerciseStore'
+
+function deferred(): { promise: Promise<void>; resolve(): void } {
+  let resolve!: () => void
+  const promise = new Promise<void>((done) => {
+    resolve = done
+  })
+  return { promise, resolve }
+}
 
 const exercise = (id: string, patch: Partial<Exercise> = {}): Exercise => ({
   id,
@@ -44,6 +53,41 @@ describe('ExerciseStore', () => {
     await reopened.load()
     expect(reopened.list()).toHaveLength(1)
     expect(reopened.get('tac-1')?.attempts).toBe(2)
+  })
+
+  it('serializes concurrent saves so an older snapshot cannot overwrite a newer one', async () => {
+    const file = join(root, 'concurrent-exercises.json')
+    const firstStarted = deferred()
+    const releaseFirst = deferred()
+    let writes = 0
+    const delayedWrite: typeof writeJsonAtomic = async (path, value) => {
+      writes += 1
+      if (writes === 1) {
+        firstStarted.resolve()
+        await releaseFirst.promise
+      }
+      await writeJsonAtomic(path, value)
+    }
+    const concurrent = new ExerciseStore(file, delayedWrite)
+    await concurrent.load()
+
+    const first = concurrent.put(exercise('tac-1'))
+    await firstStarted.promise
+    const second = concurrent.put(exercise('tac-2'))
+    await Promise.resolve()
+
+    expect(writes).toBe(1)
+    releaseFirst.resolve()
+    await Promise.all([first, second])
+
+    const reopened = new ExerciseStore(file)
+    await reopened.load()
+    expect(
+      reopened
+        .list()
+        .map((entry) => entry.id)
+        .sort()
+    ).toEqual(['tac-1', 'tac-2'])
   })
 
   it('lists the newest first and filters by kind', async () => {

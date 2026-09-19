@@ -62,6 +62,8 @@ export class RpcClient {
   private readonly requestTimeoutMs: number
   private nextId = 1
   private closed = false
+  private closeReason = ''
+  private readonly closeListeners = new Set<(reason: string) => void>()
 
   constructor(
     private readonly transport: RpcTransport,
@@ -111,11 +113,23 @@ export class RpcClient {
   close(reason: string): void {
     if (this.closed) return
     this.closed = true
+    this.closeReason = reason
     const pending = [...this.pending.entries()]
     this.pending.clear()
     for (const [, entry] of pending) {
       if (entry.timer) clearTimeout(entry.timer)
       entry.reject(new RpcError('CLOSED', reason, entry.method))
+    }
+    for (const listener of this.closeListeners) listener(reason)
+    this.closeListeners.clear()
+  }
+
+  /** Turns still await notifications after turn/start has resolved. */
+  onClose(listener: (reason: string) => void): () => void {
+    if (this.closed) listener(this.closeReason)
+    else this.closeListeners.add(listener)
+    return () => {
+      this.closeListeners.delete(listener)
     }
   }
 

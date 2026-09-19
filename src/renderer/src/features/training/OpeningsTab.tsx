@@ -20,7 +20,7 @@ export function OpeningsTab(): React.JSX.Element {
   const { t } = useTranslation()
   const openings = useTrainingStore((state) => state.openings)
   const selected = useTrainingStore((state) => state.selectedOpening)
-  const request = useTrainingStore((state) => state.request)
+  const requests = useTrainingStore((state) => state.requests)
   const lessons = useTrainingStore((state) => state.lessons)
   const entry = openings.find((row) => row.eco === selected) ?? null
   // The plan turn is announced as a lesson with no reference: only a row that is open follows one.
@@ -46,7 +46,9 @@ export function OpeningsTab(): React.JSX.Element {
     )
   }
 
-  const writing = request?.kind === 'lesson' && request.ref === entry?.eco
+  const writing = requests.some(
+    (request) => request.kind === 'lesson' && request.ref === entry?.eco
+  )
   const lesson = entry ? (lessons[entry.eco] ?? '') : ''
 
   return (

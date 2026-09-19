@@ -62,7 +62,10 @@ interface ThreadItemLike {
 }
 
 type Outcome =
-  { kind: 'completed'; turn: Params } | { kind: 'timeout' } | { kind: 'server-request' }
+  | { kind: 'completed'; turn: Params }
+  | { kind: 'timeout' }
+  | { kind: 'server-request' }
+  | { kind: 'disconnected'; message: string }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -182,6 +185,7 @@ export async function runTurn(
   const unsubscribe = methods.map((method) =>
     bus.on(method, (params: Params) => handle(method, params))
   )
+  unsubscribe.push(rpc.onClose((message) => settle({ kind: 'disconnected', message })))
   const completion = new Promise<Outcome>((resolve) => {
     resolveOutcome = resolve
     if (outcome) resolve(outcome)
@@ -227,9 +231,15 @@ export async function runTurn(
 
     const result = await completion
 
+    if (result.kind === 'disconnected') {
+      return { ok: false, reason: 'failed', message: result.message, turnId }
+    }
+
     if (result.kind === 'timeout' || result.kind === 'server-request') {
-      // The turn is still running on the server: stop it before giving the caller a failure.
-      await rpc.request('turn/interrupt', { threadId: req.threadId, turnId }).catch(() => undefined)
+      // Await the normal acknowledgement before a retry, but never add the full RPC timeout.
+      await rpc
+        .request('turn/interrupt', { threadId: req.threadId, turnId }, 1000)
+        .catch(() => undefined)
       return result.kind === 'timeout'
         ? { ok: false, reason: 'timeout', message: `turn timed out after ${timeoutMs} ms`, turnId }
         : {

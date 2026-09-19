@@ -89,6 +89,78 @@ const COLOR_NAME: Record<'it' | 'en', { w: string; b: string }> = {
 }
 
 /**
+ * Concrete playing discipline for each tier.
+ *
+ * A numeric search-depth limit is a poor proxy for human strength: at level 3 it used to tell the
+ * model to stop after only three plies, which can suppress even the check of the opponent's most
+ * immediate reply. These rules instead say which tactical duties the tier must reliably perform.
+ * From Medium upwards the duties only grow; weaker play comes from narrower planning and
+ * evaluation, never from knowingly hanging material or ignoring an immediate tactic.
+ */
+const PLAYING_RULES: Record<'it' | 'en', Record<DifficultyLevel, string[]>> = {
+  it: {
+    1: [
+      'Gioca in modo semplice e diretto; puoi non accorgerti di pezzi in presa o minacce immediate.',
+      'Non scegliere a caso: anche un errore deve sembrare una mossa umana plausibile.'
+    ],
+    2: [
+      'Prima di muovere osserva gli scacchi e le catture immediate più evidenti per entrambi i colori.',
+      'Puoi trascurare minacce meno evidenti e combinazioni che richiedono più passaggi.'
+    ],
+    3: [
+      'Prima di scegliere esamina scacchi, catture e minacce immediate per entrambi i colori.',
+      'Controlla la risposta immediata più forte dell’avversario: non lasciare pezzi in presa e non ignorare matti in una o tattiche semplici.',
+      'Non commettere volontariamente un errore tattico che hai già riconosciuto; le tue imprecisioni devono essere posizionali o dipendere da combinazioni più profonde.'
+    ],
+    4: [
+      'Rispetta sempre i controlli tattici del livello Medio: scacchi, catture, minacce e risposta immediata più forte dell’avversario.',
+      'Confronta più mosse candidate e calcola le varianti forzanti finché la posizione non è tatticamente stabile.',
+      'Valuta anche sicurezza del re, attività dei pezzi e struttura pedonale prima di decidere.'
+    ],
+    5: [
+      'Rispetta sempre i controlli tattici dei livelli precedenti: scacchi, catture, minacce e risposta immediata più forte dell’avversario.',
+      'Confronta più mosse candidate, cerca risorse difensive per entrambi i colori e calcola ogni variante forzante finché la posizione non è tatticamente stabile.',
+      'Scegli la mossa più solida dopo aver valutato tattica, piano, sicurezza del re e finale risultante.'
+    ],
+    6: [
+      'Rispetta sempre i controlli tattici dei livelli precedenti: scacchi, catture, minacce e risposta immediata più forte dell’avversario.',
+      'Confronta tutte le mosse candidate serie, cerca ogni risorsa difensiva e calcola ogni variante forzante finché la posizione non è tatticamente stabile.',
+      'Valuta tattica, piano, sicurezza del re, attività dei pezzi, struttura pedonale e finale risultante prima di decidere.'
+    ]
+  },
+  en: {
+    1: [
+      'Play simply and directly; you may overlook hanging pieces or immediate threats.',
+      'Do not choose at random: even a mistake must look like a plausible human move.'
+    ],
+    2: [
+      'Before moving, notice the most obvious immediate checks and captures for both sides.',
+      'You may overlook less obvious threats and combinations that take several steps.'
+    ],
+    3: [
+      'Before choosing, examine immediate checks, captures and threats for both sides.',
+      "Check the opponent's strongest immediate reply: do not leave pieces hanging or ignore mate in one or simple tactics.",
+      'Do not deliberately make a tactical error you have already recognised; your inaccuracies should be positional or depend on deeper combinations.'
+    ],
+    4: [
+      "Always perform the Medium tier's tactical checks: checks, captures, threats and the opponent's strongest immediate reply.",
+      'Compare several candidate moves and calculate forcing lines until the position is tactically stable.',
+      'Also evaluate king safety, piece activity and pawn structure before deciding.'
+    ],
+    5: [
+      "Always perform the previous tiers' tactical checks: checks, captures, threats and the opponent's strongest immediate reply.",
+      'Compare several candidate moves, look for defensive resources for both sides and calculate every forcing line until the position is tactically stable.',
+      'Choose the soundest move after evaluating tactics, plans, king safety and the resulting endgame.'
+    ],
+    6: [
+      "Always perform the previous tiers' tactical checks: checks, captures, threats and the opponent's strongest immediate reply.",
+      'Compare every serious candidate move, find every defensive resource and calculate every forcing line until the position is tactically stable.',
+      'Evaluate tactics, plans, king safety, piece activity, pawn structure and the resulting endgame before deciding.'
+    ]
+  }
+}
+
+/**
  * `baseInstructions` of the opponent thread: the whole system prompt, difficulty included.
  * Recreated for every game (and on resume), never mid-game.
  */
@@ -113,7 +185,8 @@ export function opponentBaseInstructions(p: {
       'Non hai alcun aiuto esterno e non usi strumenti: scegli la mossa ragionando soltanto sulla posizione che ti viene data.',
       'Rispondi sempre e soltanto con l’oggetto JSON richiesto: "move" è una delle mosse legali elencate, copiata esattamente in SAN; "shortComment" è una frase molto breve rivolta alla persona con cui giochi, oppure null.',
       '',
-      `Livello di gioco: ${persona.name} — ${persona.description}.`
+      `Livello di gioco: ${persona.name} — ${persona.description}.`,
+      ...PLAYING_RULES.it[level]
     )
     if (targetElo === null) {
       lines.push(
@@ -123,10 +196,8 @@ export function opponentBaseInstructions(p: {
       lines.push(
         `Elo obiettivo: circa ${targetElo}.`,
         `Scegli la mossa che un giocatore di circa ${targetElo} Elo giocherebbe plausibilmente.`,
-        `Non calcolare oltre ${level} semimosse.`,
         'Quando più mosse sono ragionevoli, preferisci la mossa naturale che giocherebbe una persona a quella teoricamente perfetta.'
       )
-      if (level >= 3) lines.push('Non regalare mai materiale senza un motivo concreto.')
     }
   } else {
     lines.push(
@@ -135,7 +206,8 @@ export function opponentBaseInstructions(p: {
       'You have no external help and you use no tools: choose the move by reasoning on the given position alone.',
       'Always answer with the requested JSON object and nothing else: "move" is one of the listed legal moves copied exactly in SAN; "shortComment" is a very short line addressed to the person you are playing, or null.',
       '',
-      `Playing level: ${persona.name} — ${persona.description}.`
+      `Playing level: ${persona.name} — ${persona.description}.`,
+      ...PLAYING_RULES.en[level]
     )
     if (targetElo === null) {
       lines.push('Play the best move you can find: do not hold back on purpose.')
@@ -143,10 +215,8 @@ export function opponentBaseInstructions(p: {
       lines.push(
         `Target rating: about ${targetElo} Elo.`,
         `Choose the move a player rated about ${targetElo} would plausibly play.`,
-        `Do not calculate deeper than ${level} plies.`,
         'When several moves are reasonable, prefer the natural human move over the theoretically perfect one.'
       )
-      if (level >= 3) lines.push('Never give away material for nothing.')
     }
   }
   return lines.join('\n')

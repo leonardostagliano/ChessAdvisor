@@ -218,8 +218,8 @@
       "xhigh": "Molto alto",
       "ultra": "Estremo"
     },
-    "difficultyHint": "La difficoltà cambia solo la persona dell’avversario, non il modello né l’impegno.",
-    "hintLowEffort": "Ai livelli 1-3 un impegno basso o medio basta e risponde più in fretta.",
+    "difficultyHint": "I livelli indicano lo stile di gioco richiesto al modello. Gli Elo sono indicativi, non misurati: la forza effettiva dipende anche dal modello e dall’impegno scelti.",
+    "hintLowEffort": "Ai livelli 1-3 un impegno basso o medio risponde più in fretta, ma può ridurre la precisione tattica.",
     "hintHighEffort": "Con Massimo è consigliato un impegno alto.",
     "commentsVisible": "Commenti visibili",
     "commentsVisibleHint": "Il coach commenta le mosse mentre giochi, nella scheda Commenti.",

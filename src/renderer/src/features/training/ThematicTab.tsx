@@ -21,9 +21,9 @@ export function ThematicTab(): React.JSX.Element {
   const { t } = useTranslation()
   const set = useTrainingStore((state) => state.thematic)
   const exercises = useTrainingStore((state) => state.exercises)
-  const request = useTrainingStore((state) => state.request)
+  const requests = useTrainingStore((state) => state.requests)
   const [index, setIndex] = useState(0)
-  const drawing = request?.kind === 'thematic'
+  const drawing = requests.some((request) => request.kind === 'thematic')
 
   // A new set always starts from its first puzzle.
   useEffect(() => {

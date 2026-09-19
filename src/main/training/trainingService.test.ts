@@ -36,6 +36,7 @@ class FakeCodex implements SessionCodex {
   /** Plan items, answered in order: one array per call. */
   planAnswers: unknown[][] = []
   text = 'Spiegazione finta.'
+  closeNeverSettles = false
   private threads = 0
 
   async startThread(
@@ -81,6 +82,7 @@ class FakeCodex implements SessionCodex {
 
   async closeThread(threadId: string): Promise<void> {
     this.closed.push(threadId)
+    if (this.closeNeverSettles) await new Promise<void>(() => undefined)
   }
 
   models(): ModelInfo[] {
@@ -321,6 +323,15 @@ describe('TrainingService', () => {
     return game
   }
 
+  it('reports a missing model for generated training and endgame drills', async () => {
+    await settings.save({ defaultModel: null })
+
+    await expect(service.generatePlan()).rejects.toMatchObject({ code: 'TRAINING_NO_MODEL' })
+    await expect(service.startEndgame('queen_mate')).rejects.toMatchObject({
+      code: 'TRAINING_NO_MODEL'
+    })
+  })
+
   // ───────────────────────────────────────────────────── own-game exercises
 
   it('builds the exercises of an analysed game and never rebuilds them', async () => {
@@ -432,6 +443,21 @@ describe('TrainingService', () => {
     expect(activity[0]?.activity?.busy).toBe(true)
     expect(activity[0]?.activity?.streamId).toBeTruthy()
     expect(activity[1]?.activity?.busy).toBe(false)
+  })
+
+  it('returns the explanation without waiting for thread cleanup', async () => {
+    const game = await storeGame(
+      analysedGame({
+        sans: ['e4', 'e5', 'Nf3'],
+        classifications: [undefined, undefined, 'blunder']
+      })
+    )
+    await service.onGameAnalyzed(game)
+    codex.closeNeverSettles = true
+
+    await expect(service.explain(`og-${game.id}-3`)).resolves.toBe('Spiegazione finta.')
+    expect(codex.closed).toHaveLength(1)
+    expect(events.filter((event) => event.kind === 'activity').at(-1)?.activity?.busy).toBe(false)
   })
 
   // ──────────────────────────────────────────────────────────── thematic sets

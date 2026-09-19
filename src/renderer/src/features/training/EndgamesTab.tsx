@@ -18,7 +18,7 @@ export function EndgamesTab(): React.JSX.Element {
   const { t } = useTranslation()
   const language = useUiStore((state) => state.language)
   const endgames = useTrainingStore((state) => state.endgames)
-  const request = useTrainingStore((state) => state.request)
+  const requests = useTrainingStore((state) => state.requests)
   const loading = useTrainingStore((state) => state.loading)
 
   // The catalogue ships with the app: an empty list means the dataset could not be read.
@@ -44,7 +44,9 @@ export function EndgamesTab(): React.JSX.Element {
 
       <ul className={styles.grid} data-testid="endgames">
         {endgames.map((endgame) => {
-          const starting = request?.kind === 'endgame' && request.ref === endgame.id
+          const starting = requests.some(
+            (request) => request.kind === 'endgame' && request.ref === endgame.id
+          )
           const gameId = endgame.gameId
           return (
             <li
@@ -81,7 +83,7 @@ export function EndgamesTab(): React.JSX.Element {
                 <Button
                   size="sm"
                   variant="primary"
-                  disabled={starting}
+                  disabled={requests.some((request) => request.kind === 'endgame')}
                   onClick={() => void useTrainingStore.getState().startEndgame(endgame.id)}
                 >
                   {starting ? t('training.endgames.starting') : t('training.endgames.play')}

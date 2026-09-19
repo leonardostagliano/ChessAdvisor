@@ -62,10 +62,10 @@ export interface TrainingStoreState {
   selectedOpening: string | null
   /** True while the first read of the section is in flight. */
   loading: boolean
-  request: TrainingRequest | null
-  activity: TrainingActivity | null
-  /** Text of the training turn in flight, keyed by the `streamId` that announced it. */
-  stream: { streamId: string; text: string } | null
+  requests: TrainingRequest[]
+  activities: Record<string, TrainingActivity>
+  /** Each concurrent coach turn keeps its own text. */
+  streams: Record<string, string>
   error: string | null
 
   setTab(tab: TrainingTab): void
@@ -115,6 +115,10 @@ export function solvedCount(exercises: readonly Exercise[], set: ThematicSet | n
     .length
 }
 
+function activityKey(kind: string, ref: string | null): string {
+  return JSON.stringify([kind, ref])
+}
+
 export const useTrainingStore = create<TrainingStoreState>((set, get) => {
   /**
    * One request that can fail. Like the coach's turns, it is deliberately outside any global busy
@@ -125,14 +129,30 @@ export const useTrainingStore = create<TrainingStoreState>((set, get) => {
     run: (api: Window['api']) => Promise<void>
   ): Promise<void> {
     const api = bridge()
-    if (!api || get().request) return
-    set({ request, error: null })
+    if (!api) return
+    // Independent tabs remain usable; identical actions and simultaneous game starts are deduped.
+    if (
+      get().requests.some(
+        (active) =>
+          active.kind === request.kind && (request.kind === 'endgame' || active.ref === request.ref)
+      )
+    )
+      return
+    set({ requests: [...get().requests, request], error: null })
     try {
       await run(api)
     } catch (error) {
       set({ error: failure(error) })
     } finally {
-      set({ request: null })
+      const kind = request.kind === 'plan' ? 'lesson' : request.kind
+      const key = activityKey(kind, request.ref)
+      const activities = { ...get().activities }
+      const streams = { ...get().streams }
+      const streamId = activities[key]?.streamId
+      delete activities[key]
+      if (streamId) delete streams[streamId]
+      // Completion may happen while the screen is unmounted and its event listener is absent.
+      set({ requests: get().requests.filter((active) => active !== request), activities, streams })
     }
   }
 
@@ -148,9 +168,9 @@ export const useTrainingStore = create<TrainingStoreState>((set, get) => {
     selectedExercise: null,
     selectedOpening: null,
     loading: false,
-    request: null,
-    activity: null,
-    stream: null,
+    requests: [],
+    activities: {},
+    streams: {},
     error: null,
 
     setTab(tab) {
@@ -308,20 +328,31 @@ export const useTrainingStore = create<TrainingStoreState>((set, get) => {
         void get().refreshPlan()
         return
       }
-      const activity = event.activity ?? null
-      if (!activity || (!activity.busy && !activity.streamId)) {
-        set({ activity: null })
-        return
-      }
-      set({ activity, ...(activity.streamId ? { stream: null } : {}) })
+      const activity = event.activity
+      if (!activity) return
+      const key = activityKey(activity.kind, activity.ref)
+      const activities = { ...get().activities }
+      const streams = { ...get().streams }
+      const previous = activities[key]
+      if (previous?.streamId && previous.streamId !== activity.streamId)
+        delete streams[previous.streamId]
+      if (activity.busy && activity.streamId) activities[key] = activity
+      else delete activities[key]
+      set({ activities, streams })
     },
 
     applyStream(envelope) {
       if (!envelope || envelope.kind !== 'text') return
-      const { activity, stream } = get()
-      if (!activity?.streamId || envelope.streamId !== activity.streamId) return
-      const previous = stream?.streamId === envelope.streamId ? stream.text : ''
-      set({ stream: { streamId: envelope.streamId, text: previous + envelope.chunk } })
+      if (
+        !Object.values(get().activities).some((activity) => activity.streamId === envelope.streamId)
+      )
+        return
+      set({
+        streams: {
+          ...get().streams,
+          [envelope.streamId]: (get().streams[envelope.streamId] ?? '') + envelope.chunk
+        }
+      })
     }
   }
 })
@@ -335,9 +366,9 @@ export function streamingText(
   kind: TrainingActivity['kind'],
   ref: string | null
 ): string | null {
-  const activity = state.activity
-  if (!activity || !activity.busy || activity.kind !== kind || activity.ref !== ref) return null
-  return state.stream?.streamId === activity.streamId ? state.stream.text : ''
+  const activity = state.activities[activityKey(kind, ref)]
+  if (!activity?.busy || !activity.streamId) return null
+  return state.streams[activity.streamId] ?? ''
 }
 
 /**
