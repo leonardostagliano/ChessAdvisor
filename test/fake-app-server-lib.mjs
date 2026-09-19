@@ -279,6 +279,14 @@ export function createFakeServer(io, options = {}) {
   function finalText(params, state) {
     const text = inputText(params)
     const properties = schemaProperties(params)
+    // Advice can recommend a move without turning an explanatory question into a hint.
+    if (properties && 'answer' in properties && 'move' in properties) {
+      const move = /Domanda:.*quale mossa/i.test(text) ? randomLegalMove(fenFrom(text)) : null
+      return JSON.stringify({
+        answer: move ? 'Sviluppa il pezzo indicato.' : 'Risposta finta.',
+        move
+      })
+    }
     // The hint schema (spec §4.2) is the only one with both `move` and `reason`.
     if (properties && 'move' in properties && 'reason' in properties) {
       const fen = fenFrom(text)

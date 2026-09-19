@@ -42,13 +42,22 @@ ol {
   list-style: none;
 }
 
-h1,
+h1 {
+  font-family: var(--font-serif);
+  font-weight: 450;
+  font-variation-settings:
+    'SOFT' 0,
+    'WONK' 0;
+  letter-spacing: -0.035em;
+  line-height: 1.12;
+}
+
 h2,
 h3 {
-  font-family: var(--font-serif);
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  line-height: 1.25;
+  font-family: var(--font-ui);
+  font-weight: 500;
+  letter-spacing: -0.025em;
+  line-height: 1.3;
 }
 
 button,
@@ -94,12 +103,12 @@ textarea {
   font-size: var(--fs-xs);
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.14em;
   color: var(--text-3);
 }
 
 .prose {
-  font-family: var(--font-serif);
+  font-family: var(--font-ui);
   font-size: var(--fs-md);
   line-height: var(--lh-prose);
   color: var(--text-2);

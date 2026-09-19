@@ -1,11 +1,12 @@
-/* Clocks above and below the board (spec §4.3). */
 .clock {
   display: inline-flex;
   align-items: baseline;
-  gap: var(--s-2);
-  padding: 2px var(--s-3);
+  gap: 6px;
+  min-width: 72px;
+  justify-content: center;
+  padding: 5px 9px;
   border: 1px solid var(--border);
-  border-radius: var(--radius-control);
+  border-radius: 4px;
   background: var(--bg-2);
   color: var(--text-2);
   transition:
@@ -15,25 +16,24 @@
 }
 
 .time {
-  font-size: var(--fs-md);
+  font-size: var(--fs-sm);
   font-variant-numeric: tabular-nums;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.035em;
 }
 
-/* The side to move: the only clock that is actually running. */
 .running {
-  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  border-color: color-mix(in srgb, var(--accent) 48%, var(--border));
   background: var(--accent-soft);
   color: var(--text);
 }
 
 .expired {
   border-color: color-mix(in srgb, var(--danger) 55%, var(--border));
-  background: color-mix(in srgb, var(--danger) 12%, var(--bg-2));
+  background: color-mix(in srgb, var(--danger) 10%, var(--bg-2));
   color: var(--danger);
 }
 
 .flag {
-  font-size: var(--fs-xs);
+  font-size: 10px;
   text-transform: lowercase;
 }

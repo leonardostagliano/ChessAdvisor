@@ -157,11 +157,22 @@ export class GameSession {
   private pendingComments: number[] = []
   /** Comments run one at a time, behind the moves: the AI turn never waits for one. */
   private commentChain: Promise<void> = Promise.resolve()
+  /** The one comment currently preparing or streaming; used to cancel positions that disappear. */
+  private activeComment: {
+    gameId: string
+    ply: number
+    uci: string
+    controller: AbortController
+  } | null = null
+  /** Invalidates comment closures already moved from `pendingComments` into the promise chain. */
+  private commentQueueEpoch = 0
   /**
    * Bumped whenever a running AI turn stops being relevant (takeback, resign, new game, close).
    * The turn that comes back with a stale epoch is dropped instead of landing on the board.
    */
   private turnEpoch = 0
+  /** Monotonic board identity: equal FEN and ply after a replay must still reject old results. */
+  private positionRevision = 0
 
   constructor(private readonly deps: GameSessionDeps) {
     this.coach = new CoachSession({
@@ -395,6 +406,7 @@ export class GameSession {
    */
   private async openCoach(language: Language, recap?: CoachLogEntry[]): Promise<void> {
     const game = this.requireGame()
+    this.commentQueueEpoch += 1
     this.pendingComments = []
     this.coachHint = null
     this.coachAnswer = null
@@ -408,7 +420,10 @@ export class GameSession {
   /** Unsubscribes the thread and forgets the game; the game stays `in_progress` on disk. */
   async close(): Promise<void> {
     this.turnEpoch += 1
+    this.positionRevision += 1
+    this.commentQueueEpoch += 1
     this.pendingComments = []
+    this.activeComment?.controller.abort()
     await this.coach
       .close()
       .catch((error) => console.error('[game] closing the coach failed:', error))
@@ -462,9 +477,12 @@ export class GameSession {
       this.flushComments()
       return this.state()
     }
-    await this.runEval(this.fen())
-    await this.aiMove()
+    const evalTask = this.runEval(this.fen())
+    // Queue the comment as soon as the move is committed. Stockfish's already-started live
+    // request keeps priority, while the independent coach/model work overlaps the opponent turn.
     this.flushComments()
+    await evalTask
+    await this.aiMove()
     return this.state()
   }
 
@@ -521,6 +539,7 @@ export class GameSession {
       }
       // Only the attempt that produced this move is charged; the retries are given back.
       this.clock?.chargeAi(move.thinkingMs)
+      this.coachHint = null
       this.pushMove(game, {
         san: applied.san,
         uci: move.uci,
@@ -535,12 +554,20 @@ export class GameSession {
       this.ai = idleAi()
       await this.autosave(game)
       this.emitState()
-      // Comments start only now: an opponent turn must never wait for the coach (spec §4.2).
-      this.flushComments()
-      if (await this.checkEnd()) return
+      if (await this.checkEnd()) {
+        this.flushComments()
+        return
+      }
       // Spec §4.3: the flag is also checked when a turn completes, not only on the tick.
-      if (await this.checkTimeout()) return
-      await this.runEval(this.fen())
+      if (await this.checkTimeout()) {
+        this.flushComments()
+        return
+      }
+      const evalTask = this.runEval(this.fen())
+      // Start the live analysis synchronously, then release the comment queue before waiting.
+      // This keeps the board/eval responsive without putting the model behind this await.
+      this.flushComments()
+      await evalTask
     } catch (error) {
       if (epoch !== this.turnEpoch) return
       this.ai = idleAi()
@@ -566,6 +593,7 @@ export class GameSession {
       epdAfter: epdOf(move.fenAfter),
       ...(clockAfter ? { clockAfter } : {})
     })
+    this.positionRevision += 1
     // Reactivating the comments never comments backwards (spec §4.2): only what is pushed while
     // they are visible is ever queued.
     if (this.commentsVisible) this.pendingComments.push(ply)
@@ -614,9 +642,11 @@ export class GameSession {
       removed += 1
     }
     game.takebacks += 1
+    this.positionRevision += 1
     // The clocks go back with the moves: `clockAfter` of what is left, or the initial time.
     this.restoreClock(game)
     this.pendingComments = this.pendingComments.filter((ply) => ply <= game.moves.length)
+    this.cancelStaleComment()
     this.coachHint = null
     this.pendingTakebackNotice = removed
     this.status = 'playing'
@@ -843,7 +873,11 @@ export class GameSession {
   /** Shows or hides the comments. Hiding drops what has not been commented yet. */
   setCommentsVisible(visible: boolean): SessionState {
     this.commentsVisible = visible === true
-    if (!this.commentsVisible) this.pendingComments = []
+    if (!this.commentsVisible) {
+      this.commentQueueEpoch += 1
+      this.pendingComments = []
+      this.activeComment?.controller.abort()
+    }
     this.emitState()
     return this.state()
   }
@@ -884,13 +918,17 @@ export class GameSession {
       return
     }
     const plies = this.pendingComments.splice(0, this.pendingComments.length)
+    const epoch = this.commentQueueEpoch
     for (const ply of plies) {
       const move = game.moves[ply - 1]
       if (!move || move.coachComment) continue
       const gameId = game.id
       const uci = move.uci
       this.commentChain = this.commentChain
-        .then(() => this.commentOne(gameId, ply, uci))
+        .then(() => {
+          if (epoch !== this.commentQueueEpoch) return
+          return this.commentOne(gameId, ply, uci)
+        })
         .catch((error) => console.error('[game] the comment failed:', error))
     }
   }
@@ -902,11 +940,19 @@ export class GameSession {
     if (!game || game.id !== gameId || !move || move.uci !== uci || move.coachComment) return
 
     const language = this.deps.settings.get().language
-    const comment = await this.coach.commentOn(game, ply, {
-      fenBefore: this.fenBefore(game, ply),
-      fenAfter: move.fenAfter,
-      pgn: this.pgnUpTo(game, ply)
-    })
+    const active = { gameId, ply, uci, controller: new AbortController() }
+    this.activeComment = active
+    let comment: Awaited<ReturnType<CoachSession['commentOn']>>
+    try {
+      comment = await this.coach.commentOn(game, ply, {
+        fenBefore: this.fenBefore(game, ply),
+        fenAfter: move.fenAfter,
+        pgn: this.pgnUpTo(game, ply),
+        signal: active.controller.signal
+      })
+    } finally {
+      if (this.activeComment === active) this.activeComment = null
+    }
     if (!comment || comment.text.length === 0) return
 
     // The game may have been taken back, closed or replaced while the coach was writing.
@@ -920,6 +966,17 @@ export class GameSession {
     this.emitState()
   }
 
+  /** Cancels only a comment whose exact move no longer exists; valid queued comments stay ordered. */
+  private cancelStaleComment(): void {
+    const active = this.activeComment
+    if (!active) return
+    const game = this.game
+    const move = game?.moves[active.ply - 1]
+    if (!game || game.id !== active.gameId || !move || move.uci !== active.uci) {
+      active.controller.abort()
+    }
+  }
+
   /** Free question from the Coach tab; both the question and the answer enter the coach log. */
   async askCoach(question: string): Promise<SessionState> {
     const game = this.requireGame()
@@ -928,15 +985,34 @@ export class GameSession {
 
     const language = this.deps.settings.get().language
     const ply = game.moves.length
+    const fen = this.fen()
+    const revision = this.positionRevision
+    const pgn = this.pgnUpTo(game)
     this.logCoach(game, { ply, kind: 'question', text: asked, language })
     await this.autosave(game)
     this.emitState()
 
-    const answer = await this.coach.ask(game, asked, { fen: this.fen(), pgn: this.pgnUpTo(game) })
+    const answer = await this.coach.ask(game, asked, { fen, pgn })
     const current = this.game
-    if (!current || current.id !== game.id) return this.state()
-    this.logCoach(current, { ply, kind: 'answer', text: answer.text, language })
+    if (
+      !current ||
+      current.id !== game.id ||
+      current.moves.length !== ply ||
+      this.fen() !== fen ||
+      this.positionRevision !== revision
+    )
+      return this.state()
+    this.logCoach(current, {
+      ply,
+      kind: 'answer',
+      text: answer.text,
+      ...(answer.hint ? { move: answer.hint.move } : {}),
+      language
+    })
     this.coachAnswer = { question: asked, text: answer.text, ply }
+    // A newer answer owns the indication for this position, including an explicit `move: null`.
+    this.coachHint =
+      this.status === 'playing' && this.sideToMove(fen) === current.userColor ? answer.hint : null
     await this.autosave(current)
     this.emitState()
     return this.state()
@@ -947,11 +1023,25 @@ export class GameSession {
     const game = this.requireGame()
     if (this.status !== 'playing')
       throw new GameError('GAME_NOT_PLAYING', `the game is ${this.status}`)
+    if (this.sideToMove(this.fen()) !== game.userColor)
+      throw new GameError('NOT_YOUR_TURN', 'it is not your turn')
 
     const language = this.deps.settings.get().language
-    const hint = await this.coach.hint(game, { fen: this.fen(), pgn: this.pgnUpTo(game) })
+    const ply = game.moves.length
+    const fen = this.fen()
+    const revision = this.positionRevision
+    const hint = await this.coach.hint(game, { fen, pgn: this.pgnUpTo(game) })
     const current = this.game
-    if (!current || current.id !== game.id) return this.state()
+    if (
+      !current ||
+      current.id !== game.id ||
+      current.moves.length !== ply ||
+      this.fen() !== fen ||
+      this.positionRevision !== revision ||
+      this.status !== 'playing' ||
+      this.sideToMove(fen) !== current.userColor
+    )
+      return this.state()
     this.coachHint = hint
     this.logCoach(current, {
       ply: current.moves.length,
@@ -999,6 +1089,7 @@ export class GameSession {
     if (game.status === 'finished') return
     game.status = 'finished'
     game.result = result
+    this.coachHint = null
     this.turnEpoch += 1
     this.ai = idleAi()
     this.stopTicker()

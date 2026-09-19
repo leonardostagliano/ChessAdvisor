@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { ModelInfo } from '@shared/types/codex'
 import type { Game } from '@shared/types/game'
@@ -21,6 +21,8 @@ export interface OpponentCardProps {
   session: SessionState
   /** Overrides the mirrored Codex catalogue; only tests and previews pass it. */
   models?: ModelInfo[]
+  /** Captures and clock are attached to the player strip by the play screen. */
+  meta?: ReactNode
 }
 
 /** `mm:ss`, minutes uncapped so a very slow turn still reads correctly. */
@@ -59,7 +61,11 @@ export function difficultyLabel(
   return `${name} · ${t('difficulty.elo', { elo: difficulty.targetElo })}`
 }
 
-export function OpponentCard({ session, models }: OpponentCardProps): React.JSX.Element | null {
+export function OpponentCard({
+  session,
+  models,
+  meta
+}: OpponentCardProps): React.JSX.Element | null {
   const { t } = useTranslation()
   const mirrored = useCodexStore((state) => state.models)
   const uiLanguage = useUiStore((state) => state.language)
@@ -83,25 +89,37 @@ export function OpponentCard({ session, models }: OpponentCardProps): React.JSX.
   return (
     <section className={styles.opponent} aria-label={t('opponent.title')}>
       <div className={styles.opponentHead}>
-        <div>
-          <p className="eyebrow">{t('opponent.title')}</p>
-          <h2 className={styles.opponentModel}>{displayName}</h2>
+        <div className={styles.opponentIdentity}>
+          <span
+            className={cx(
+              styles.opponentStone,
+              game.userColor === 'w' ? styles.stoneBlack : styles.stoneWhite
+            )}
+            aria-hidden="true"
+          />
+          <div>
+            <p className="eyebrow">{t('opponent.title')}</p>
+            <h2 className={styles.opponentModel}>{displayName}</h2>
+          </div>
         </div>
-        <div className={styles.chips}>
-          <span className={styles.chip}>{effortLabel}</span>
-          <span className={cx(styles.chip, styles.chipAccent)}>{difficultyLabel(game, t)}</span>
-          {rerouted ? (
-            <span className={cx(styles.chip, styles.chipWarn)} title={t('opponent.reroutedHint')}>
-              {t('opponent.rerouted', { model: rerouted })}
-            </span>
-          ) : null}
-          {lastAiMove?.fallback ? (
-            <span className={cx(styles.chip, styles.chipWarn)}>
-              {lastAiMove.fallback === 'engine'
-                ? t('opponent.fallbackEngine')
-                : t('opponent.fallbackRandom')}
-            </span>
-          ) : null}
+        <div className={styles.opponentHeadEnd}>
+          <div className={styles.chips}>
+            <span className={styles.chip}>{effortLabel}</span>
+            <span className={cx(styles.chip, styles.chipAccent)}>{difficultyLabel(game, t)}</span>
+            {rerouted ? (
+              <span className={cx(styles.chip, styles.chipWarn)} title={t('opponent.reroutedHint')}>
+                {t('opponent.rerouted', { model: rerouted })}
+              </span>
+            ) : null}
+            {lastAiMove?.fallback ? (
+              <span className={cx(styles.chip, styles.chipWarn)}>
+                {lastAiMove.fallback === 'engine'
+                  ? t('opponent.fallbackEngine')
+                  : t('opponent.fallbackRandom')}
+              </span>
+            ) : null}
+          </div>
+          {meta}
         </div>
       </div>
 

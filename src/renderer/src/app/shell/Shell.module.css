@@ -4,93 +4,84 @@
   background: var(--bg);
 }
 
-/* Left rail */
 .rail {
+  display: flex;
+  flex-direction: column;
   flex: none;
   width: var(--rail-width);
-  padding: var(--s-3) 0;
+  padding: 32px 14px 22px;
   background: var(--bg-2);
   border-right: 1px solid var(--border);
 }
 
-/* Brand block (spec §3.4): logo, name and version pill at the top of the rail. */
 .brand {
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
-  padding: var(--s-2) var(--s-1) var(--s-4);
+  justify-content: center;
+  gap: 14px 8px;
+  padding: 0 0 32px;
 }
 
 .brandLogo {
-  width: 38px;
-  height: 38px;
-  border-radius: 11px;
-  box-shadow: var(--shadow-card);
+  width: 48px;
+  height: 48px;
+  filter: grayscale(1);
 }
 
 .brandTexts {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
+  width: 100%;
   min-width: 0;
 }
 
+.brandTexts > span:not(.brandName) {
+  display: none;
+}
+
 .brandName {
-  font-size: var(--fs-md);
-  font-weight: 600;
-  letter-spacing: -0.01em;
+  font-family: var(--font-serif);
+  font-size: 19px;
+  font-weight: 500;
+  letter-spacing: -0.055em;
   color: var(--text);
 }
 
 .version {
-  display: inline-flex;
-  max-width: 64px;
-  padding: 1px 6px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-pill);
-  background: var(--surface-2);
-  color: var(--text-2);
-  font: 500 10px/1.4 var(--font-mono);
-  letter-spacing: 0.02em;
-  white-space: nowrap;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-/*
- * The rail is 72 px wide, so name and version have no room: they stay in the accessibility tree
- * (and in the tooltip of the brand block) but are clipped out of the layout. A wider rail, if
- * one ever exists, only has to drop this class.
- */
-.narrowHidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  margin: -1px;
-  padding: 0;
-  overflow: hidden;
-  clip-path: inset(50%);
+  color: var(--text-3);
+  font: 400 10px/1.4 var(--font-mono);
   white-space: nowrap;
 }
 
 .railList {
   display: flex;
   flex-direction: column;
-  gap: var(--s-1);
+  flex: 1;
+  gap: 6px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border);
+}
+
+.railList > li:last-child {
+  margin-top: auto;
 }
 
 .railItem {
   position: relative;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 5px;
+  gap: 12px;
   width: 100%;
-  padding: var(--s-2) 2px;
-  border: 0;
+  min-height: 46px;
+  padding: 12px 14px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
   background: transparent;
   color: var(--text-3);
   transition:
@@ -99,56 +90,139 @@
 }
 
 .railItem:hover {
-  color: var(--text-2);
+  color: var(--text);
   background: var(--accent-soft);
 }
 
 .railItem:focus-visible {
   outline: none;
   box-shadow: var(--focus-ring);
-  border-radius: var(--radius-control);
 }
 
-.railItemActive {
-  color: var(--accent);
-}
-
+.railItemActive,
 .railItemActive:hover {
   color: var(--accent);
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 15%, transparent);
 }
 
 .railIndicator {
   position: absolute;
-  left: 0;
+  left: -15px;
   top: 50%;
-  width: 3px;
-  height: 28px;
-  margin-top: -14px;
-  border-radius: 0 var(--radius-pill) var(--radius-pill) 0;
+  width: 2px;
+  height: 18px;
+  margin-top: -9px;
   background: var(--accent);
-  transform: scaleY(0);
-  transform-origin: center;
   opacity: 0;
-  transition:
-    transform var(--dur-3) var(--ease-spring),
-    opacity var(--dur-2) var(--ease);
+  transition: opacity var(--dur-2) var(--ease);
 }
 
 .railItemActive .railIndicator {
-  transform: scaleY(1);
   opacity: 1;
 }
 
 .railLabel {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
-  letter-spacing: 0.01em;
-  text-align: center;
 }
 
-/* Content area */
 .content {
   flex: 1;
   min-width: 0;
   overflow: auto;
+  scrollbar-gutter: stable;
+}
+
+@media (max-width: 1279px) {
+  .rail {
+    width: 80px;
+    padding: 22px 8px 16px;
+  }
+
+  .brand {
+    padding-bottom: 24px;
+    gap: 8px;
+  }
+
+  .brandLogo {
+    width: 40px;
+    height: 40px;
+  }
+
+  .narrowHidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .version {
+    font-size: 9px;
+  }
+
+  .railItem {
+    flex-direction: column;
+    justify-content: center;
+    gap: 7px;
+    padding: 12px 2px;
+  }
+
+  .railLabel {
+    font-size: 10px;
+  }
+
+  .railIndicator {
+    left: -9px;
+  }
+}
+
+@media (max-width: 759px) {
+  .shell {
+    flex-direction: column;
+  }
+
+  .rail {
+    flex-direction: row;
+    order: 2;
+    width: 100%;
+    padding: 6px 12px;
+    border-right: 0;
+    border-top: 1px solid var(--border);
+  }
+
+  .brand {
+    display: none;
+  }
+
+  .railList {
+    flex-direction: row;
+    gap: 8px;
+    padding: 0;
+    border: 0;
+  }
+
+  .railList > li {
+    flex: 1;
+  }
+
+  .railList > li:last-child {
+    margin-top: 0;
+  }
+
+  .railItem {
+    padding: 8px 2px;
+    gap: 4px;
+  }
+
+  .railIndicator {
+    display: none;
+  }
+
+  .content {
+    min-height: 0;
+  }
 }

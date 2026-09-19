@@ -1,40 +1,39 @@
-/* Shared shell of the Commenti and Coach tabs (spec §4.3: the right-hand panel). */
 .panel {
   display: flex;
-  flex-direction: column;
-  gap: var(--s-2);
-  min-height: 0;
-  /* The tab panel is a column flexbox: grow into it so that `.feed` is the element that scrolls. */
   flex: 1;
+  flex-direction: column;
+  gap: 9px;
+  min-height: 0;
 }
 
 .head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--s-2);
+  gap: 8px;
   flex-wrap: wrap;
-  padding: 0 var(--s-1);
+  padding: 1px 4px 8px;
+  border-bottom: 1px solid var(--border);
 }
 
 .feed {
   display: flex;
-  flex-direction: column;
-  gap: var(--s-2);
   flex: 1;
+  flex-direction: column;
+  gap: 0;
   min-height: 0;
   overflow: auto;
-  padding: var(--s-1);
+  padding: 0 4px;
 }
 
 .empty {
-  padding: var(--s-2);
-  font-size: var(--fs-sm);
+  padding: 10px 4px;
   color: var(--text-3);
+  font-size: var(--fs-sm);
 }
 
 .badge {
-  padding: 2px 9px;
+  padding: 2px 7px;
   border: 1px solid color-mix(in srgb, var(--danger) 45%, var(--border));
   border-radius: var(--radius-pill);
   color: var(--danger);
@@ -42,42 +41,42 @@
   white-space: nowrap;
 }
 
-/* A question of the user reads as an aside, not as coach prose. */
 .question {
-  border-left-color: var(--accent);
-  background: var(--surface-2);
+  margin-top: 8px;
+  padding-left: 10px;
+  border-left: 2px solid var(--accent);
+  background: transparent;
 }
 
 .hint {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: var(--s-1);
+  gap: 5px;
 }
 
 .ask {
   display: flex;
   flex-direction: column;
-  gap: var(--s-1);
-  padding: var(--s-2) var(--s-1) 0;
+  gap: 6px;
+  padding: 10px 4px 2px;
   border-top: 1px solid var(--border);
 }
 
 .askLabel {
-  font-size: var(--fs-xs);
   color: var(--text-3);
+  font-size: var(--fs-xs);
 }
-
 .askRow {
   display: flex;
   align-items: center;
-  gap: var(--s-2);
+  gap: 7px;
 }
 
 .input {
   flex: 1;
   min-width: 0;
-  padding: var(--s-2) var(--s-3);
+  padding: 8px 10px;
   border: 1px solid var(--border);
   border-radius: var(--radius-control);
   background: var(--bg-2);
@@ -90,12 +89,10 @@
   outline: none;
   box-shadow: var(--focus-ring);
 }
-
 .input:disabled {
   opacity: 0.6;
 }
-
 .pending {
-  font-size: var(--fs-xs);
   color: var(--text-3);
+  font-size: var(--fs-xs);
 }

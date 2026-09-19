@@ -1,6 +1,7 @@
 import type { CoachLogEntry, Move } from '@shared/types/game'
 import { describe, expect, it } from 'vitest'
 import {
+  ADVICE_SCHEMA,
   HINT_SCHEMA,
   adviceText,
   coachBaseInstructions,
@@ -117,6 +118,7 @@ describe('adviceText', () => {
   it('quotes the question and the position, and asks for prose', () => {
     const text = adviceText({
       question: '  Perché non posso arroccare?  ',
+      userColor: 'w',
       fen: FEN_BEFORE,
       pgn: PGN,
       engine,
@@ -128,12 +130,24 @@ describe('adviceText', () => {
     expect(text).toContain('1. Nf3 (+0.35)')
     // A question is about the position now: there is no "after" evaluation to write.
     expect(text).not.toContain('Valutazione dopo')
+    expect(text).toContain('"answer"')
+    expect(text).toContain('"move"')
+    expect(text).toContain('Colore della persona: il Bianco')
+    expect(text).toContain('usa null')
     expect(text).not.toMatch(OPPONENT_WORDS)
+  })
+
+  it('uses a strict nullable-move schema', () => {
+    expect(ADVICE_SCHEMA.required).toEqual(['answer', 'move'])
+    expect(ADVICE_SCHEMA.additionalProperties).toBe(false)
+    expect(Object.keys(ADVICE_SCHEMA.properties)).toEqual(ADVICE_SCHEMA.required)
+    expect(ADVICE_SCHEMA.properties.move.type).toEqual(['string', 'null'])
   })
 
   it('keeps working without the engine', () => {
     const text = adviceText({
       question: 'che piano ho?',
+      userColor: 'w',
       fen: FEN_BEFORE,
       pgn: PGN,
       engine: null,

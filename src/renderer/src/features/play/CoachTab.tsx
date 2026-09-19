@@ -33,13 +33,54 @@ export function coachDialogue(
   const last = entries[entries.length - 1]
   if (
     activeHint &&
-    last?.kind === 'hint' &&
+    (last?.kind === 'hint' || last?.kind === 'answer') &&
     last.move === activeHint.move &&
     last.text === activeHint.reason
   ) {
     return entries.slice(0, -1)
   }
   return entries
+}
+
+/**
+ * The advice turn normally streams a structured object. Keep the feed readable while that JSON is
+ * incomplete, and retain the old plain-text behaviour for turns produced by older sessions.
+ */
+export function adviceAnswerFromStream(raw: string | undefined): string {
+  const source = raw ?? ''
+  const trimmed = source.trimStart()
+  const fenced = trimmed.startsWith('\x60')
+  if (fenced && !trimmed.startsWith('\x60\x60\x60')) return ''
+  const body = fenced ? trimmed.replace(/^\x60\x60\x60(?:json)?\s*/i, '') : trimmed
+  if (!body.startsWith('{')) return fenced ? '' : source
+
+  const key = /"answer"\s*:\s*"/.exec(body)
+  if (!key) return ''
+  let answer = ''
+  for (let index = key.index + key[0].length; index < body.length; index += 1) {
+    const char = body[index]!
+    if (char === '"') break
+    if (char !== '\\') {
+      answer += char
+      continue
+    }
+    const escape = body[index + 1]
+    if (!escape) break
+    if (escape === 'u') {
+      const digits = body.slice(index + 2, index + 6)
+      if (!/^[0-9a-f]{4}$/i.test(digits)) break
+      answer += String.fromCharCode(parseInt(digits, 16))
+      index += 5
+    } else {
+      try {
+        answer += JSON.parse('"' + body.slice(index, index + 2) + '"') as string
+      } catch {
+        break
+      }
+      index += 1
+    }
+  }
+  return answer
 }
 
 export interface CoachTabProps {
@@ -67,7 +108,9 @@ export function CoachTab({ session, engineAvailable }: CoachTabProps): React.JSX
   const pending = request !== null
   const answering = request === 'answer'
 
-  useFollowFeed(feedRef, [dialogue.length, stream?.text, hint?.uci, answering])
+  const streamText = adviceAnswerFromStream(stream?.text)
+
+  useFollowFeed(feedRef, [dialogue.length, streamText, hint?.uci, answering])
 
   const submit = (event: FormEvent): void => {
     event.preventDefault()
@@ -131,9 +174,7 @@ export function CoachTab({ session, engineAvailable }: CoachTabProps): React.JSX
           </div>
         ) : null}
 
-        {answering ? (
-          <CommentCard text={stream?.text ?? ''} title={t('coach.name')} streaming />
-        ) : null}
+        {answering ? <CommentCard text={streamText} title={t('coach.name')} streaming /> : null}
       </div>
 
       <form className={styles.ask} onSubmit={submit}>

@@ -5,7 +5,8 @@
   gap: var(--s-2);
   border: 1px solid transparent;
   border-radius: var(--radius-control);
-  font-weight: 500;
+  font-weight: 600;
+  letter-spacing: -0.015em;
   white-space: nowrap;
   transition:
     background var(--dur-1) var(--ease),
@@ -41,7 +42,7 @@
 }
 
 .md {
-  height: 36px;
+  height: 38px;
   padding: 0 var(--s-4);
   font-size: var(--fs-sm);
 }

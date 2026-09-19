@@ -1,66 +1,71 @@
 .form {
   display: flex;
   flex-direction: column;
-  gap: var(--s-5);
+  gap: 18px;
 }
 
 .field {
   display: flex;
   flex-direction: column;
-  gap: var(--s-2);
+  gap: 8px;
+  padding-bottom: 17px;
+  border-bottom: 1px solid var(--border);
 }
 
 .labelRow {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: var(--s-3);
+  gap: 16px;
 }
 
 .label {
-  font-size: var(--fs-sm);
-  font-weight: 500;
   color: var(--text);
+  font-size: var(--fs-sm);
+  font-weight: 620;
 }
 
 .hint {
-  font-size: var(--fs-xs);
+  max-width: 62ch;
   color: var(--text-3);
-  max-width: 60ch;
+  font-size: var(--fs-xs);
+  line-height: 1.45;
 }
 
-/* Segmented controls: colour (3 options) and difficulty (7 options). */
 .segmented {
   display: grid;
-  gap: var(--s-1);
-  padding: var(--s-1);
-  background: var(--bg-2);
+  gap: 3px;
+  padding: 3px;
   border: 1px solid var(--border);
   border-radius: var(--radius-control);
+  background: var(--bg-2);
 }
 
 .colors {
   grid-template-columns: repeat(3, 1fr);
 }
 
+.colors:has(.option:nth-child(2):last-child) {
+  grid-template-columns: repeat(2, 1fr);
+}
 .levels {
   grid-template-columns: repeat(7, minmax(0, 1fr));
 }
 
 .option {
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
+  flex-direction: column;
   gap: 2px;
   min-height: 40px;
-  padding: var(--s-2) var(--s-1);
+  padding: 6px 4px;
   border: 1px solid transparent;
-  border-radius: calc(var(--radius-control) - 3px);
+  border-radius: 3px;
   background: transparent;
   color: var(--text-2);
   font-family: var(--font-ui);
-  font-size: var(--fs-sm);
+  font-size: var(--fs-xs);
   line-height: 1.25;
   text-align: center;
   cursor: pointer;
@@ -74,29 +79,27 @@
   background: var(--surface-2);
   color: var(--text);
 }
-
 .option:focus-visible {
   outline: none;
   box-shadow: var(--focus-ring);
 }
 
 .selected {
-  background: var(--surface);
-  border-color: var(--border-2);
+  border-color: color-mix(in srgb, var(--accent) 44%, var(--border));
+  background: var(--surface-2);
   color: var(--text);
-  box-shadow: var(--shadow-card);
 }
 
 .optionLabel {
-  font-weight: 500;
+  font-weight: 600;
   overflow-wrap: anywhere;
 }
 
 .optionCaption {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.02em;
   color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.01em;
 }
 
 .selected .optionCaption {
@@ -104,31 +107,20 @@
 }
 
 .switches {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-3);
-  padding-top: var(--s-1);
-  border-top: 1px solid var(--border);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
 }
 
 .warning {
-  font-size: var(--fs-sm);
   color: var(--danger);
+  font-size: var(--fs-sm);
 }
-
 .footer {
   display: flex;
   align-items: center;
-  gap: var(--s-3);
+  gap: 8px;
 }
-
-@media (max-width: 640px) {
-  .levels {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-}
-
-/* Clock presets (spec §4.3): five options, then the two custom numbers under them. */
 .clocks {
   grid-template-columns: repeat(5, minmax(0, 1fr));
 }
@@ -136,17 +128,17 @@
 .customClock {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--s-3);
+  gap: 12px;
 }
 
 .numberField {
   display: flex;
   flex-direction: column;
-  gap: var(--s-1);
+  gap: 5px;
 }
 
 .number {
-  padding: var(--s-2) var(--s-3);
+  padding: 8px 10px;
   border: 1px solid var(--border);
   border-radius: var(--radius-control);
   background: var(--bg-2);
@@ -158,4 +150,21 @@
 .number:focus-visible {
   outline: none;
   box-shadow: var(--focus-ring);
+}
+
+@media (max-width: 640px) {
+  .levels {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .clocks {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .switches {
+    grid-template-columns: 1fr;
+  }
+  .labelRow {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
 }

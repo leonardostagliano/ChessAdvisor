@@ -57,6 +57,7 @@ class FakeCodex implements SessionCodex {
   onTurn: ((req: TurnRequest) => void) | null = null
   catalogue: ModelInfo[] = MODELS
   private holding = false
+  private holdingOpponent = false
   private pending: ((result: TurnResult) => void) | null = null
   private holdingCoach = false
   private pendingCoach: ((result: TurnResult) => void) | null = null
@@ -74,13 +75,14 @@ class FakeCodex implements SessionCodex {
   async runTurn(req: TurnRequest): Promise<TurnResult> {
     this.requests.push(req)
     this.onTurn?.(req)
-    if (this.holding) {
+    if (this.holding || (this.holdingOpponent && req.threadId === 'thread-1')) {
       this.holding = false
+      this.holdingOpponent = false
       return new Promise<TurnResult>((resolve) => {
         this.pending = resolve
       })
     }
-    if (this.holdingCoach && !req.outputSchema) {
+    if (this.holdingCoach && req.threadId === 'thread-2') {
       return new Promise<TurnResult>((resolve) => {
         this.pendingCoach = resolve
       })
@@ -91,6 +93,18 @@ class FakeCodex implements SessionCodex {
 
   async interrupt(threadId: string): Promise<void> {
     this.interrupted.push(threadId)
+    if (threadId === 'thread-2') {
+      const pendingCoach = this.pendingCoach
+      this.pendingCoach = null
+      this.holdingCoach = false
+      pendingCoach?.({
+        ok: false,
+        reason: 'interrupted',
+        message: 'interrupted by the user',
+        turnId: 't-coach'
+      })
+      return
+    }
     const pending = this.pending
     this.pending = null
     pending?.({
@@ -114,6 +128,11 @@ class FakeCodex implements SessionCodex {
     this.holding = true
   }
 
+  /** Holds the opponent thread while allowing the independent coach thread to answer. */
+  holdOpponent(): void {
+    this.holdingOpponent = true
+  }
+
   /** Every plain-text turn (i.e. every coach comment or answer) hangs until `releaseCoach`. */
   holdCoach(): void {
     this.holdingCoach = true
@@ -131,7 +150,9 @@ class FakeCodex implements SessionCodex {
     const schema = JSON.stringify(req.outputSchema ?? {})
     const text = schema.includes('accept')
       ? JSON.stringify({ accept: false, reason: 'gioco ancora' })
-      : schema.includes('reason')
+      : schema.includes('answer')
+        ? JSON.stringify({ answer: 'Risposta finta.', move: null })
+        : schema.includes('reason')
         ? JSON.stringify({ move: moves[0]?.san ?? 'resign', reason: 'occupa il centro' })
         : schema.includes('move')
           ? JSON.stringify({ move: moves[0]?.san ?? 'resign', shortComment: 'ok' })
@@ -704,6 +725,39 @@ describe('GameSession', () => {
       await vi.waitFor(() => expect(session.state().coach.busy).toBe(false))
     })
 
+    it('starts the user-move comment before a blocked opponent turn completes', async () => {
+      await session.newGame(seen())
+      codex.holdOpponent()
+      const pendingMove = session.userMove('e2e4')
+
+      await vi.waitFor(() =>
+        expect(
+          codex.requests.some(
+            (request) => request.threadId === 'thread-2' && request.text.includes('Commenta')
+          )
+        ).toBe(true)
+      )
+      expect(session.state().ai.thinking).toBe(true)
+      expect(session.state().game!.moves).toHaveLength(1)
+
+      await session.takeback()
+      await pendingMove
+    })
+
+    it('cancels an in-flight comment when its move is taken back', async () => {
+      await session.newGame(seen())
+      codex.holdCoach()
+      await session.userMove('e2e4')
+      await vi.waitFor(() => expect(session.state().coach.busy).toBe(true))
+
+      await session.takeback()
+      await vi.waitFor(() => expect(session.state().coach.busy).toBe(false))
+
+      expect(codex.interrupted).toContain('thread-2')
+      expect(session.state().game!.moves).toHaveLength(0)
+      expect(session.state().game!.coachLog).toHaveLength(0)
+    })
+
     it('comments nothing while they are hidden, and never comments backwards', async () => {
       await session.newGame(seen({ commentsVisible: false }))
       await session.userMove('e2e4')
@@ -750,8 +804,127 @@ describe('GameSession', () => {
       expect(state.game!.coachLog.map((entry) => entry.kind)).toEqual(['question', 'answer'])
       expect(state.game!.coachLog[0]!.text).toBe('che piano ho?')
       expect(codex.requests[0]!.text).toContain('Domanda: che piano ho?')
+      expect(codex.requests[0]!.outputSchema).toMatchObject({ required: ['answer', 'move'] })
       expect((await store.get(state.game!.id))!.coachLog).toHaveLength(2)
       await expect(session.askCoach('   ')).rejects.toMatchObject({ code: 'BAD_QUESTION' })
+    })
+
+    it('uses a move recommended by free-form advice as the current hint', async () => {
+      await session.newGame(seen({ commentsVisible: false }))
+      codex.script = [
+        {
+          ok: true,
+          text: JSON.stringify({ answer: 'Gioca e4 e occupa il centro.', move: 'e4' }),
+          turnId: 'a1',
+          effectiveModel: null,
+          durationMs: 5
+        }
+      ]
+
+      const state = await session.askCoach('cosa gioco?')
+
+      expect(state.coach.hint).toEqual({
+        move: 'e4',
+        uci: 'e2e4',
+        reason: 'Gioca e4 e occupa il centro.'
+      })
+      expect(state.game!.coachLog[1]).toMatchObject({
+        kind: 'answer',
+        text: 'Gioca e4 e occupa il centro.',
+        move: 'e4'
+      })
+      expect(codex.requests).toHaveLength(1)
+    })
+
+    it('answers during the opponent turn without indicating an opponent move', async () => {
+      await session.newGame(seen({ commentsVisible: false }))
+      codex.holdOpponent()
+      const pendingMove = session.userMove('e2e4')
+      await vi.waitFor(() => expect(session.state().ai.thinking).toBe(true))
+      await expect(session.requestHint()).rejects.toMatchObject({ code: 'NOT_YOUR_TURN' })
+      codex.script = [
+        {
+          ok: true,
+          text: JSON.stringify({ answer: 'Il Nero può giocare e5.', move: 'e5' }),
+          turnId: 'a1',
+          effectiveModel: null,
+          durationMs: 5
+        }
+      ]
+
+      const state = await session.askCoach('cosa succede adesso?')
+
+      expect(state.coach.lastAnswer?.text).toBe('Il Nero può giocare e5.')
+      expect(state.coach.hint).toBeNull()
+      expect(state.game!.coachLog.at(-1)).not.toHaveProperty('move')
+
+      await session.takeback()
+      await pendingMove
+    })
+
+    it('clears an older hint when current advice recommends no move', async () => {
+      await session.newGame(seen({ commentsVisible: false }))
+      await session.requestHint()
+      expect(session.state().coach.hint).not.toBeNull()
+
+      const state = await session.askCoach('perché il centro è importante?')
+
+      expect(state.coach.hint).toBeNull()
+      expect(state.game!.coachLog.at(-1)).toMatchObject({
+        kind: 'answer',
+        text: 'Risposta finta.'
+      })
+      expect(state.game!.coachLog.at(-1)).not.toHaveProperty('move')
+    })
+
+    it('drops advice after takeback and replay recreate the same FEN and ply', async () => {
+      await session.newGame(seen({ commentsVisible: false }))
+      await session.userMove('e2e4')
+      const originalFen = session.state().fen
+      const originalPly = session.state().game!.moves.length
+
+      codex.holdCoach()
+      const pendingAdvice = session.askCoach('cosa gioco?')
+      await vi.waitFor(() => expect(session.state().coach.busy).toBe(true))
+      await session.takeback()
+      await session.userMove('e2e4')
+      expect(session.state().fen).toBe(originalFen)
+      expect(session.state().game!.moves).toHaveLength(originalPly)
+
+      const replayMove = legalMoves(session.state().fen)[0]!.san
+      codex.releaseCoach(JSON.stringify({ answer: `Gioca ${replayMove}.`, move: replayMove }))
+      await pendingAdvice
+
+      expect(session.state().coach.lastAnswer).toBeNull()
+      expect(session.state().coach.hint).toBeNull()
+      expect(session.state().game!.coachLog.map((entry) => entry.kind)).toEqual(['question'])
+    })
+
+    it('drops advice and dedicated hints that return for a changed position', async () => {
+      await session.newGame(seen({ commentsVisible: false }))
+      codex.holdCoach()
+      const pendingAdvice = session.askCoach('cosa gioco?')
+      await vi.waitFor(() => expect(session.state().coach.busy).toBe(true))
+      await session.userMove('e2e4')
+      codex.releaseCoach(JSON.stringify({ answer: 'Gioca d4.', move: 'd4' }))
+      await pendingAdvice
+
+      expect(session.state().coach.lastAnswer).toBeNull()
+      expect(session.state().coach.hint).toBeNull()
+      expect(session.state().game!.coachLog.map((entry) => entry.kind)).toEqual(['question'])
+
+      const hintedMove = legalMoves(session.state().fen)[0]!.san
+      codex.holdCoach()
+      const pendingHint = session.requestHint()
+      await vi.waitFor(() => expect(session.state().coach.busy).toBe(true))
+      await session.userMove(legalMoves(session.state().fen)[0]!.uci)
+      codex.releaseCoach(
+        JSON.stringify({ move: hintedMove, reason: 'mossa ormai vecchia' })
+      )
+      await pendingHint
+
+      expect(session.state().coach.hint).toBeNull()
+      expect(session.state().game!.coachLog.map((entry) => entry.kind)).toEqual(['question'])
     })
 
     it('draws a hint until the next user move', async () => {

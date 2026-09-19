@@ -7,6 +7,7 @@ import type { Eval, Game } from '@shared/types/game'
 import type { EngineLine } from '@shared/types/engine'
 import type { SettingsStore } from '../store/settingsStore'
 import {
+  ADVICE_SCHEMA,
   HINT_SCHEMA,
   adviceText,
   coachBaseInstructions,
@@ -118,6 +119,30 @@ function parseHint(text: string): { move: string; reason: string } | null {
   return { move: record.move, reason: typeof record.reason === 'string' ? record.reason : '' }
 }
 
+function parseAdvice(
+  text: string,
+  fen: string,
+  allowMove: boolean
+): { answer: string; hint: { move: string; uci: string; reason: string } | null } | null {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(stripFences(text))
+  } catch {
+    return null
+  }
+  if (typeof parsed !== 'object' || parsed === null) return null
+  const record = parsed as Record<string, unknown>
+  if (typeof record.answer !== 'string' || record.answer.trim().length === 0) return null
+  if (record.move !== null && typeof record.move !== 'string') return null
+
+  const answer = record.answer.trim()
+  const move = allowMove && typeof record.move === 'string' ? normalizeMove(fen, record.move) : null
+  return {
+    answer,
+    hint: move ? { move: move.san, uci: move.uci, reason: answer } : null
+  }
+}
+
 export class CoachSession {
   private threadId: string | null = null
   private inFlight = 0
@@ -197,12 +222,16 @@ export class CoachSession {
   async commentOn(
     game: Game,
     ply: number,
-    opts: { fenBefore: string; fenAfter: string; pgn: string }
+    opts: { fenBefore: string; fenAfter: string; pgn: string; signal?: AbortSignal }
   ): Promise<{ streamId: string; text: string } | null> {
     const move = game.moves[ply - 1]
-    if (!move || !this.threadId || this.disabled) return null
+    const threadId = this.threadId
+    if (!move || !threadId || this.disabled || opts.signal?.aborted) return null
     const language = this.language()
-    const engine = await this.engineContext(opts.fenBefore, opts.fenAfter)
+    const engine = await this.engineContext(opts.fenBefore, opts.fenAfter, 'comment', opts.signal)
+    // The game may have closed or been replaced while Stockfish was preparing the prompt.
+    // Never let an old position leak into the new game's coach thread.
+    if (opts.signal?.aborted || this.threadId !== threadId) return null
     const text = commentText({
       move,
       by: move.by,
@@ -212,8 +241,9 @@ export class CoachSession {
       language
     })
 
-    const run = await this.runTurn(game, text, language)
+    const run = await this.runTurn(game, text, language, { threadId, signal: opts.signal })
     if (!run.result.ok) {
+      if (run.result.reason === 'interrupted' && opts.signal?.aborted) return null
       // A quota or an unusable session is not worth one call per move for the rest of the game.
       if (run.result.reason === 'quota') this.disabled = true
       console.error('[coach] the comment turn failed:', run.result.reason, run.result.message)
@@ -227,20 +257,38 @@ export class CoachSession {
     game: Game,
     question: string,
     ctx: { fen: string; pgn: string }
-  ): Promise<{ streamId: string; text: string }> {
+  ): Promise<{
+    streamId: string
+    text: string
+    hint: { move: string; uci: string; reason: string } | null
+  }> {
     const asked = String(question ?? '').trim()
     if (!asked) throw new CoachError('COACH_EMPTY_QUESTION', 'a question is required')
-    if (!this.threadId) throw new CoachError('COACH_NO_THREAD', 'the coach thread is not open')
+    const threadId = this.threadId
+    if (!threadId) throw new CoachError('COACH_NO_THREAD', 'the coach thread is not open')
     const language = this.language()
     const engine = await this.engineContext(ctx.fen, null)
-    const text = adviceText({ question: asked, fen: ctx.fen, pgn: ctx.pgn, engine, language })
+    const text = adviceText({
+      question: asked,
+      userColor: game.userColor,
+      fen: ctx.fen,
+      pgn: ctx.pgn,
+      engine,
+      language
+    })
 
-    const run = await this.runTurn(game, text, language)
+    const run = await this.runTurn(game, text, language, {
+      threadId,
+      outputSchema: ADVICE_SCHEMA
+    })
     if (!run.result.ok) {
       if (run.result.reason === 'quota') this.disabled = true
       throw new CoachError('COACH_TURN_FAILED', run.result.message)
     }
-    return { streamId: run.streamId, text: run.result.text.trim() }
+    const parsed = parseAdvice(run.result.text, ctx.fen, sideToMove(ctx.fen) === game.userColor)
+    if (!parsed)
+      throw new CoachError('COACH_TURN_FAILED', 'the coach returned malformed structured advice')
+    return { streamId: run.streamId, text: parsed.answer, hint: parsed.hint }
   }
 
   /**
@@ -251,15 +299,23 @@ export class CoachSession {
     game: Game,
     ctx: { fen: string; pgn: string }
   ): Promise<{ move: string; uci: string; reason: string }> {
-    if (!this.threadId) throw new CoachError('COACH_NO_THREAD', 'the coach thread is not open')
+    const threadId = this.threadId
+    if (!threadId) throw new CoachError('COACH_NO_THREAD', 'the coach thread is not open')
     const language = this.language()
     const engine = await this.engineContext(ctx.fen, null)
+    if (this.threadId !== threadId)
+      throw new CoachError('COACH_NO_THREAD', 'the coach thread is not open')
     let text = hintText({ fen: ctx.fen, pgn: ctx.pgn, engine, language })
 
     for (let attempt = 1; attempt <= 2; attempt += 1) {
-      const run = await this.runTurn(game, text, language, HINT_SCHEMA)
+      const run = await this.runTurn(game, text, language, {
+        threadId,
+        outputSchema: HINT_SCHEMA
+      })
       if (!run.result.ok) {
         if (run.result.reason === 'quota') this.disabled = true
+        if (this.threadId !== threadId)
+          throw new CoachError('COACH_NO_THREAD', 'the coach thread is not open')
         break
       }
       const parsed = parseHint(run.result.text)
@@ -273,7 +329,7 @@ export class CoachSession {
       }`
     }
 
-    return this.engineHint(game, ctx, language)
+    return this.engineHint(game, ctx, language, threadId)
   }
 
   // ------------------------------------------------------------------ internals
@@ -304,16 +360,18 @@ export class CoachSession {
     game: Game,
     body: string,
     language: 'it' | 'en',
-    outputSchema?: object
+    opts: { threadId: string; outputSchema?: object; signal?: AbortSignal }
   ): Promise<{ streamId: string; result: TurnResult }> {
-    const threadId = this.threadId
-    if (!threadId) {
+    const { threadId } = opts
+    if (this.threadId !== threadId || opts.signal?.aborted) {
       return {
         streamId: '',
         result: {
           ok: false,
-          reason: 'failed',
-          message: 'the coach thread is not open',
+          reason: opts.signal?.aborted ? 'interrupted' : 'failed',
+          message: opts.signal?.aborted
+            ? 'the coach comment was cancelled'
+            : 'the coach thread is not open',
           turnId: null
         }
       }
@@ -329,6 +387,10 @@ export class CoachSession {
     this.notify()
 
     let streamed = false
+    const onAbort = (): void => {
+      void this.deps.codex.interrupt(threadId).catch(() => undefined)
+    }
+    opts.signal?.addEventListener('abort', onAbort, { once: true })
     try {
       const result = await this.deps.codex.runTurn(
         {
@@ -336,7 +398,7 @@ export class CoachSession {
           text,
           model,
           effort,
-          ...(outputSchema ? { outputSchema } : {}),
+          ...(opts.outputSchema ? { outputSchema: opts.outputSchema } : {}),
           language,
           timeoutMs: this.deps.settings.get().turnTimeoutSec * 1000,
           streamId
@@ -347,7 +409,18 @@ export class CoachSession {
       )
       // A turn whose text never streamed (no deltas at all) would leave the feed empty: one
       // envelope with the whole answer keeps the renderer's stream handling uniform.
-      if (result.ok && !streamed && !outputSchema && result.text.trim().length > 0) {
+      if (opts.signal?.aborted) {
+        return {
+          streamId,
+          result: {
+            ok: false,
+            reason: 'interrupted',
+            message: 'the coach comment was cancelled',
+            turnId: result.turnId
+          }
+        }
+      }
+      if (result.ok && !streamed && !opts.outputSchema && result.text.trim().length > 0) {
         this.deps.emit('stream', {
           streamId,
           threadId,
@@ -359,9 +432,14 @@ export class CoachSession {
       }
       return { streamId, result }
     } finally {
-      this.inFlight = Math.max(0, this.inFlight - 1)
-      if (this.streamIdValue === streamId) this.streamIdValue = null
-      this.notify()
+      opts.signal?.removeEventListener('abort', onAbort)
+      // `close()` resets the activity counters. A late result from that old thread must not
+      // decrement or clear a turn that is already running on a replacement thread.
+      if (this.threadId === threadId) {
+        this.inFlight = Math.max(0, this.inFlight - 1)
+        if (this.streamIdValue === streamId) this.streamIdValue = null
+        this.notify()
+      }
     }
   }
 
@@ -372,11 +450,13 @@ export class CoachSession {
    */
   private async engineContext(
     fenBefore: string,
-    fenAfter: string | null
+    fenAfter: string | null,
+    profile: 'comment' | 'coach' = 'coach',
+    signal?: AbortSignal
   ): Promise<EngineContext | null> {
     if (!this.deps.engine.state().available) return null
     try {
-      const analysis = await this.deps.engine.analyze(fenBefore, 'coach')
+      const analysis = await this.deps.engine.analyze(fenBefore, profile, { signal })
       const bestLines: EngineContext['bestLines'] = []
       for (const line of analysis.lines.slice(0, BEST_LINES)) {
         const rendered = pvInSan(fenBefore, line.pv.length > 0 ? line.pv : [line.move])
@@ -388,11 +468,12 @@ export class CoachSession {
       // judgement comes from the deeper analysis of the position the move was played from.
       let evalAfter: Eval | null = null
       if (fenAfter) {
-        const after = await this.deps.engine.analyze(fenAfter, 'live')
+        const after = await this.deps.engine.analyze(fenAfter, 'live', { signal })
         evalAfter = whiteEval(after.lines[0], fenAfter)
       }
       return { evalBefore: whiteEval(analysis.lines[0], fenBefore), evalAfter, bestLines }
     } catch (error) {
+      if (signal?.aborted || (error as Error)?.name === 'AbortError') return null
       console.error('[coach] the engine context is unavailable:', error)
       return null
     }
@@ -402,7 +483,8 @@ export class CoachSession {
   private async engineHint(
     game: Game,
     ctx: { fen: string; pgn: string },
-    language: 'it' | 'en'
+    language: 'it' | 'en',
+    threadId: string
   ): Promise<{ move: string; uci: string; reason: string }> {
     if (!this.deps.engine.state().available)
       throw new CoachError('COACH_HINT_FAILED', 'no legal hint could be produced')
@@ -428,7 +510,7 @@ export class CoachSession {
             `FEN: ${ctx.fen}`,
             'Plain text, no JSON.'
           ].join('\n')
-    const run = await this.runTurn(game, explain, language)
+    const run = await this.runTurn(game, explain, language, { threadId })
     return { move: best.san, uci: best.uci, reason: run.result.ok ? run.result.text.trim() : '' }
   }
 }

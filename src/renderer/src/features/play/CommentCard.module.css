@@ -1,61 +1,56 @@
-/* Coach prose (spec §7): serif, generous leading, quiet chrome. */
 .card {
-  animation: cardIn var(--dur-3) var(--ease) both;
   display: flex;
   flex-direction: column;
-  gap: var(--s-1);
-  padding: var(--s-3);
-  border: 1px solid var(--border);
-  border-left: 2px solid var(--border-2);
-  border-radius: var(--radius-control);
-  background: var(--bg-2);
+  gap: 7px;
+  padding: 11px 4px 13px;
+  border-bottom: 1px solid var(--border);
+  animation: cardIn var(--dur-3) var(--ease) both;
 }
 
 .streaming {
-  border-left-color: var(--accent);
+  border-bottom-color: var(--accent);
 }
 
 .head {
   display: flex;
   align-items: baseline;
-  gap: var(--s-2);
+  gap: 7px;
   flex-wrap: wrap;
 }
 
 .move {
-  padding: 1px 7px;
-  border-radius: var(--radius-pill);
-  background: var(--surface-2);
-  color: var(--text);
-  font-size: var(--fs-xs);
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
 }
 
 .title {
-  font-size: var(--fs-xs);
-  color: var(--text-3);
   overflow-wrap: anywhere;
+  color: var(--text-3);
+  font-size: var(--fs-xs);
 }
 
 .badge {
-  padding: 1px 7px;
+  padding: 1px 6px;
   border: 1px solid var(--border);
   border-radius: var(--radius-pill);
   color: var(--text-3);
-  font-size: 10px;
+  font-size: 9px;
 }
 
 .text {
+  overflow-wrap: anywhere;
+  color: var(--text);
   font-family: var(--font-serif);
   font-size: var(--fs-md);
-  line-height: var(--lh-prose);
-  color: var(--text);
+  line-height: 1.65;
   white-space: pre-wrap;
-  overflow-wrap: anywhere;
 }
 
 .caret {
   display: inline-block;
-  width: 2px;
+  width: 1px;
   height: 1em;
   margin-left: 3px;
   vertical-align: text-bottom;
@@ -63,13 +58,11 @@
   animation: blink 1s steps(2, start) infinite;
 }
 
-/* Entrance of a card: a fade and a 4 px rise, nothing else (spec §7). */
 @keyframes cardIn {
   from {
     opacity: 0;
     transform: translateY(4px);
   }
-
   to {
     opacity: 1;
     transform: none;

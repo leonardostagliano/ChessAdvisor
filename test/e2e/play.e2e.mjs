@@ -274,6 +274,54 @@ try {
     : false
   ok('the coach answers a question', !!answer?.text && rendered, (answer?.text ?? '').slice(0, 60))
 
+  if (!REAL) ok('an explanatory answer does not add a move arrow', !(await state()).coach.hint)
+  const moveQuestion = 'Quale mossa mi consigli di giocare adesso?'
+  await page.getByLabel('Domanda al coach').fill(moveQuestion)
+  await page.getByRole('button', { name: /^Invia$/ }).click()
+  const advice = await until(
+    async () => {
+      const coach = (await state()).coach
+      return coach.lastAnswer?.question === moveQuestion ? coach : null
+    },
+    60000,
+    'advice with a move'
+  ).catch(() => null)
+  const adviceShapes = await until(
+    async () =>
+      page.evaluate(() => {
+        const arrows = document.querySelectorAll('cg-container svg line').length
+        const pieces = document.querySelectorAll('cg-container svg circle').length
+        return arrows > 0 && pieces > 0 ? { arrows, pieces } : null
+      }),
+    10000,
+    'advice arrow and piece ring'
+  ).catch(() => null)
+  ok(
+    'a written request for advice draws the move and highlights its piece',
+    !!advice?.hint?.uci && !!adviceShapes,
+    advice?.hint?.move ?? 'no move'
+  )
+  const advicePanel = await page.locator('[role="tabpanel"]').innerText()
+  ok(
+    'advice is shown as readable text without JSON metadata',
+    !!advice?.lastAnswer?.text &&
+      advicePanel.includes(advice.lastAnswer.text) &&
+      !advicePanel.includes('"answer":') &&
+      !advicePanel.includes('"move":')
+  )
+  await shot('03c-advice-arrow.png').catch(() => {})
+  await page.getByRole('button', { name: 'Nascondi il suggerimento' }).click()
+  await until(async () => !(await state()).coach.hint, 10000, 'hidden advice')
+  ok(
+    'hiding advice clears its arrow and piece ring',
+    await until(
+      async () =>
+        (await page.locator('cg-container svg line, cg-container svg circle').count()) === 0,
+      10000,
+      'cleared advice shapes'
+    ).catch(() => false)
+  )
+
   await page
     .getByRole('button', { name: /^Suggerimento$/ })
     .first()
@@ -284,12 +332,15 @@ try {
     'a coach hint'
   ).catch(() => null)
   // The arrow is a <line> inside chessground's shapes layer: no shape, no line.
-  const arrows = await page.evaluate(
-    () => document.querySelectorAll('cg-container svg line, cg-board svg line').length
-  )
+  const arrows = await until(
+    async () => page.locator('cg-container svg line').count(),
+    10000,
+    'hint arrow'
+  ).catch(() => 0)
+  const rings = await page.locator('cg-container svg circle').count()
   ok(
     'the hint is drawn on the board',
-    !!hint?.uci && arrows > 0,
+    !!hint?.uci && arrows > 0 && rings > 0,
     `${hint?.move ?? '—'} (${arrows} shape lines)`
   )
   await sleep(300)
@@ -528,6 +579,7 @@ try {
   )
 
   const puzzleBoard = page.locator('cg-board').first()
+  await puzzleBoard.scrollIntoViewIfNeeded()
   const puzzleWhite = exercise?.sideToMove === 'w'
   const clickPuzzle = async (sq) => {
     const b = await puzzleBoard.boundingBox()
@@ -551,7 +603,8 @@ try {
         .locator('[data-testid="exercise-feedback"]')
         .textContent()
         .catch(() => null)
-      return text && /corretta/i.test(text) ? text : null
+      const result = await player.getAttribute('data-feedback')
+      return text && ['correct', 'alternative', 'solved'].includes(result) ? text : null
     },
     30000,
     'the feedback of the exercise'

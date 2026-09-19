@@ -14,6 +14,8 @@ export const PROFILES: Record<
   { depth: number; movetimeMs?: number; multipv: number }
 > = {
   live: { depth: 14, movetimeMs: 300, multipv: 1 },
+  // Automatic move comments need several candidate lines, but must reach the model promptly.
+  comment: { depth: 14, movetimeMs: 700, multipv: 3 },
   coach: { depth: 18, multipv: 3 },
   review: { depth: 20, multipv: 2 }
 }
@@ -27,9 +29,12 @@ const BINARIES: { binary: 'avx2' | 'popcnt'; file: string }[] = [
 /** A build that answers neither `uciok` nor `readyok` in this window is considered broken. */
 const PROBE_TIMEOUT_MS = 5000
 const HASH_MB = 128
+/** Recent deterministic analyses; notably shares the live score used by the board and coach. */
+const ANALYSIS_CACHE_SIZE = 32
 /** A search that never reports `bestmove` must not wedge the queue for good. */
 const SEARCH_TIMEOUT_MS: Record<AnalysisProfile, number> = {
   live: 10_000,
+  comment: 10_000,
   coach: 60_000,
   review: 180_000
 }
@@ -99,6 +104,7 @@ export class EngineService {
   private waiters: Waiter[] = []
   private version: string | null = null
   private quitting = false
+  private analysisCache = new Map<string, Analysis>()
 
   constructor(private readonly deps: EngineServiceDeps) {}
 
@@ -260,6 +266,9 @@ export class EngineService {
     if (opts?.signal?.aborted)
       return Promise.reject(new EngineAbortError('analysis aborted before it started'))
 
+    const cached = this.analysisCache.get(this.cacheKey(fen, profile))
+    if (cached) return Promise.resolve(cached)
+
     return new Promise<Analysis>((resolve, reject) => {
       const job: Job = {
         fen,
@@ -340,7 +349,9 @@ export class EngineService {
       if (!job.settled) {
         job.settled = true
         job.detachSignal?.()
-        job.resolve(buildAnalysis(job, parseBestMove(line)))
+        const analysis = buildAnalysis(job, parseBestMove(line))
+        this.cache(analysis, job.profile)
+        job.resolve(analysis)
       }
       this.pump()
       return
@@ -351,6 +362,21 @@ export class EngineService {
     const previous = job.lines.get(info.multipv)
     // Keep the last line at the deepest depth reached for each MultiPV slot.
     if (!previous || info.depth >= previous.depth) job.lines.set(info.multipv, info)
+  }
+
+  private cacheKey(fen: string, profile: AnalysisProfile): string {
+    return `${profile}\u0000${fen}`
+  }
+
+  private cache(analysis: Analysis, profile: AnalysisProfile): void {
+    const key = this.cacheKey(analysis.fen, profile)
+    this.analysisCache.delete(key)
+    this.analysisCache.set(key, analysis)
+    while (this.analysisCache.size > ANALYSIS_CACHE_SIZE) {
+      const oldest = this.analysisCache.keys().next().value as string | undefined
+      if (oldest === undefined) break
+      this.analysisCache.delete(oldest)
+    }
   }
 
   private handleExit(proc: ManagedProcess, code: number | null): void {

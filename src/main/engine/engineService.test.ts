@@ -113,6 +113,23 @@ describe('EngineService probe', () => {
 })
 
 describe('EngineService analysis', () => {
+  it('bounds automatic comment preparation while retaining three candidate lines', async () => {
+    expect(PROFILES.comment).toEqual({ depth: 14, movetimeMs: 700, multipv: 3 })
+    const { service } = await makeService()
+    await service.start()
+    const analysis = await service.analyze(START_FEN, 'comment')
+    expect(analysis.lines).toHaveLength(3)
+    expect(analysis.depth).toBe(14)
+  })
+
+  it('reuses a completed analysis of the same position and profile', async () => {
+    const { service } = await makeService()
+    await service.start()
+    const first = await service.analyze(START_FEN, 'live')
+    const second = await service.analyze(START_FEN, 'live')
+    expect(second).toBe(first)
+  })
+
   it('returns the deepest line per multipv, sorted by multipv', async () => {
     const { service } = await makeService()
     await service.start()

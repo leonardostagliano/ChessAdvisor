@@ -64,10 +64,13 @@ class FakeCodex implements SessionCodex {
     this.requests.push(req)
     for (const delta of this.deltas) onDelta?.('text', delta)
     const scripted = this.script.shift()
+    const text = JSON.stringify(req.outputSchema ?? {}).includes('answer')
+      ? JSON.stringify({ answer: 'Risposta finta.', move: null })
+      : 'Commento finto.'
     return (
       scripted ?? {
         ok: true,
-        text: 'Commento finto.',
+        text,
         turnId: `t-${this.requests.length}`,
         effectiveModel: null,
         durationMs: 3
@@ -200,9 +203,9 @@ describe('CoachSession', () => {
 
     expect(comment).toMatchObject({ text: 'Commento finto.' })
     expect(comment!.streamId).toMatch(/[0-9a-f-]{36}/)
-    // The deep analysis runs on the position the move was played from; the score after is cheap.
+    // Automatic comments use their own bounded MultiPV analysis; the score after is cheap.
     expect(engine.calls).toEqual([
-      { fen: START_FEN, profile: 'coach' },
+      { fen: START_FEN, profile: 'comment' },
       { fen: AFTER_E4, profile: 'live' }
     ])
     const text = codex.requests[0]!.text
@@ -306,6 +309,61 @@ describe('CoachSession', () => {
     await expect(coach.ask(game(), 'perché?', { fen: AFTER_E4, pgn: '' })).rejects.toMatchObject({
       code: 'COACH_TURN_FAILED'
     })
+  })
+
+  it('returns one validated indication with structured advice', async () => {
+    await coach.start(game(), { language: 'it' })
+    codex.script = [
+      {
+        ok: true,
+        text: JSON.stringify({ answer: 'Gioca e4 per occupare il centro.', move: 'e4' }),
+        turnId: 'a1',
+        effectiveModel: null,
+        durationMs: 2
+      }
+    ]
+
+    const answer = await coach.ask(game(), 'cosa gioco?', { fen: START_FEN, pgn: '' })
+
+    expect(answer).toMatchObject({
+      text: 'Gioca e4 per occupare il centro.',
+      hint: { move: 'e4', uci: 'e2e4', reason: 'Gioca e4 per occupare il centro.' }
+    })
+    expect(codex.requests).toHaveLength(1)
+    expect(codex.requests[0]!.outputSchema).toMatchObject({
+      required: ['answer', 'move'],
+      additionalProperties: false
+    })
+  })
+
+  it('keeps explanatory advice and drops an illegal recommended move', async () => {
+    await coach.start(game(), { language: 'it' })
+    codex.script = [
+      {
+        ok: true,
+        text: JSON.stringify({ answer: 'Il re è sotto scacco.', move: 'Qh5xf7' }),
+        turnId: 'a1',
+        effectiveModel: null,
+        durationMs: 2
+      },
+      {
+        ok: true,
+        text: JSON.stringify({ answer: 'Controlli il centro.', move: null }),
+        turnId: 'a2',
+        effectiveModel: null,
+        durationMs: 2
+      }
+    ]
+
+    expect(await coach.ask(game(), 'cosa gioco?', { fen: START_FEN, pgn: '' })).toMatchObject({
+      text: 'Il re è sotto scacco.',
+      hint: null
+    })
+    expect(await coach.ask(game(), 'come sto?', { fen: START_FEN, pgn: '' })).toMatchObject({
+      text: 'Controlli il centro.',
+      hint: null
+    })
+    expect(codex.requests).toHaveLength(2)
   })
 
   describe('hint', () => {

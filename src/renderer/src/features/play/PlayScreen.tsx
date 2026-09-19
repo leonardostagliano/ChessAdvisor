@@ -6,7 +6,6 @@ import { tabStripKeyDown, useMoveKeys } from '../../app/keyboard'
 import { Board, type BoardArrow } from '../../board/Board'
 import { EvalBar } from '../../board/EvalBar'
 import { Button } from '../../components/ui/Button'
-import { EmptyState } from '../../components/EmptyState'
 import { cx } from '../../components/ui/cx'
 import { useEngineStore } from '../../stores/engineStore'
 import {
@@ -25,6 +24,7 @@ import { GameControls } from './GameControls'
 import { MoveList } from './MoveList'
 import { NewGameDialog } from './NewGameDialog'
 import { OpponentCard } from './OpponentCard'
+import { PlayHome } from './PlayHome'
 import { ResultBanner } from './ResultBanner'
 import { ReviewScreen } from '../review/ReviewScreen'
 import styles from './PlayScreen.module.css'
@@ -263,68 +263,91 @@ export function PlayScreen(): React.JSX.Element {
           }}
         />
       ) : !game ? (
-        <EmptyState
-          title={t('play.noGameTitle')}
-          body={t('play.noGameBody')}
-          action={t('controls.newGame')}
-          onAction={() => setDialogOpen(true)}
-        />
+        <PlayHome onNewGame={() => setDialogOpen(true)} onArchive={() => setView('archive')} />
       ) : (
         <div className={styles.layout}>
           <div className={styles.column}>
-            <OpponentCard session={session} />
-            {game.result ? (
-              <ResultBanner
-                game={game}
-                onNewGame={() => setDialogOpen(true)}
-                onReview={() => {
-                  setReviewGameId(game.id)
-                  setReviewPly(null)
-                  setView('review')
-                }}
+            <div className={styles.table}>
+              <OpponentCard
+                session={session}
+                meta={
+                  <div className={styles.opponentMeta}>
+                    <CapturedRow
+                      pieces={userColor === 'w' ? captured.b : captured.w}
+                      balance={userColor === 'w' ? -captured.balance : captured.balance}
+                      label={t('play.capturedByOpponent')}
+                    />
+                    {aiClock ? (
+                      <ClockDisplay
+                        clock={session.clock}
+                        color={aiColor}
+                        label={t('play.clockOpponent')}
+                      />
+                    ) : null}
+                  </div>
+                }
               />
-            ) : null}
-
-            <div className={styles.aside}>
-              <CapturedRow
-                pieces={userColor === 'w' ? captured.b : captured.w}
-                balance={userColor === 'w' ? -captured.balance : captured.balance}
-                label={t('play.capturedByOpponent')}
-              />
-              {aiClock ? (
-                <ClockDisplay
-                  clock={session.clock}
-                  color={aiColor}
-                  label={t('play.clockOpponent')}
+              {game.result ? (
+                <ResultBanner
+                  game={game}
+                  onNewGame={() => setDialogOpen(true)}
+                  onReview={() => {
+                    setReviewGameId(game.id)
+                    setReviewPly(null)
+                    setView('review')
+                  }}
                 />
               ) : null}
-            </div>
 
-            <div className={styles.boardRow}>
-              <EvalBar
-                evaluation={evaluation}
-                orientation={userColor === 'w' ? 'white' : 'black'}
-                available={engineAvailable}
-              />
-              <Board
-                fen={fen}
-                orientation={userColor === 'w' ? 'white' : 'black'}
-                lastMove={lastMove ?? null}
-                check={check}
-                viewOnly={browsing || !playing}
-                movable={{ color: movableColor }}
-                arrows={arrows}
-                onMove={(uci) => void userMove(uci)}
-              />
-            </div>
+              <div className={styles.boardViewport}>
+                <div className={styles.boardRow}>
+                  <EvalBar
+                    evaluation={evaluation}
+                    orientation={userColor === 'w' ? 'white' : 'black'}
+                    available={engineAvailable}
+                  />
+                  <Board
+                    fen={fen}
+                    orientation={userColor === 'w' ? 'white' : 'black'}
+                    lastMove={lastMove ?? null}
+                    check={check}
+                    viewOnly={browsing || !playing}
+                    movable={{ color: movableColor }}
+                    arrows={arrows}
+                    onMove={(uci) => void userMove(uci)}
+                  />
+                </div>
+              </div>
 
-            <div className={styles.aside}>
-              <CapturedRow
-                pieces={userColor === 'w' ? captured.w : captured.b}
-                balance={userColor === 'w' ? captured.balance : -captured.balance}
-                label={t('play.capturedByYou')}
-              />
-              <ClockDisplay clock={session.clock} color={userColor} label={t('play.clockYou')} />
+              <div className={styles.playerStrip}>
+                <div className={styles.playerIdentity}>
+                  <span
+                    className={cx(
+                      styles.playerStone,
+                      userColor === 'w' ? styles.stoneWhite : styles.stoneBlack
+                    )}
+                    aria-hidden="true"
+                  />
+                  <span>
+                    <strong>{t('play.you')}</strong>
+                    <small>
+                      {session.userToMove ? t('play.yourTurn') : t('play.waitingOpponent')}
+                    </small>
+                  </span>
+                </div>
+                <div className={styles.playerMeta}>
+                  <CapturedRow
+                    pieces={userColor === 'w' ? captured.w : captured.b}
+                    balance={userColor === 'w' ? captured.balance : -captured.balance}
+                    label={t('play.capturedByYou')}
+                  />
+                  <ClockDisplay
+                    clock={session.clock}
+                    color={userColor}
+                    label={t('play.clockYou')}
+                  />
+                </div>
+              </div>
             </div>
 
             {!engineAvailable ? <p className={styles.note}>{t('play.engineUnavailable')}</p> : null}

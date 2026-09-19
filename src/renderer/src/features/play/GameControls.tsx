@@ -56,30 +56,38 @@ export function GameControls({ session, onNewGame, onExit }: GameControlsProps):
   return (
     <div className={styles.controls}>
       <div className={styles.controlButtons}>
-        <Button variant="primary" onClick={onNewGame}>
+        <Button size="sm" variant="primary" onClick={onNewGame}>
           {t('controls.newGame')}
         </Button>
-        <Button disabled={!canTakeBack(session) || busy} onClick={() => void takeback()}>
+        <Button size="sm" disabled={!canTakeBack(session) || busy} onClick={() => void takeback()}>
           {t('controls.takeback')}
         </Button>
         {/* The hint is a coach turn, not a game action: it never waits on `busy`, only on the
             coach being free and on the position on the board being the user's to play. */}
         <Button
+          size="sm"
           disabled={!playing || coachRequest !== null || session.ai.thinking}
           onClick={() => void requestHint()}
         >
           {t('coach.hint')}
         </Button>
-        <Button variant="danger" disabled={!playing || busy} onClick={() => setConfirmResign(true)}>
+        <Button
+          size="sm"
+          variant="danger"
+          disabled={!playing || busy}
+          onClick={() => setConfirmResign(true)}
+        >
           {t('controls.resign')}
         </Button>
         <Button
+          size="sm"
           disabled={!playing || busy || session.ai.thinking || drawState === 'pending'}
           onClick={() => void askDraw()}
         >
           {t('controls.offerDraw')}
         </Button>
         <Button
+          size="sm"
           variant="ghost"
           disabled={!session.game || busy}
           onClick={() => {

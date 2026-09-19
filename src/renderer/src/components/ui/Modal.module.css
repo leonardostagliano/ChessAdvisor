@@ -6,7 +6,8 @@
   align-items: center;
   justify-content: center;
   padding: var(--s-6);
-  background: rgba(8, 9, 10, 0.52);
+  background: rgba(9, 20, 28, 0.66);
+  backdrop-filter: blur(6px);
   animation: overlayIn var(--dur-2) var(--ease);
 }
 
@@ -16,10 +17,10 @@
   max-height: calc(100vh - var(--s-8) * 2);
   width: 100%;
   background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-card);
+  border: 1px solid var(--border-2);
+  border-radius: var(--radius-lg);
   box-shadow: var(--shadow-pop);
-  animation: dialogIn var(--dur-3) var(--ease-spring);
+  animation: dialogIn var(--dur-3) var(--ease);
 }
 
 .dialog:focus {
@@ -48,7 +49,9 @@
 }
 
 .title {
-  font-size: var(--fs-lg);
+  font-family: var(--font-serif);
+  font-weight: 450;
+  font-size: 26px;
   color: var(--text);
 }
 

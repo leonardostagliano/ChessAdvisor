@@ -201,6 +201,7 @@ export function commentText(p: {
 /** Text of a free question asked from the Coach tab (spec §4.2, "Consiglio"). */
 export function adviceText(p: {
   question: string
+  userColor: 'w' | 'b'
   fen: string
   pgn: string
   engine: EngineContext | null
@@ -213,12 +214,27 @@ export function adviceText(p: {
       : 'The person you coach asks you a question about the game in progress.',
     `${it ? 'Domanda' : 'Question'}: ${p.question.trim()}`,
     ...positionBlock(p.fen, p.pgn, p.language),
+    `${it ? 'Colore della persona' : 'Coached player color'}: ${COLOR_NAME[p.language][p.userColor]}`,
     ...engineBlock(p.engine, p.language, { withAfter: false }),
     it
-      ? 'Rispondi in due-quattro frasi di testo semplice, concrete e utili subito. Niente elenchi, niente JSON, e non rivelare il piano dell’avversario.'
-      : 'Answer in two to four sentences of plain text, concrete and immediately useful. No lists, no JSON, and do not reveal the opponent’s plan.'
+      ? 'Rispondi soltanto con il JSON richiesto. "answer" contiene due-quattro frasi concrete e utili subito, senza elenchi. "move" contiene una singola mossa legale in SAN soltanto se la risposta consiglia esplicitamente di giocarla adesso; per spiegazioni, valutazioni, consigli senza una mossa precisa e quando non è il turno della persona usa null. Non rivelare il piano dell’avversario.'
+      : 'Answer with the requested JSON only. "answer" contains two to four concrete, immediately useful sentences, without lists. "move" contains one legal move in SAN only when the answer explicitly recommends playing it now; use null for explanations, evaluations, advice without a specific move, and whenever it is not the coached player’s turn. Do not reveal the opponent’s plan.'
   ].join('\n')
 }
+
+/**
+ * Structured output of free-form advice. The move stays nullable because many useful answers
+ * explain a position without recommending a move; any non-null move is still checked locally.
+ */
+export const ADVICE_SCHEMA = {
+  type: 'object',
+  required: ['answer', 'move'],
+  additionalProperties: false,
+  properties: {
+    answer: { type: 'string' },
+    move: { type: ['string', 'null'] }
+  }
+} as const
 
 /** Text of the "Suggerimento" button: one move plus one reason, as structured output. */
 export function hintText(p: {

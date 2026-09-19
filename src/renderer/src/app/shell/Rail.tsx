@@ -65,8 +65,7 @@ export function Rail(): React.JSX.Element {
 
   return (
     <nav className={styles.rail} aria-label={t('app.name')}>
-      {/* Brand block: on the 72 px rail the name is for assistive tech only, while the compact
-          version pill stays visible under the logo; the tooltip carries the full wording. */}
+      {/* The wordmark collapses on compact windows; the logo tooltip keeps the build identity. */}
       <div className={styles.brand} title={versionHint} data-testid="rail-brand">
         <img className={styles.brandLogo} src={logo} alt="" width={38} height={38} />
         <span className={cx(styles.brandTexts, styles.narrowHidden)}>

@@ -4,11 +4,7 @@
   gap: var(--s-3);
   align-items: flex-start;
   max-width: 62ch;
-  padding: var(--s-6);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-card);
-  box-shadow: var(--shadow-card);
+  padding: var(--s-6) var(--s-5);
 }
 
 .title {
@@ -17,8 +13,8 @@
 }
 
 .body {
-  font-family: var(--font-serif);
-  font-size: var(--fs-md);
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm);
   line-height: var(--lh-prose);
   color: var(--text-2);
 }

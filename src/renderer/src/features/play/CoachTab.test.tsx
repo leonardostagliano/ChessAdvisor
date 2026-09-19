@@ -6,7 +6,7 @@ import type { CoachLogEntry, Game } from '@shared/types/game'
 import type { SessionState } from '@shared/types/session'
 import { EMPTY_SESSION, useGameStore } from '../../stores/gameStore'
 import { useUiStore } from '../../stores/uiStore'
-import { CoachTab, coachDialogue } from './CoachTab'
+import { adviceAnswerFromStream, CoachTab, coachDialogue } from './CoachTab'
 
 /**
  * The Coach tab (spec §4.2): questions and answers, the hint, and the oracle-less badge. The
@@ -94,6 +94,13 @@ describe('coachDialogue', () => {
     expect(coachDialogue(null)).toEqual([])
   })
 
+  it('leaves out a matching structured answer while its move is shown as the active hint', () => {
+    const log = [entry({ id: '1', kind: 'answer', text: 'Sviluppa e controlla e5.', move: 'Nf3' })]
+    expect(coachDialogue(game(log), { move: 'Nf3', reason: 'Sviluppa e controlla e5.' })).toEqual(
+      []
+    )
+    expect(coachDialogue(game(log), null)).toHaveLength(1)
+  })
   it('leaves out the hint that is still on the board, which has its own card', () => {
     const log = [
       entry({ id: '1', kind: 'hint', text: 'Un vecchio suggerimento.', move: 'e4' }),
@@ -107,6 +114,39 @@ describe('coachDialogue', () => {
   })
 })
 
+describe('adviceAnswerFromStream', () => {
+  it('keeps every streamed prefix readable, including incomplete escapes and fences', () => {
+    const answer = 'Sviluppa "il cavallo".\nUna barra \\ e il testo \\u0061.'
+    const encoded = JSON.stringify({ answer, move: 'Nf3' })
+    for (let end = 0; end <= encoded.length; end += 1) {
+      expect(answer.startsWith(adviceAnswerFromStream(encoded.slice(0, end)))).toBe(true)
+    }
+    expect(adviceAnswerFromStream(encoded)).toBe(answer)
+    expect(adviceAnswerFromStream('\x60')).toBe('')
+    expect(adviceAnswerFromStream('\x60\x60')).toBe('')
+    expect(adviceAnswerFromStream('{"answer":"A\\\\\\u00')).toBe('A\\')
+    expect(adviceAnswerFromStream('{"answer":"A\\u00e8')).toBe('Aè')
+  })
+
+  it('renders only the progressively available answer from structured JSON', () => {
+    expect(adviceAnswerFromStream('{"answer":"Gioca al centro","move":null}')).toBe(
+      'Gioca al centro'
+    )
+    expect(adviceAnswerFromStream('{"answer":"Gioca\\nora')).toBe('Gioca\nora')
+    expect(adviceAnswerFromStream('{"answer":"Una \\\\u0061zione')).toBe('Una \\u0061zione')
+    expect(adviceAnswerFromStream('{"answer":"Una \\u00')).toBe('Una ')
+    expect(adviceAnswerFromStream('{"answer":"Test\\')).toBe('Test')
+    expect(adviceAnswerFromStream('{"answer":"Literal \\\\u0061zione')).toBe('Literal \\u0061zione')
+  })
+
+  it('supports fenced JSON and keeps legacy plain text intact', () => {
+    expect(
+      adviceAnswerFromStream('\x60\x60\x60json\n{"answer":"Sviluppa","move":"Nf3"}\n\x60\x60\x60')
+    ).toBe('Sviluppa')
+    expect(adviceAnswerFromStream('Una risposta già in testo')).toBe('Una risposta già in testo')
+    expect(adviceAnswerFromStream('{"move":null}')).toBe('')
+  })
+})
 describe('CoachTab', () => {
   it('sends a question and clears the field', async () => {
     render(<CoachTab session={session()} engineAvailable />)

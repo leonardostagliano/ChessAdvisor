@@ -154,7 +154,7 @@ function createWindow(): void {
     minWidth: 1024,
     minHeight: 720,
     show: false,
-    backgroundColor: nativeTheme.shouldUseDarkColors ? '#141517' : '#f6f2ea',
+    backgroundColor: nativeTheme.shouldUseDarkColors ? '#17232d' : '#e9eeec',
     title: 'ChessAdvisor',
     icon,
     autoHideMenuBar: true,

@@ -25,7 +25,7 @@ export interface Analysis {
   fen: string
 }
 
-export type AnalysisProfile = 'live' | 'coach' | 'review'
+export type AnalysisProfile = 'live' | 'comment' | 'coach' | 'review'
 
 export interface EngineState {
   available: boolean
