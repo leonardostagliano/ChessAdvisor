@@ -198,6 +198,7 @@ function mockApi(): void {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  window.localStorage.removeItem('chessadvisor.coach-annotations.v1')
   mockApi()
   useCodexStore.getState().apply(READY)
   useEngineStore
@@ -209,6 +210,7 @@ beforeEach(() => {
     aiThinking: false,
     coachStream: null,
     coachRequest: null,
+    coachRequestPosition: null,
     busy: false,
     error: null
   })
@@ -648,5 +650,153 @@ describe('PlayScreen', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Rivedi' }))
     })
     expect(screen.getByRole('region', { name: 'Revisione' })).toBeInTheDocument()
+  })
+})
+
+describe('coach board integration', () => {
+  it('highlights useful move facts before any model comment has arrived', () => {
+    const g = game()
+    useGameStore.setState({ session: session({ game: g }), browsePly: null })
+    render(<PlayScreen />)
+    fireEvent.click(screen.getByRole('tab', { name: 'Commenti' }))
+    expect(
+      screen.getByTestId('board-annotations').querySelector('[data-square="f3"]')
+    ).not.toBeNull()
+    expect(useGameStore.getState().session.game!.moves.every((move) => !move.coachComment)).toBe(
+      true
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Commento a e4' }))
+    expect(
+      screen.getByTestId('board-annotations').querySelector('[data-square="e4"]')
+    ).not.toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Nascondi le spiegazioni' }))
+    fireEvent.click(screen.getByRole('button', { name: /Riapri spiegazione/ }))
+    expect(
+      screen.getByTestId('board-annotations').querySelector('[data-square="e4"]')
+    ).not.toBeNull()
+  })
+
+  it('shows pending Coach facts only on their current position', () => {
+    useGameStore.setState({
+      session: session(),
+      browsePly: null,
+      coachRequest: 'answer',
+      coachRequestPosition: { gameId: game().id, fen: FEN_3 }
+    })
+    render(<PlayScreen />)
+    fireEvent.click(screen.getByRole('tab', { name: 'Coach' }))
+    expect(screen.getByTestId('board-annotations')).toBeInTheDocument()
+    act(() => useGameStore.getState().setBrowsePly(0))
+    expect(screen.queryByTestId('board-annotations')).not.toBeInTheDocument()
+    act(() => useGameStore.getState().returnToLive())
+    expect(screen.getByTestId('board-annotations')).toBeInTheDocument()
+    act(() => useGameStore.getState().apply(session({ fen: FEN_2 })))
+    expect(screen.queryByTestId('board-annotations')).not.toBeInTheDocument()
+  })
+
+  function explainedGame(): Game {
+    const value = game()
+    value.moves[0] = {
+      ...value.moves[0]!,
+      coachComment: 'Il pedone controlla il centro.',
+      coachExplanation: {
+        version: 1,
+        headline: 'Occupa il centro',
+        explanation: 'Il pedone e4 controlla d5.',
+        hints: [],
+        annotations: [{ square: 'e4', label: 'Pedone centrale', kind: 'focus' }],
+        evidence: {
+          source: 'engine',
+          perspective: 'white',
+          lines: [
+            { kind: 'reply', startFen: FEN_1, moves: [{ san: 'e5', uci: 'e7e5', fenAfter: FEN_2 }] }
+          ]
+        }
+      }
+    }
+    value.moves[2] = {
+      ...value.moves[2]!,
+      coachComment: 'Sviluppa il cavallo.',
+      coachExplanation: {
+        version: 1,
+        headline: 'Sviluppa un pezzo',
+        explanation: 'Il cavallo f3 controlla e5.',
+        hints: [],
+        annotations: [{ square: 'f3', label: 'Cavallo sviluppato', kind: 'focus' }]
+      }
+    }
+    return value
+  }
+
+  it('anchors selected comments to their position, previews safely and removes overlays on another tab', () => {
+    useGameStore.setState({ session: session({ game: explainedGame() }), browsePly: null })
+    render(<PlayScreen />)
+    expect(screen.queryByTestId('board-annotations')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('tab', { name: 'Commenti' }))
+    expect(screen.getByRole('button', { name: '1. f3: Cavallo sviluppato' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Commento a e4' }))
+    expect(useGameStore.getState().browsePly).toBe(0)
+    expect(screen.getByRole('button', { name: '1. e4: Pedone centrale' })).toBeInTheDocument()
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Esplora e5 sulla scacchiera', hidden: true })
+    )
+    expect(screen.getByTestId('coach-board-context')).toHaveTextContent('Variante')
+    expect(screen.queryByTestId('board-annotations')).not.toBeInTheDocument()
+    expect(useGameStore.getState().session.fen).toBe(FEN_3)
+    expect(useGameStore.getState().session.game!.moves).toHaveLength(3)
+    fireEvent.click(screen.getByRole('tab', { name: 'Mosse' }))
+    expect(screen.queryByTestId('board-annotations')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('coach-board-context')).not.toBeInTheDocument()
+  })
+
+  it('reopens a closed explanation and makes historical comments readable again', () => {
+    useGameStore.setState({ session: session({ game: explainedGame() }), browsePly: null })
+    render(<PlayScreen />)
+    fireEvent.click(screen.getByRole('tab', { name: 'Commenti' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Nascondi le spiegazioni' }))
+    expect(screen.queryByTestId('board-annotations')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /Riapri spiegazione/ }))
+    expect(screen.getByRole('button', { name: '1. f3: Cavallo sviluppato' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Nascondi le spiegazioni' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Commento a e4' }))
+    expect(screen.getByRole('button', { name: '1. e4: Pedone centrale' })).toBeInTheDocument()
+    expect(useGameStore.getState().browsePly).toBe(0)
+    expect(useGameStore.getState().session.fen).toBe(FEN_3)
+  })
+  it('shares the annotation toggle with advice and restores the original advice position', () => {
+    const value = explainedGame()
+    value.coachLog.push({
+      id: 'answer-1',
+      kind: 'answer',
+      ply: 1,
+      fen: FEN_1,
+      text: 'Controlla e4.',
+      language: 'it',
+      createdAt: value.createdAt,
+      coachExplanation: {
+        version: 1,
+        headline: 'Guarda il centro',
+        explanation: 'Controlla e4.',
+        hints: [],
+        annotations: [{ square: 'e4', kind: 'focus', label: 'Pedone del consiglio' }]
+      }
+    })
+    useGameStore.setState({ session: session({ game: value }), browsePly: null })
+    render(<PlayScreen />)
+    fireEvent.click(screen.getByRole('tab', { name: 'Commenti' }))
+    fireEvent.click(screen.getByRole('switch', { name: 'Spiegazioni sulla scacchiera' }))
+    expect(screen.queryByTestId('board-annotations')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('tab', { name: 'Coach' }))
+    expect(screen.getByRole('switch', { name: 'Spiegazioni sulla scacchiera' })).toHaveAttribute(
+      'aria-checked',
+      'false'
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Vedi questa posizione' }))
+    expect(useGameStore.getState().browsePly).toBe(0)
+    expect(screen.getByRole('button', { name: '1. e4: Pedone del consiglio' })).toBeInTheDocument()
+    fireEvent.click(screen.getAllByRole('button', { name: 'Torna alla posizione corrente' })[0]!)
+    expect(screen.queryByTestId('board-annotations')).not.toBeInTheDocument()
+    act(() => useGameStore.getState().apply(EMPTY_SESSION))
+    expect(screen.queryByTestId('board-annotations')).not.toBeInTheDocument()
   })
 })

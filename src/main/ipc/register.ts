@@ -191,7 +191,11 @@ export function registerGamesIpc(ctx: IpcContext): void {
     // Mark it first so neither its result nor its profile hook can publish after deletion.
     ctx.analysis?.cancel(gameId)
     ctx.onGameDeleting?.(gameId)
-    await (await resolveGames(ctx)).delete(gameId)
+    const store = await resolveGames(ctx)
+    // Discard synchronously before the first await in this pair: the board immediately forgets
+    // this game, while the store's terminal deletion marker rejects any late autosave.
+    const discard = ctx.game?.session().discardIfCurrent(gameId)
+    await Promise.all([store.delete(gameId), discard])
     await ctx.onGameDeleted?.(gameId)
   })
 }

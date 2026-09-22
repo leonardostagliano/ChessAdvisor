@@ -50,12 +50,16 @@ export interface GameStoreState {
    * whose stream they are watching.
    */
   coachRequest: 'answer' | 'hint' | null
+  /** Position captured before an answer/hint starts, so delayed prose never changes boards. */
+  coachRequestPosition: { gameId: string; fen: string } | null
   /** True while an IPC call started here has not answered yet. */
   busy: boolean
   /** Last failure of a call started here, already unwrapped from the IPC envelope. */
   error: string | null
 
   apply(session: SessionState): void
+  /** Reject delayed IPC replies for a game removed from the archive. */
+  discardDeletedGame(id: string): void
   setBrowsePly(ply: number | null): void
   browseBy(delta: number): void
   returnToLive(): void
@@ -135,6 +139,7 @@ function failure(error: unknown): string {
 }
 
 export const useGameStore = create<GameStoreState>((set, get) => {
+  const deletedGameIds = new Set<string>()
   /** Every action shares the same shape: mark busy, call, mirror the answer, keep the failure. */
   async function call<T>(
     run: (api: Window['api']) => Promise<T>,
@@ -168,13 +173,22 @@ export const useGameStore = create<GameStoreState>((set, get) => {
   ): Promise<void> {
     const api = bridge()
     if (!api) return
-    set({ coachRequest: kind, coachStream: null, error: null })
+    const { game, fen } = get().session
+    const requestPosition = game ? { gameId: game.id, fen } : null
+    set({
+      coachRequest: kind,
+      coachRequestPosition: requestPosition,
+      coachStream: null,
+      error: null
+    })
     try {
-      applySession(await run(api))
+      const next = await run(api)
+      if (get().coachRequestPosition === requestPosition) applySession(next)
     } catch (error) {
-      set({ error: failure(error) })
+      if (get().coachRequestPosition === requestPosition) set({ error: failure(error) })
     } finally {
-      set({ coachRequest: null })
+      if (get().coachRequestPosition === requestPosition)
+        set({ coachRequest: null, coachRequestPosition: null })
     }
   }
 
@@ -185,10 +199,12 @@ export const useGameStore = create<GameStoreState>((set, get) => {
     commentsVisible: true,
     coachStream: null,
     coachRequest: null,
+    coachRequestPosition: null,
     busy: false,
     error: null,
 
     apply(session) {
+      if (session.game && deletedGameIds.has(session.game.id)) return
       const previous = get()
       const total = session.game?.moves.length ?? 0
       let browsePly = previous.browsePly
@@ -200,8 +216,13 @@ export const useGameStore = create<GameStoreState>((set, get) => {
         browsePly,
         aiThinking: session.ai.thinking,
         commentsVisible: session.game ? session.coach.commentsVisible : previous.commentsVisible,
-        ...(changed ? { coachStream: null } : {})
+        ...(changed ? { coachStream: null, coachRequest: null, coachRequestPosition: null } : {})
       })
+    },
+
+    discardDeletedGame(id) {
+      deletedGameIds.add(id)
+      if (get().session.game?.id === id) get().apply(EMPTY_SESSION)
     },
 
     setBrowsePly(ply) {

@@ -29,6 +29,44 @@ export interface MoveEval {
   bestLine: string[]
 }
 
+/** A coach card for the position immediately after its Move. Older saves retain coachComment. */
+export interface CoachAnnotation {
+  square: string
+  label: string
+  kind: 'focus' | 'threat'
+  from?: string
+}
+
+export interface CoachEvidenceLine {
+  kind: 'best' | 'reply'
+  startFen: string
+  moves: { san: string; uci: string; fenAfter: string }[]
+  evaluation?: Eval
+}
+
+export interface CoachEvidence {
+  source: 'live' | 'review' | 'engine'
+  /** Scores in this record are always from White's point of view. */
+  perspective: 'white'
+  evalBefore?: Eval
+  evalAfter?: Eval
+  lines: CoachEvidenceLine[]
+}
+
+export interface CoachExplanation {
+  version: 1
+  headline: string
+  explanation: string
+  priority?: string
+  question?: string
+  hints: string[]
+  takeaway?: string
+  /** Suggestions checked against Move.fenAfter before they are persisted. */
+  annotations: CoachAnnotation[]
+  /** Engine material is attached by the app, never accepted from model output. */
+  evidence?: CoachEvidence
+}
+
 export interface Move {
   ply: number
   san: string
@@ -58,6 +96,7 @@ export interface Move {
   /** Key from the fixed taxonomy (spec §6.2). */
   theme?: string
   coachComment?: string
+  coachExplanation?: CoachExplanation
   coachCommentLanguage?: Language
 }
 
@@ -68,6 +107,9 @@ export interface CoachLogEntry {
   ply: number
   kind: CoachLogKind
   text: string
+  /** Board position at the time of an answer or hint. */
+  fen?: string
+  coachExplanation?: CoachExplanation
   move?: string
   language: Language
   createdAt: string

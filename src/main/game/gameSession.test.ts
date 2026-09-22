@@ -814,6 +814,7 @@ describe('GameSession', () => {
         commentsVisible: true,
         busy: false,
         streamId: null,
+        activeCommentPly: null,
         hint: null,
         lastAnswer: null
       })
@@ -838,7 +839,9 @@ describe('GameSession', () => {
       const comment = codex.requests.find((request) => request.text.includes('Commenta'))!
       expect(comment.text).toContain('1. e4 (e2e4)')
       expect(comment.text).toContain('+0.30')
-      expect(comment.outputSchema).toBeUndefined()
+      expect(comment.outputSchema).toMatchObject({
+        required: expect.arrayContaining(['version', 'headline', 'explanation'])
+      })
     })
 
     it('never makes the opponent turn wait for a comment', async () => {
@@ -852,6 +855,7 @@ describe('GameSession', () => {
       expect(state.game!.moves[0]!.coachComment).toBeUndefined()
       await vi.waitFor(() => expect(session.state().coach.busy).toBe(true))
       expect(session.state().coach.streamId).toMatch(/[0-9a-f-]{36}/)
+      expect(session.state().coach.activeCommentPly).toBe(1)
 
       codex.releaseCoach()
       await commented(1)
@@ -887,6 +891,7 @@ describe('GameSession', () => {
       await vi.waitFor(() => expect(session.state().coach.busy).toBe(false))
 
       expect(codex.interrupted).toContain('thread-2')
+      expect(session.state().coach.activeCommentPly).toBeNull()
       expect(session.state().game!.moves).toHaveLength(0)
       expect(session.state().game!.coachLog).toHaveLength(0)
     })
@@ -937,7 +942,9 @@ describe('GameSession', () => {
       expect(state.game!.coachLog.map((entry) => entry.kind)).toEqual(['question', 'answer'])
       expect(state.game!.coachLog[0]!.text).toBe('che piano ho?')
       expect(codex.requests[0]!.text).toContain('Domanda: che piano ho?')
-      expect(codex.requests[0]!.outputSchema).toMatchObject({ required: ['answer', 'move'] })
+      expect(codex.requests[0]!.outputSchema).toMatchObject({
+        required: ['answer', 'move', 'card']
+      })
       expect((await store.get(state.game!.id))!.coachLog).toHaveLength(2)
       await expect(session.askCoach('   ')).rejects.toMatchObject({ code: 'BAD_QUESTION' })
     })
@@ -959,7 +966,8 @@ describe('GameSession', () => {
       expect(state.coach.hint).toEqual({
         move: 'e4',
         uci: 'e2e4',
-        reason: 'Gioca e4 e occupa il centro.'
+        reason: 'Gioca e4 e occupa il centro.',
+        fen: START_FEN
       })
       expect(state.game!.coachLog[1]).toMatchObject({
         kind: 'answer',
@@ -967,6 +975,45 @@ describe('GameSession', () => {
         move: 'e4'
       })
       expect(codex.requests).toHaveLength(1)
+    })
+
+    it('saves structured advice with the position it answered', async () => {
+      await session.newGame(seen({ commentsVisible: false }))
+      codex.script = [
+        {
+          ok: true,
+          text: JSON.stringify({
+            answer: 'Sviluppa il cavallo.',
+            move: 'Nf3',
+            card: {
+              version: 1,
+              headline: 'Sviluppa il cavallo',
+              explanation: 'Il cavallo controlla il centro.',
+              hints: ['Guarda e4.'],
+              annotations: [{ square: 'f3', label: 'Casa utile', kind: 'focus', from: null }]
+            }
+          }),
+          turnId: 'advice',
+          effectiveModel: null,
+          durationMs: 5
+        }
+      ]
+
+      const state = await session.askCoach('Cosa gioco?')
+      const entry = state.game!.coachLog.at(-1)!
+      expect(entry).toMatchObject({
+        kind: 'answer',
+        fen: START_FEN,
+        coachExplanation: { headline: 'Sviluppa il cavallo' }
+      })
+      expect(state.coach.hint).toMatchObject({
+        fen: START_FEN,
+        coachExplanation: { headline: 'Sviluppa il cavallo' }
+      })
+      expect((await store.get(state.game!.id))!.coachLog.at(-1)).toMatchObject({
+        fen: START_FEN,
+        coachExplanation: { headline: 'Sviluppa il cavallo' }
+      })
     })
 
     it('answers during the opponent turn without indicating an opponent move', async () => {
@@ -1062,13 +1109,20 @@ describe('GameSession', () => {
       await session.newGame(seen({ commentsVisible: false }))
       const state = await session.requestHint()
 
-      expect(state.coach.hint).toEqual({ move: 'Na3', uci: 'b1a3', reason: 'occupa il centro' })
+      expect(state.coach.hint).toEqual({
+        move: 'Na3',
+        uci: 'b1a3',
+        reason: 'occupa il centro',
+        fen: START_FEN
+      })
       expect(state.game!.coachLog[0]).toMatchObject({
         kind: 'hint',
         move: 'Na3',
         text: 'occupa il centro'
       })
-      expect(codex.requests[0]!.outputSchema).toMatchObject({ required: ['move', 'reason'] })
+      expect(codex.requests[0]!.outputSchema).toMatchObject({
+        required: ['move', 'reason', 'card']
+      })
 
       const moved = await session.userMove('e2e4')
       expect(moved.coach.hint).toBeNull()
@@ -1407,5 +1461,74 @@ describe('GameSession', () => {
     expect(session.state().game).toBeNull()
     expect(session.state().status).toBe('idle')
     expect((await store.get(id))!.status).toBe('in_progress')
+  })
+
+  it('discards a deleted active game and ignores an opponent answer still in flight', async () => {
+    const started = await session.newGame(options())
+    const id = started.game!.id
+    codex.holdOpponent()
+    const pending = session.userMove('e2e4')
+    await vi.waitFor(() => expect(session.state().ai.thinking).toBe(true))
+
+    const discard = session.discardIfCurrent(id)
+    const deletion = store.delete(id)
+    expect(session.state()).toMatchObject({ game: null, status: 'idle', ai: { thinking: false } })
+    await Promise.all([discard, deletion, pending])
+    codex.releaseHeld({
+      ok: true,
+      text: JSON.stringify({ move: 'e5' }),
+      turnId: 'late',
+      effectiveModel: null,
+      durationMs: 1
+    })
+
+    expect(session.state().game).toBeNull()
+    expect(await store.get(id)).toBeNull()
+    expect(store.list()).not.toContainEqual(expect.objectContaining({ id }))
+    expect(emit).toHaveBeenLastCalledWith('game:state', expect.objectContaining({ game: null }))
+  })
+
+  it('cancels a coach comment waiting on the deleted game', async () => {
+    const started = await session.newGame(options({ commentsVisible: true }))
+    codex.holdCoach()
+    await session.userMove('e2e4')
+    await vi.waitFor(() => expect(session.state().coach.busy).toBe(true))
+
+    await Promise.all([session.discardIfCurrent(started.game!.id), store.delete(started.game!.id)])
+    codex.releaseCoach('late comment')
+    expect(session.state().game).toBeNull()
+    expect(await store.get(started.game!.id)).toBeNull()
+    expect(store.list()).not.toContainEqual(expect.objectContaining({ id: started.game!.id }))
+  })
+
+  it('deleting another archive entry leaves the current game running', async () => {
+    const old = await store.create({
+      kind: 'match',
+      userColor: 'w',
+      opponent: {
+        model: 'gpt-6-astra',
+        effort: 'medium',
+        difficulty: { mode: 'fixed', level: 3, targetElo: 1200 }
+      },
+      coach: { model: 'gpt-6-astra', effort: 'medium' },
+      clock: null,
+      language: 'it'
+    })
+    const active = await session.newGame(options())
+    await session.discardIfCurrent(old.id)
+    await store.delete(old.id)
+    expect(session.state().game?.id).toBe(active.game!.id)
+    expect(session.state().status).toBe('playing')
+    expect((await session.userMove('e2e4')).game?.moves.length).toBe(2)
+  })
+
+  it('clears a finished game when its archive entry is deleted', async () => {
+    const started = await session.newGame(options())
+    await session.resign()
+    expect(session.state().status).toBe('finished')
+
+    await Promise.all([session.discardIfCurrent(started.game!.id), store.delete(started.game!.id)])
+    expect(session.state()).toMatchObject({ game: null, status: 'idle' })
+    expect(await store.get(started.game!.id)).toBeNull()
   })
 })

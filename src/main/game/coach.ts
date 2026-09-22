@@ -5,11 +5,19 @@ import { classify } from '../analysis/classify'
 import { winPercentLoss } from '../analysis/winPercent'
 import type { StreamEnvelope } from '@shared/types/api'
 import type { TurnResult } from '@shared/types/codex'
-import type { Eval, Game } from '@shared/types/game'
+import type {
+  CoachAnnotation,
+  CoachEvidence,
+  CoachEvidenceLine,
+  CoachExplanation,
+  Eval,
+  Game
+} from '@shared/types/game'
 import type { EngineLine } from '@shared/types/engine'
 import type { SettingsStore } from '../store/settingsStore'
 import {
   ADVICE_SCHEMA,
+  COMMENT_SCHEMA,
   HINT_SCHEMA,
   adviceText,
   coachBaseInstructions,
@@ -92,7 +100,7 @@ function whiteEval(line: EngineLine | undefined, fen: string): CoachEval | null 
 }
 
 /** UCI principal variation rendered in SAN; an unplayable tail is simply dropped. */
-function pvInSan(fen: string, pv: string[]): { san: string; pv: string[] } | null {
+function pvInSan(fen: string, pv: string[]): { san: string; pv: string[]; uciPv: string[] } | null {
   let chess: Chess
   try {
     chess = new Chess(fen)
@@ -100,17 +108,19 @@ function pvInSan(fen: string, pv: string[]): { san: string; pv: string[] } | nul
     return null
   }
   const san: string[] = []
+  const uciPv: string[] = []
   for (const uci of pv.slice(0, PV_PLIES)) {
     const normalized = normalizeMove(chess.fen(), uci)
     if (!normalized) break
     try {
       san.push(chess.move(normalized.san).san)
+      uciPv.push(normalized.uci)
     } catch {
       break
     }
   }
   if (san.length === 0) return null
-  return { san: san[0]!, pv: san }
+  return { san: san[0]!, pv: san, uciPv }
 }
 
 /** Models like to wrap JSON in ``` fences even when the schema forbids prose. */
@@ -123,7 +133,160 @@ function stripFences(text: string): string {
     .trim()
 }
 
-function parseHint(text: string): { move: string; reason: string } | null {
+const bounded = (value: unknown, max: number): string | undefined => {
+  if (typeof value !== 'string') return undefined
+  const trimmed = value.trim().replace(/\s+/g, ' ')
+  return trimmed && trimmed.length <= max ? trimmed : undefined
+}
+
+function attacksFrom(chess: Chess, from: string, target: string): boolean {
+  const piece = chess.get(from as Parameters<Chess['get']>[0])
+  return (
+    !!piece &&
+    chess
+      .attackers(target as Parameters<Chess['attackers']>[0], piece.color)
+      .includes(from as Parameters<Chess['get']>[0])
+  )
+}
+
+function validAnnotations(value: unknown, fenAfter: string): CoachAnnotation[] {
+  if (!Array.isArray(value)) return []
+  let chess: Chess
+  try {
+    chess = new Chess(fenAfter)
+  } catch {
+    return []
+  }
+  const annotations: CoachAnnotation[] = []
+  for (const candidate of value.slice(0, 12)) {
+    if (!candidate || typeof candidate !== 'object') continue
+    const item = candidate as Record<string, unknown>
+    const square = item.square
+    const label = bounded(item.label, 80)
+    if (
+      typeof square !== 'string' ||
+      !/^[a-h][1-8]$/.test(square) ||
+      !label ||
+      !chess.get(square as Parameters<Chess['get']>[0])
+    )
+      continue
+    if (item.kind === 'focus') annotations.push({ square, label, kind: 'focus' })
+    if (item.kind === 'threat' && typeof item.from === 'string' && /^[a-h][1-8]$/.test(item.from)) {
+      const from = item.from
+      const attacker = chess.get(from as Parameters<Chess['get']>[0])
+      const target = chess.get(square as Parameters<Chess['get']>[0])
+      if (attacker && target && attacker.color !== target.color && attacksFrom(chess, from, square))
+        annotations.push({ square, label, kind: 'threat', from })
+    }
+    if (annotations.length >= 4) break
+  }
+  return annotations
+}
+
+function parseComment(
+  text: string,
+  fenAfter: string
+): { text: string; explanation?: CoachExplanation } | null {
+  let value: unknown
+  try {
+    value = JSON.parse(stripFences(text))
+  } catch {
+    const plain = bounded(text, 4000)
+    // A broken JSON answer must not become visible coach prose or a permanent save.
+    const unwrapped = stripFences(text)
+    return plain && !text.trimStart().startsWith('```') && !/^[\[{]/.test(unwrapped)
+      ? { text: plain }
+      : null
+  }
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const data = value as Record<string, unknown>
+  const headline = bounded(data.headline, 100)
+  const explanation = bounded(data.explanation, 2000)
+  if (!headline || !explanation || (data.version !== undefined && data.version !== 1)) return null
+  const hints = Array.isArray(data.hints)
+    ? data.hints
+        .slice(0, 2)
+        .map((hint: unknown) => bounded(hint, 240))
+        .filter((hint): hint is string => !!hint)
+    : []
+  const card: CoachExplanation = {
+    version: 1,
+    headline,
+    explanation,
+    hints,
+    annotations: validAnnotations(data.annotations, fenAfter)
+  }
+  const priority = bounded(data.priority, 240)
+  const question = bounded(data.question, 240)
+  const takeaway = bounded(data.takeaway, 240)
+  if (priority) card.priority = priority
+  if (question) card.question = question
+  if (takeaway) card.takeaway = takeaway
+  return { text: `${headline} ${explanation}`.trim(), explanation: card }
+}
+
+function plainEval(value: CoachEval | null): Eval | undefined {
+  if (!value) return undefined
+  if (typeof value.mate === 'number' && Number.isFinite(value.mate)) return { mate: value.mate }
+  if (typeof value.cp === 'number' && Number.isFinite(value.cp)) return { cp: value.cp }
+  return undefined
+}
+
+function evidenceLine(
+  kind: 'best' | 'reply',
+  startFen: string,
+  line: { uciPv?: string[]; eval: CoachEval }
+): CoachEvidenceLine | null {
+  if (!line.uciPv?.length) return null
+  let chess: Chess
+  try {
+    chess = new Chess(startFen)
+  } catch {
+    return null
+  }
+  const moves: CoachEvidenceLine['moves'] = []
+  for (const uci of line.uciPv.slice(0, PV_PLIES)) {
+    const normalized = normalizeMove(chess.fen(), uci)
+    if (!normalized) break
+    try {
+      const played = chess.move(normalized.san)
+      moves.push({ san: played.san, uci: normalized.uci, fenAfter: chess.fen() })
+    } catch {
+      break
+    }
+  }
+  if (!moves.length) return null
+  const evaluation = plainEval(line.eval)
+  return { kind, startFen, moves, ...(evaluation ? { evaluation } : {}) }
+}
+
+function coachEvidence(
+  engine: EngineContext | null,
+  source: CoachEvidence['source'],
+  fenBefore: string,
+  fenAfter: string
+): CoachEvidence | undefined {
+  if (!engine) return undefined
+  const lines = [
+    ...engine.bestLines.map((line) => evidenceLine('best', fenBefore, line)),
+    ...(engine.replyLines ?? []).map((line) => evidenceLine('reply', fenAfter, line))
+  ].filter((line): line is CoachEvidenceLine => line !== null)
+  const evalBefore = plainEval(engine.evalBefore)
+  const evalAfter = plainEval(engine.evalAfter)
+  if (!evalBefore && !evalAfter && lines.length === 0) return undefined
+  return {
+    source,
+    perspective: 'white',
+    ...(evalBefore ? { evalBefore } : {}),
+    ...(evalAfter ? { evalAfter } : {}),
+    lines
+  }
+}
+
+function parseHint(
+  text: string,
+  fen: string
+): { move: string; reason: string; explanation?: CoachExplanation } | null {
   let parsed: unknown
   try {
     parsed = JSON.parse(stripFences(text))
@@ -133,14 +296,25 @@ function parseHint(text: string): { move: string; reason: string } | null {
   if (typeof parsed !== 'object' || parsed === null) return null
   const record = parsed as Record<string, unknown>
   if (typeof record.move !== 'string' || record.move.trim().length === 0) return null
-  return { move: record.move, reason: typeof record.reason === 'string' ? record.reason : '' }
+  const explanation = record.card
+    ? parseComment(JSON.stringify(record.card), fen)?.explanation
+    : undefined
+  return {
+    move: record.move,
+    reason: typeof record.reason === 'string' ? record.reason : '',
+    ...(explanation ? { explanation } : {})
+  }
 }
 
 function parseAdvice(
   text: string,
   fen: string,
   allowMove: boolean
-): { answer: string; hint: { move: string; uci: string; reason: string } | null } | null {
+): {
+  answer: string
+  hint: { move: string; uci: string; reason: string } | null
+  explanation?: CoachExplanation
+} | null {
   let parsed: unknown
   try {
     parsed = JSON.parse(stripFences(text))
@@ -154,14 +328,19 @@ function parseAdvice(
 
   const answer = record.answer.trim()
   const move = allowMove && typeof record.move === 'string' ? normalizeMove(fen, record.move) : null
+  const explanation = record.card
+    ? parseComment(JSON.stringify(record.card), fen)?.explanation
+    : undefined
   return {
     answer,
-    hint: move ? { move: move.san, uci: move.uci, reason: answer } : null
+    hint: move ? { move: move.san, uci: move.uci, reason: answer } : null,
+    ...(explanation ? { explanation } : {})
   }
 }
 
 export class CoachSession {
   private threadId: string | null = null
+  private generation = 0
   private inFlight = 0
   private streamIdValue: string | null = null
   /** Recap of a resumed game, prepended to the first turn instead of costing one of its own. */
@@ -195,10 +374,12 @@ export class CoachSession {
 
   /** Opens the coach thread of `game`. On resume the recap rides on the first real turn. */
   async start(game: Game, opts: { language: 'it' | 'en'; recap?: CoachLogEntry[] }): Promise<void> {
+    const generation = this.generation + 1
     await this.close()
+    if (this.generation !== generation) return
     this.disabled = false
     const { model } = this.resolve(game)
-    this.threadId = await this.deps.codex.startThread('coach', {
+    const threadId = await this.deps.codex.startThread('coach', {
       model,
       baseInstructions: coachBaseInstructions({
         language: opts.language,
@@ -207,6 +388,11 @@ export class CoachSession {
       }),
       gameId: game.id
     })
+    if (this.generation !== generation) {
+      await this.deps.codex.closeThread(threadId).catch(() => undefined)
+      return
+    }
+    this.threadId = threadId
     this.pendingRecap =
       opts.recap && opts.recap.length > 0 ? resumeSummaryText(opts.recap, opts.language) : null
   }
@@ -218,6 +404,7 @@ export class CoachSession {
   }
 
   async close(): Promise<void> {
+    this.generation += 1
     const threadId = this.threadId
     this.threadId = null
     this.pendingRecap = null
@@ -240,7 +427,7 @@ export class CoachSession {
     game: Game,
     ply: number,
     opts: { fenBefore: string; fenAfter: string; pgn: string; signal?: AbortSignal }
-  ): Promise<{ streamId: string; text: string } | null> {
+  ): Promise<{ streamId: string; text: string; explanation?: CoachExplanation } | null> {
     const move = game.moves[ply - 1]
     const threadId = this.threadId
     if (!move || !threadId || this.disabled || opts.signal?.aborted) return null
@@ -304,11 +491,16 @@ export class CoachSession {
       by: move.by,
       fen: opts.fenAfter,
       pgn: opts.pgn,
+      history: game.moves.slice(0, ply),
       engine,
       language
     })
 
-    const run = await this.runTurn(game, text, language, { threadId, signal: opts.signal })
+    const run = await this.runTurn(game, text, language, {
+      threadId,
+      signal: opts.signal,
+      outputSchema: COMMENT_SCHEMA
+    })
     if (!run.result.ok) {
       if (run.result.reason === 'interrupted' && opts.signal?.aborted) return null
       // A quota or an unusable session is not worth one call per move for the rest of the game.
@@ -316,7 +508,14 @@ export class CoachSession {
       console.error('[coach] the comment turn failed:', run.result.reason, run.result.message)
       return null
     }
-    return { streamId: run.streamId, text: run.result.text.trim() }
+    if (opts.signal?.aborted || this.threadId !== threadId) return null
+    const parsed = parseComment(run.result.text, opts.fenAfter)
+    if (!parsed) return null
+    if (parsed.explanation) {
+      const source = move.eval ? 'review' : move.liveEval ? 'live' : 'engine'
+      parsed.explanation.evidence = coachEvidence(engine, source, opts.fenBefore, opts.fenAfter)
+    }
+    return { streamId: run.streamId, ...parsed }
   }
 
   /** Free question from the Coach tab; the answer streams into the same channel as the comments. */
@@ -328,6 +527,7 @@ export class CoachSession {
     streamId: string
     text: string
     hint: { move: string; uci: string; reason: string } | null
+    explanation?: CoachExplanation
   }> {
     const asked = String(question ?? '').trim()
     if (!asked) throw new CoachError('COACH_EMPTY_QUESTION', 'a question is required')
@@ -355,7 +555,14 @@ export class CoachSession {
     const parsed = parseAdvice(run.result.text, ctx.fen, sideToMove(ctx.fen) === game.userColor)
     if (!parsed)
       throw new CoachError('COACH_TURN_FAILED', 'the coach returned malformed structured advice')
-    return { streamId: run.streamId, text: parsed.answer, hint: parsed.hint }
+    if (parsed.explanation)
+      parsed.explanation.evidence = coachEvidence(engine, 'engine', ctx.fen, ctx.fen)
+    return {
+      streamId: run.streamId,
+      text: parsed.answer,
+      hint: parsed.hint,
+      ...(parsed.explanation ? { explanation: parsed.explanation } : {})
+    }
   }
 
   /**
@@ -365,7 +572,7 @@ export class CoachSession {
   async hint(
     game: Game,
     ctx: { fen: string; pgn: string }
-  ): Promise<{ move: string; uci: string; reason: string }> {
+  ): Promise<{ move: string; uci: string; reason: string; explanation?: CoachExplanation }> {
     const threadId = this.threadId
     if (!threadId) throw new CoachError('COACH_NO_THREAD', 'the coach thread is not open')
     const language = this.language()
@@ -385,9 +592,18 @@ export class CoachSession {
           throw new CoachError('COACH_NO_THREAD', 'the coach thread is not open')
         break
       }
-      const parsed = parseHint(run.result.text)
+      const parsed = parseHint(run.result.text, ctx.fen)
       const move = parsed ? normalizeMove(ctx.fen, parsed.move) : null
-      if (parsed && move) return { move: move.san, uci: move.uci, reason: parsed.reason.trim() }
+      if (parsed && move) {
+        if (parsed.explanation)
+          parsed.explanation.evidence = coachEvidence(engine, 'engine', ctx.fen, ctx.fen)
+        return {
+          move: move.san,
+          uci: move.uci,
+          reason: parsed.reason.trim(),
+          ...(parsed.explanation ? { explanation: parsed.explanation } : {})
+        }
+      }
       if (attempt === 2) break
       text = `${text}\n\n${
         language === 'it'
@@ -487,7 +703,7 @@ export class CoachSession {
           }
         }
       }
-      if (result.ok && !streamed && !opts.outputSchema && result.text.trim().length > 0) {
+      if (result.ok && !streamed && result.text.trim().length > 0) {
         this.deps.emit('stream', {
           streamId,
           threadId,
@@ -529,7 +745,7 @@ export class CoachSession {
         const rendered = pvInSan(fenBefore, line.pv.length > 0 ? line.pv : [line.move])
         const score = whiteEval(line, fenBefore)
         if (!rendered || !score) continue
-        bestLines.push({ san: rendered.san, pv: rendered.pv, eval: score })
+        bestLines.push({ ...rendered, eval: score })
       }
       // The score after the move is only worth the cheap live budget: the comment quotes it, the
       // judgement comes from the deeper analysis of the position the move was played from.

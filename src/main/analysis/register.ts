@@ -488,6 +488,9 @@ export class AnalysisManager {
       throw new AnalysisError('REVIEW_EMPTY_ANSWER', 'the review answered with an empty comment')
     move.coachComment = answer
     move.coachCommentLanguage = language
+    // The review writes plain prose. Its replacement must retire the live structured card too;
+    // an explicit undefined survives the finished-game merge before JSON serialization.
+    move.coachExplanation = undefined
     return answer
   }
 

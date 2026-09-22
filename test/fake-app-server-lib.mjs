@@ -279,19 +279,60 @@ export function createFakeServer(io, options = {}) {
   function finalText(params, state) {
     const text = inputText(params)
     const properties = schemaProperties(params)
+    const card = () => {
+      const fen = fenFrom(text)
+      let focus = 'e2'
+      let secondFocus = null
+      try {
+        const chess = new Chess(fen)
+        secondFocus = chess.board().flat().filter(Boolean)[1]?.square ?? null
+        for (const row of chess.board()) {
+          const piece = row.find((entry) => entry)
+          if (piece) {
+            focus = piece.square
+            break
+          }
+        }
+      } catch {
+        /* default is only used by unrelated fake turns */
+      }
+      return {
+        version: 1,
+        headline: 'Osserva la posizione',
+        explanation: 'La mossa cambia il controllo delle case vicine.',
+        priority: 'Controlla quali pezzi sono attaccati.',
+        question: 'Quale pezzo può rispondere?',
+        hints: ['Guarda le case controllate.'],
+        takeaway: 'Verifica le minacce prima di decidere.',
+        annotations: [
+          { square: focus, label: 'Pezzo da osservare', kind: 'focus', from: null },
+          ...(secondFocus && secondFocus !== focus
+            ? [{ square: secondFocus, label: 'Secondo pezzo coinvolto', kind: 'focus', from: null }]
+            : [])
+        ]
+      }
+    }
+    if (properties && 'headline' in properties && 'explanation' in properties) {
+      return JSON.stringify(card())
+    }
     // Advice can recommend a move without turning an explanatory question into a hint.
     if (properties && 'answer' in properties && 'move' in properties) {
       const move = /Domanda:.*quale mossa/i.test(text) ? randomLegalMove(fenFrom(text)) : null
       return JSON.stringify({
         answer: move ? 'Sviluppa il pezzo indicato.' : 'Risposta finta.',
-        move
+        move,
+        ...('card' in properties ? { card: card() } : {})
       })
     }
     // The hint schema (spec §4.2) is the only one with both `move` and `reason`.
     if (properties && 'move' in properties && 'reason' in properties) {
       const fen = fenFrom(text)
       const forced = forcedMoveFrom(text)
-      return JSON.stringify({ move: forced ?? randomLegalMove(fen), reason: 'fake hint' })
+      return JSON.stringify({
+        move: forced ?? randomLegalMove(fen),
+        reason: 'fake hint',
+        ...('card' in properties ? { card: card() } : {})
+      })
     }
     if (properties && 'move' in properties) {
       const fen = fenFrom(text)
@@ -518,7 +559,10 @@ export function createFakeServer(io, options = {}) {
       step()
       if (index < steps.length) later(runNext, 1)
     }
-    later(runNext, delayMs())
+    const props = schemaProperties(params)
+    const isCoach = props && ('headline' in props || 'card' in props)
+    const coachDelay = isCoach ? Number(env.FAKE_CODEX_COACH_DELAY_MS ?? 0) : 0
+    later(runNext, Number.isFinite(coachDelay) && coachDelay > 0 ? coachDelay : delayMs())
   }
 
   function emitItem(state, run, item) {

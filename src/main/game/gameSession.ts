@@ -140,6 +140,8 @@ function initialClock(cfg: ClockConfig | null | undefined): Game['clock'] {
 
 export class GameSession {
   private game: Game | null = null
+  /** Archive deletion is terminal even if a resume already read the file. */
+  private readonly deletedGameIds = new Set<string>()
   private threadId: string | null = null
   private status: SessionState['status'] = 'idle'
   private error: string | null = null
@@ -248,6 +250,13 @@ export class GameSession {
         commentsVisible: this.commentsVisible,
         busy: this.coachActivity.busy,
         streamId: this.coachActivity.streamId,
+        activeCommentPly:
+          this.activeComment &&
+          !this.activeComment.controller.signal.aborted &&
+          this.activeComment.gameId === this.game?.id &&
+          this.game?.moves[this.activeComment.ply - 1]?.uci === this.activeComment.uci
+            ? this.activeComment.ply
+            : null,
         hint: this.coachHint ? { ...this.coachHint } : null,
         lastAnswer: this.coachAnswer ? { ...this.coachAnswer } : null
       }
@@ -299,6 +308,8 @@ export class GameSession {
       language: opts.language,
       ...(opts.startFen ? { startFen: opts.startFen } : {})
     })
+    if (this.deletedGameIds.has(game.id))
+      throw new GameError('GAME_NOT_FOUND', `no game with id ${game.id}`)
 
     // The dialog reopens on the same choices next time (spec §4.3). Only a real match writes them:
     // an endgame drill is started from the training screen with a difficulty of its own (level 6,
@@ -312,6 +323,8 @@ export class GameSession {
         })
         .catch((error) => console.error('[game] the new-game choices could not be saved:', error))
     }
+    if (this.deletedGameIds.has(game.id))
+      throw new GameError('GAME_NOT_FOUND', `no game with id ${game.id}`)
 
     this.game = game
     this.buildClock(game)
@@ -322,10 +335,13 @@ export class GameSession {
     this.error = null
     this.status = 'playing'
     await this.openThread()
+    if (this.game !== game) return this.state()
     await this.openCoach(opts.language)
+    if (this.game !== game) return this.state()
     this.emitState()
 
     await this.runEval(this.fen())
+    if (this.game !== game) return this.state()
     if (!this.state().userToMove) await this.aiMove()
     return this.state()
   }
@@ -354,7 +370,7 @@ export class GameSession {
   private async openThread(): Promise<void> {
     const game = this.requireGame()
     const aiColor = game.userColor === 'w' ? 'b' : 'w'
-    this.threadId = await this.deps.codex.startThread('opponent', {
+    const threadId = await this.deps.codex.startThread('opponent', {
       model: game.opponent.model,
       baseInstructions: opponentBaseInstructions({
         color: aiColor,
@@ -363,6 +379,11 @@ export class GameSession {
       }),
       gameId: game.id
     })
+    if (this.game !== game || this.deletedGameIds.has(game.id)) {
+      await this.deps.codex.closeThread(threadId).catch(() => undefined)
+      return
+    }
+    this.threadId = threadId
   }
 
   /**
@@ -372,8 +393,11 @@ export class GameSession {
    */
   async resume(gameId: string, opts?: { substituteModel?: string }): Promise<SessionState> {
     const game = await this.deps.store.get(gameId)
-    if (!game) throw new GameError('GAME_NOT_FOUND', `no game with id ${gameId}`)
+    if (!game || this.deletedGameIds.has(gameId))
+      throw new GameError('GAME_NOT_FOUND', `no game with id ${gameId}`)
     await this.close()
+    if (this.deletedGameIds.has(gameId))
+      throw new GameError('GAME_NOT_FOUND', `no game with id ${gameId}`)
 
     const models = this.deps.codex.models()
     const suggested = models.find((model) => model.isDefault)?.id ?? models[0]?.id
@@ -402,6 +426,8 @@ export class GameSession {
       game.opponent.effort = known.defaultEffort
     }
     await this.deps.store.save(game)
+    if (this.deletedGameIds.has(gameId))
+      throw new GameError('GAME_NOT_FOUND', `no game with id ${gameId}`)
 
     this.game = game
     // The clocks resume where the last committed move left them (spec §4.3).
@@ -419,13 +445,16 @@ export class GameSession {
 
     this.status = 'playing'
     await this.openThread()
+    if (this.game !== game) return this.state()
     // Codex threads are ephemeral: the coach comes back with a recap of what it already said.
     await this.openCoach(
       this.deps.settings.get().language,
       game.coachLog.slice(-RESUME_RECAP_ENTRIES)
     )
+    if (this.game !== game) return this.state()
     this.emitState()
     await this.runEval(this.fen())
+    if (this.game !== game) return this.state()
     if (!this.state().userToMove) await this.aiMove()
     return this.state()
   }
@@ -484,6 +513,48 @@ export class GameSession {
     this.emitState()
   }
 
+  /** Forget a deleted archive entry immediately, before its in-flight work can publish again. */
+  async discardIfCurrent(gameId: string): Promise<void> {
+    this.deletedGameIds.add(gameId)
+    if (this.game?.id !== gameId) return
+
+    const threadId = this.threadId
+    const wasThinking = this.ai.thinking
+    this.game = null
+    this.threadId = null
+    this.status = 'idle'
+    this.error = null
+    this.ai = idleAi()
+    this.liveEvalValue = null
+    this.pendingTakebackNotice = null
+    this.coachHint = null
+    this.coachAnswer = null
+    this.opponentController?.abort()
+    this.opponentController = null
+    this.feedback.reset()
+    this.evalRequest += 1
+    this.turnEpoch += 1
+    this.positionRevision += 1
+    this.commentQueueEpoch += 1
+    this.pendingComments = []
+    this.activeComment?.controller.abort()
+    this.stopTicker()
+    this.clock = null
+    this.emitState()
+
+    await Promise.all([
+      this.settleFeedback(),
+      this.coach.close().catch((error) => console.error('[game] closing the coach failed:', error)),
+      threadId
+        ? (async () => {
+            if (wasThinking) await this.deps.codex.interrupt(threadId).catch(() => undefined)
+            await this.deps.codex.closeThread(threadId).catch(() => undefined)
+          })()
+        : Promise.resolve()
+    ])
+    await this.settleComments()
+  }
+
   // ------------------------------------------------------------------ moves
 
   async userMove(uci: string): Promise<SessionState> {
@@ -517,6 +588,7 @@ export class GameSession {
     // request keeps priority, while the independent coach/model work overlaps the opponent turn.
     this.flushComments()
     await evalTask
+    if (this.game !== game) return this.state()
     await this.aiMove()
     return this.state()
   }
@@ -665,6 +737,7 @@ export class GameSession {
 
   /** Spec §8: a failed autosave is visible, never silent — the position is kept in memory. */
   private async autosave(game: Game): Promise<void> {
+    if (this.deletedGameIds.has(game.id)) return
     try {
       await this.deps.store.save(game)
     } catch (error) {
@@ -724,6 +797,7 @@ export class GameSession {
       this.ai = idleAi()
       if (this.threadId) await this.deps.codex.interrupt(this.threadId).catch(() => undefined)
     }
+    if (this.game !== game) return this.state()
     await this.finish({ outcome: game.userColor === 'w' ? '0-1' : '1-0', reason: 'resign' })
     return this.state()
   }
@@ -902,6 +976,7 @@ export class GameSession {
         this.ai = idleAi()
         if (this.threadId) await this.deps.codex.interrupt(this.threadId).catch(() => undefined)
       }
+      if (this.game !== game) return
       // Spec §6.1: a game the AI lost on time is excluded from the level estimation of M4, which
       // reads `result.reason === 'timeout'` and the losing colour off `outcome` and `userColor`.
       // The adaptive rating of §4.1 is a different quantity and keeps counting this game.
@@ -1033,6 +1108,7 @@ export class GameSession {
     if (!current || current.id !== gameId || !target || target.uci !== uci) return
     target.coachComment = comment.text
     target.coachCommentLanguage = language
+    target.coachExplanation = comment.explanation
     this.logCoach(current, { ply, kind: 'comment', text: comment.text, move: target.san, language })
     await this.autosave(current)
     this.emitState()
@@ -1079,12 +1155,20 @@ export class GameSession {
       kind: 'answer',
       text: answer.text,
       ...(answer.hint ? { move: answer.hint.move } : {}),
+      ...(answer.explanation ? { coachExplanation: answer.explanation } : {}),
+      fen,
       language
     })
     this.coachAnswer = { question: asked, text: answer.text, ply }
     // A newer answer owns the indication for this position, including an explicit `move: null`.
     this.coachHint =
-      this.status === 'playing' && this.sideToMove(fen) === current.userColor ? answer.hint : null
+      this.status === 'playing' && this.sideToMove(fen) === current.userColor && answer.hint
+        ? {
+            ...answer.hint,
+            fen,
+            ...(answer.explanation ? { coachExplanation: answer.explanation } : {})
+          }
+        : null
     await this.autosave(current)
     this.emitState()
     return this.state()
@@ -1114,12 +1198,18 @@ export class GameSession {
       this.sideToMove(fen) !== current.userColor
     )
       return this.state()
-    this.coachHint = hint
+    this.coachHint = {
+      ...hint,
+      fen,
+      ...(hint.explanation ? { coachExplanation: hint.explanation } : {})
+    }
     this.logCoach(current, {
       ply: current.moves.length,
       kind: 'hint',
       text: hint.reason,
       move: hint.move,
+      ...(hint.explanation ? { coachExplanation: hint.explanation } : {}),
+      fen,
       language
     })
     await this.autosave(current)
@@ -1176,14 +1266,20 @@ export class GameSession {
     this.threadId = null
     // Settle grades before the deeper review reads and saves this game.
     await this.settleFeedback()
+    if (this.game !== game || this.deletedGameIds.has(game.id)) {
+      if (threadId) await this.deps.codex.closeThread(threadId).catch(() => undefined)
+      return
+    }
     await this.autosave(game)
     if (threadId) await this.deps.codex.closeThread(threadId).catch(() => undefined)
 
+    if (this.game !== game || this.deletedGameIds.has(game.id)) return
     await this.updateAdaptive(game, result)
     if (this.game === game) {
       this.status = 'finished'
       this.emitState()
     }
+    if (this.game !== game || this.deletedGameIds.has(game.id)) return
     this.deps.emit('game:finished', { gameId: game.id, result })
     // The game on disk is already saved above: the pipeline reads it back by id.
     try {

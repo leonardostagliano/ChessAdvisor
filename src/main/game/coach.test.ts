@@ -280,7 +280,18 @@ describe('CoachSession', () => {
     expect(text).toContain(`FEN: ${AFTER_E4}`)
     expect(text).toContain('1. e4 (e2e4)')
     expect(text).toContain('+0.40')
-    expect(codex.requests[0]!.outputSchema).toBeUndefined()
+    expect(codex.requests[0]!.outputSchema).toMatchObject({
+      required: [
+        'version',
+        'headline',
+        'explanation',
+        'priority',
+        'question',
+        'hints',
+        'takeaway',
+        'annotations'
+      ]
+    })
 
     // The stream id is published while the turn runs and withdrawn when it ends.
     expect(seen[0]).toEqual({ busy: true, streamId: comment!.streamId })
@@ -288,6 +299,28 @@ describe('CoachSession', () => {
     expect(coach.busy).toBe(false)
     // The deltas already reached the renderer: no duplicate envelope is emitted.
     expect(emitted).toHaveLength(0)
+  })
+
+  it('passes only recent moves to the automatic comment prompt', async () => {
+    const moves = Array.from({ length: 20 }, (_, index) => ({
+      ...game().moves[0]!,
+      ply: index + 1,
+      san: `M${index + 1}`
+    }))
+    const longGame = game({
+      moves,
+      opponent: { ...game().opponent, model: 'gpt-6-luna', effort: 'xhigh' }
+    })
+    await coach.start(longGame, { language: 'it' })
+    await coach.commentOn(longGame, 20, {
+      fenBefore: START_FEN,
+      fenAfter: AFTER_E4,
+      pgn: '1. first 2. second *'
+    })
+    expect(codex.requests[0]!.text).toContain('PGN: 5. M9 M10')
+    expect(codex.requests[0]!.text).not.toContain('M8')
+    expect(codex.requests[0]!.model).toBe('gpt-6-luna')
+    expect(codex.requests[0]!.effort).toBe('xhigh')
   })
 
   it('emits the whole answer once when the turn produced no deltas at all', async () => {
@@ -302,6 +335,75 @@ describe('CoachSession', () => {
       streamId: comment!.streamId,
       kind: 'text',
       chunk: 'Commento finto.'
+    })
+  })
+
+  it('keeps only valid occupied-square annotations and replays engine evidence', async () => {
+    await coach.start(game(), { language: 'it' })
+    codex.script = [
+      {
+        ok: true,
+        text: JSON.stringify({
+          version: 1,
+          headline: 'Pedone al centro',
+          explanation: 'Il pedone occupa e4 e libera una diagonale.',
+          priority: 'Guarda la risposta.',
+          question: 'Che cosa controlla il pedone?',
+          hints: ['Cerca due case diagonali.'],
+          takeaway: 'Controlla le nuove linee.',
+          annotations: [
+            { square: 'e4', label: 'Pedone avanzato', kind: 'focus', from: null },
+            { square: 'e5', label: 'Casa vuota', kind: 'focus', from: null },
+            { square: 'e7', label: 'Minaccia falsa', kind: 'threat', from: 'e4' }
+          ]
+        }),
+        turnId: 'structured',
+        effectiveModel: null,
+        durationMs: 2
+      }
+    ]
+    const result = await coach.commentOn(game(), 1, {
+      fenBefore: START_FEN,
+      fenAfter: AFTER_E4,
+      pgn: '1. e4 *'
+    })
+    expect(result?.text).toBe('Pedone al centro Il pedone occupa e4 e libera una diagonale.')
+    expect(result?.explanation?.annotations).toEqual([
+      { square: 'e4', label: 'Pedone avanzato', kind: 'focus' }
+    ])
+    const evidence = result?.explanation?.evidence
+    expect(evidence).toMatchObject({
+      perspective: 'white',
+      source: 'engine',
+      evalBefore: { cp: 40 },
+      evalAfter: { cp: -40 }
+    })
+    const best = evidence?.lines.find((line) => line.kind === 'best')
+    const reply = evidence?.lines.find((line) => line.kind === 'reply')
+    expect(best?.startFen).toBe(START_FEN)
+    expect(best?.moves[0]).toMatchObject({ san: 'Na3', uci: 'b1a3' })
+    expect(best?.moves[0]?.fenAfter).toContain('N7')
+    expect(reply?.startFen).toBe(AFTER_E4)
+    expect(reply?.moves[0]).toMatchObject({ san: 'Na6', uci: 'b8a6' })
+  })
+
+  it('drops malformed JSON and accepts legacy prose without saving a raw object', async () => {
+    await coach.start(game(), { language: 'it' })
+    const scripted = (text: string): TurnResult => ({
+      ok: true,
+      text,
+      turnId: 'legacy',
+      effectiveModel: null,
+      durationMs: 1
+    })
+    codex.script = [
+      scripted('```json\n{"headline":"bad"\n```'),
+      scripted('Una spiegazione semplice.')
+    ]
+    const ctx = { fenBefore: START_FEN, fenAfter: AFTER_E4, pgn: '1. e4 *' }
+    expect(await coach.commentOn(game(), 1, ctx)).toBeNull()
+    expect(await coach.commentOn(game(), 1, ctx)).toMatchObject({
+      text: 'Una spiegazione semplice.'
     })
   })
 
@@ -398,7 +500,7 @@ describe('CoachSession', () => {
     })
     expect(codex.requests).toHaveLength(1)
     expect(codex.requests[0]!.outputSchema).toMatchObject({
-      required: ['answer', 'move'],
+      required: ['answer', 'move', 'card'],
       additionalProperties: false
     })
   })
@@ -433,6 +535,80 @@ describe('CoachSession', () => {
     expect(codex.requests).toHaveLength(2)
   })
 
+  it('returns grounded cards for advice and hints without another model call', async () => {
+    await coach.start(game(), { language: 'it' })
+    const card = {
+      version: 1,
+      headline: 'Guarda il centro',
+      explanation: 'La scelta modifica il controllo delle case centrali.',
+      priority: 'Controlla il pedone.',
+      question: 'Quale mossa aumenta il controllo?',
+      hints: ['Guarda i pedoni centrali.'],
+      takeaway: 'Confronta le case controllate.',
+      annotations: [{ square: 'e2', label: 'Pedone', kind: 'focus', from: null }]
+    }
+    const result = (text: string): TurnResult => ({
+      ok: true,
+      text,
+      turnId: 'card',
+      effectiveModel: null,
+      durationMs: 1
+    })
+    codex.script = [
+      result(JSON.stringify({ answer: 'Controlla il centro.', move: null, card })),
+      result(JSON.stringify({ move: 'e4', reason: 'Controlla il centro.', card }))
+    ]
+    const advice = await coach.ask(game(), 'come procedo?', { fen: START_FEN, pgn: '' })
+    expect(advice.hint).toBeNull()
+    expect(advice.explanation?.annotations).toEqual([
+      { square: 'e2', label: 'Pedone', kind: 'focus' }
+    ])
+    expect(advice.explanation?.evidence?.lines[0]?.startFen).toBe(START_FEN)
+    const hint = await coach.hint(game(), { fen: START_FEN, pgn: '' })
+    expect(hint).toMatchObject({ move: 'e4', explanation: { headline: 'Guarda il centro' } })
+    expect(codex.requests).toHaveLength(2)
+  })
+
+  it('drops an illegal principal variation tail from evidence', async () => {
+    const broken = fakeEngine()
+    const analyze = broken.analyze
+    broken.analyze = async (fen, profile, opts) => {
+      const analysis = await analyze(fen, profile, opts)
+      if (fen === START_FEN && analysis.lines[0]) analysis.lines[0].pv = ['e2e4', 'e2e5']
+      return analysis
+    }
+    build({ engine: broken })
+    await coach.start(game(), { language: 'it' })
+    codex.script = [
+      {
+        ok: true,
+        text: JSON.stringify({
+          version: 1,
+          headline: 'Centro',
+          explanation: 'Il pedone avanza.',
+          priority: '',
+          question: '',
+          hints: [],
+          takeaway: '',
+          annotations: []
+        }),
+        turnId: 'pv',
+        effectiveModel: null,
+        durationMs: 1
+      }
+    ]
+    const comment = await coach.commentOn(game(), 1, {
+      fenBefore: START_FEN,
+      fenAfter: AFTER_E4,
+      pgn: '1. e4 *'
+    })
+    expect(comment?.explanation?.evidence?.lines[0]?.moves).toHaveLength(1)
+    expect(comment?.explanation?.evidence?.lines[0]?.moves[0]).toMatchObject({
+      san: 'e4',
+      uci: 'e2e4'
+    })
+  })
+
   describe('hint', () => {
     const hint = (move: string, reason = 'centro'): TurnResult => ({
       ok: true,
@@ -447,7 +623,9 @@ describe('CoachSession', () => {
       codex.script = [hint('e4')]
       const answer = await coach.hint(game(), { fen: START_FEN, pgn: '' })
       expect(answer).toEqual({ move: 'e4', uci: 'e2e4', reason: 'centro' })
-      expect(codex.requests[0]!.outputSchema).toMatchObject({ required: ['move', 'reason'] })
+      expect(codex.requests[0]!.outputSchema).toMatchObject({
+        required: ['move', 'reason', 'card']
+      })
     })
 
     it('retries once with the error when the move is not legal', async () => {
@@ -491,5 +669,26 @@ describe('CoachSession', () => {
     expect(codex.closed).toEqual(['thread-1'])
     expect(codex.interrupted).toEqual([])
     expect(coach.busy).toBe(false)
+  })
+
+  it('does not reopen a thread when close races the awaited close in start', async () => {
+    await coach.start(game(), { language: 'it' })
+    let release!: () => void
+    const paused = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const closeThread = vi.spyOn(codex, 'closeThread').mockImplementation(async () => {
+      await paused
+    })
+    const restarting = coach.start(game(), { language: 'it' })
+    await vi.waitFor(() => expect(closeThread).toHaveBeenCalledTimes(1))
+    await coach.close()
+    release()
+    await restarting
+    expect(codex.started).toHaveLength(1)
+    expect(coach.busy).toBe(false)
+    expect(
+      await coach.commentOn(game(), 1, { fenBefore: START_FEN, fenAfter: AFTER_E4, pgn: '1. e4 *' })
+    ).toBeNull()
   })
 })

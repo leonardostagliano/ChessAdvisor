@@ -169,6 +169,7 @@ export function ArchiveList({
       setBusyId(id)
       try {
         await api.games.delete(id)
+        useGameStore.getState().discardDeletedGame(id)
         await reload()
       } catch (failure) {
         setError(parseIpcError(failure).message)

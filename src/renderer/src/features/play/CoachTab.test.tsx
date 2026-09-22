@@ -148,6 +148,22 @@ describe('adviceAnswerFromStream', () => {
   })
 })
 describe('CoachTab', () => {
+  it('links structured advice to its position and reveals a verified best line', () => {
+    const select = vi.fn()
+    const preview = vi.fn()
+    const line = { kind: 'best' as const, startFen: FEN, moves: [{ san: 'Nf3', uci: 'g1f3', fenAfter: FEN }] }
+    const answer = entry({ id: 'advice-1', kind: 'answer', text: 'Sviluppa i pezzi.', coachExplanation: {
+      version: 1, headline: 'Sviluppa con tempo', explanation: 'Il cavallo controlla il centro.', question: 'Quale pezzo svilupperesti?', hints: ['Guarda il lato di re.'], annotations: [], evidence: { source: 'engine', perspective: 'white', lines: [line] }
+    } })
+    render(<CoachTab session={session([answer])} engineAvailable selectedEntryId="advice-1" onSelectEntry={select} onPreviewLine={preview} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Vedi questa posizione' }))
+    expect(select).toHaveBeenCalledWith(answer)
+    fireEvent.click(screen.getByRole('button', { name: 'Mostra la risposta' }))
+    fireEvent.click(screen.getByText('Dettagli dell’analisi'))
+    fireEvent.click(screen.getByRole('button', { name: 'Esplora Nf3 sulla scacchiera' }))
+    expect(preview).toHaveBeenCalledWith(answer, line, 0)
+  })
+
   it('sends a question and clears the field', async () => {
     render(<CoachTab session={session()} engineAvailable />)
 
@@ -230,6 +246,45 @@ describe('CoachTab', () => {
       })
     })
     expect(screen.getByText('Sviluppa i pezzi.')).toBeInTheDocument()
+  })
+
+  it('does not reuse the previous answer before the next stream starts', () => {
+    const state = session([], { busy: true, streamId: 's-next' })
+    const selectCurrent = vi.fn()
+    useGameStore.setState({
+      session: state,
+      coachRequest: 'answer',
+      coachStream: { streamId: 's-previous', text: '{"answer":"Vecchia risposta."}' }
+    })
+    render(<CoachTab session={state} engineAvailable onSelectCurrentPosition={selectCurrent} />)
+
+    expect(screen.getByText('Lettura immediata')).toBeInTheDocument()
+    expect(screen.getByText('Il coach sta aggiungendo dettagli…')).toBeInTheDocument()
+    expect(screen.getAllByRole('article')).toHaveLength(1)
+    fireEvent.click(screen.getByRole('button', { name: 'Vedi questa posizione' }))
+    expect(selectCurrent).toHaveBeenCalledOnce()
+    expect(screen.queryByText('Vecchia risposta.')).not.toBeInTheDocument()
+
+    act(() => useGameStore.getState().applyStream({
+      streamId: 's-next', threadId: 't', turnId: 'u', itemId: 'i',
+      kind: 'text', chunk: '{"answer":"Nuova risposta."}'
+    }))
+    expect(screen.getByText('Nuova risposta.')).toBeInTheDocument()
+  })
+
+  it('does not attach a pending answer to a different board position', () => {
+    const state = session([], { busy: true, streamId: 's-coach' })
+    useGameStore.setState({
+      session: state,
+      coachRequest: 'answer',
+      coachRequestPosition: { gameId: 'g1', fen: 'different position' },
+      coachStream: { streamId: 's-coach', text: '{"answer":"This describes the old board."}' }
+    })
+    render(<CoachTab session={state} engineAvailable />)
+
+    expect(screen.queryByText('Lettura immediata')).not.toBeInTheDocument()
+    expect(screen.queryByText('This describes the old board.')).not.toBeInTheDocument()
+    expect(screen.queryByText('Il coach sta scrivendo…')).not.toBeInTheDocument()
   })
 
   it('says it is reasoning without the engine when Stockfish is missing', () => {

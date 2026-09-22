@@ -2,6 +2,7 @@ import { parseIpcError } from '@shared/ipcError'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { GameError } from '../game/gameSession'
 import type { AnalysisManager } from '../analysis/register'
+import type { GameManager } from '../game/gameManager'
 import type { GameStore } from '../store/gameStore'
 
 type Handler = (event: unknown, ...args: unknown[]) => Promise<unknown>
@@ -102,15 +103,19 @@ describe('games:delete lifecycle', () => {
     const analysis = {
       cancel: vi.fn((id: string) => order.push(`cancel:${id}`))
     } as unknown as AnalysisManager
+    const game = {
+      session: () => ({ discardIfCurrent: (id: string) => { order.push(`discard:${id}`) } })
+    } as unknown as GameManager
     registerGamesIpc({
       games,
       analysis,
+      game,
       onGameDeleting: (id) => order.push(`deleting:${id}`),
       onGameDeleted: async (id) => order.push(`deleted:${id}`)
     } as never)
 
     await invokeOk('games:delete', 'game-1')
 
-    expect(order).toEqual(['cancel:game-1', 'deleting:game-1', 'delete:game-1', 'deleted:game-1'])
+    expect(order).toEqual(['cancel:game-1', 'deleting:game-1', 'discard:game-1', 'delete:game-1', 'deleted:game-1'])
   })
 })

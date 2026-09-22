@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { gameStatus } from '@shared/chess/notation'
-import type { Eval, Move } from '@shared/types/game'
+import type { CoachEvidenceLine, CoachLogEntry, Eval, Move } from '@shared/types/game'
 import { tabStripKeyDown, useMoveKeys } from '../../app/keyboard'
 import { Board, type BoardArrow } from '../../board/Board'
 import { EvalBar } from '../../board/EvalBar'
@@ -12,6 +12,7 @@ import { useEngineStore } from '../../stores/engineStore'
 import {
   boardFen,
   boardLastMove,
+  fenAtPly,
   isBrowsing,
   startFenOf,
   useGameStore
@@ -21,6 +22,8 @@ import { ArchiveList } from './ArchiveList'
 import { ClockDisplay } from './ClockDisplay'
 import { CoachTab } from './CoachTab'
 import { CommentsTab } from './CommentsTab'
+import { commentLinePosition, positionAnnotations } from './commentBoard'
+import { instantMoveExplanation, instantPositionExplanation } from './instantCoach'
 import { GameControls } from './GameControls'
 import { MoveList } from './MoveList'
 import { moveQuality } from './moveQuality'
@@ -53,6 +56,21 @@ const TABS: { id: PanelTab; key: string }[] = [
   { id: 'coach', key: 'play.coach' }
 ]
 const TAB_IDS: readonly PanelTab[] = TABS.map((entry) => entry.id)
+export const COACH_ANNOTATIONS_KEY = 'chessadvisor.coach-annotations.v1'
+function readAnnotationsEnabled(): boolean {
+  try {
+    return window.localStorage.getItem(COACH_ANNOTATIONS_KEY) !== 'false'
+  } catch {
+    return true
+  }
+}
+interface CoachPreview {
+  gameId: string
+  originId: string
+  anchorFen: string
+  line: CoachEvidenceLine
+  step: number
+}
 
 export interface Captured {
   /** Black pieces White has taken, and vice versa; lowercase letters, strongest first. */
@@ -134,6 +152,9 @@ export function PlayScreen(): React.JSX.Element {
   const userMove = useGameStore((state) => state.userMove)
   const browseBy = useGameStore((state) => state.browseBy)
   const storeError = useGameStore((state) => state.error)
+  const coachRequest = useGameStore((state) => state.coachRequest)
+  const coachRequestPosition = useGameStore((state) => state.coachRequestPosition)
+  const coachLanguage = useUiStore((state) => state.language)
   const engineAvailable = useEngineStore((state) => state.available)
 
   const [view, setView] = useState<'game' | 'archive' | 'review'>('game')
@@ -145,6 +166,26 @@ export function PlayScreen(): React.JSX.Element {
   const [feedbackSettingError, setFeedbackSettingError] = useState<string | null>(null)
   const [feedbackMove, setFeedbackMove] = useState<Move | null>(null)
   const feedbackTimer = useRef<number | null>(null)
+  const [annotationsEnabled, setAnnotationsEnabled] = useState(readAnnotationsEnabled)
+  const [coachPreview, setCoachPreview] = useState<CoachPreview | null>(null)
+  const [selectedAdvice, setSelectedAdvice] = useState<{ gameId: string; id: string } | null>(null)
+  const saveAnnotationsEnabled = useCallback((enabled: boolean): void => {
+    setAnnotationsEnabled(enabled)
+    try {
+      window.localStorage.setItem(COACH_ANNOTATIONS_KEY, String(enabled))
+    } catch {
+      /* memory-only preference */
+    }
+  }, [])
+  const changeTab = useCallback((next: PanelTab): void => {
+    setCoachPreview(null)
+    setTab(next)
+  }, [])
+  const leavePreview = useCallback((): void => setCoachPreview(null), [])
+  const returnLive = useCallback((): void => {
+    setCoachPreview(null)
+    returnToLive()
+  }, [returnToLive])
 
   useEffect(() => {
     let alive = true
@@ -192,10 +233,168 @@ export function PlayScreen(): React.JSX.Element {
     useUiStore.getState().clearReviewTarget()
   }, [reviewTarget])
 
-  const browsing = isBrowsing({ session, browsePly })
-  const fen = boardFen({ session, browsePly })
-  const lastMove = boardLastMove({ session, browsePly })
   const game = session.game
+  const positionFen = boardFen({ session, browsePly })
+  const positionMove = game?.moves[browsePly ?? game.moves.length - 1]
+  const commentMove =
+    tab === 'comments' && session.coach.commentsVisible && positionMove ? positionMove : null
+  const entryFen = (entry: CoachLogEntry): string => entry.fen ?? fenAtPly(game, entry.ply - 1)
+  const adviceEntries = (game?.coachLog ?? []).filter(
+    (entry) => entry.kind === 'answer' || entry.kind === 'hint'
+  )
+  const selectedEntry =
+    selectedAdvice?.gameId === game?.id
+      ? adviceEntries.find((entry) => entry.id === selectedAdvice?.id)
+      : null
+  const adviceEntry =
+    tab === 'coach'
+      ? ((selectedEntry && entryFen(selectedEntry) === positionFen
+          ? selectedEntry
+          : adviceEntries.findLast((entry) => entryFen(entry) === positionFen)) ?? null)
+      : null
+  const instantPosition = useMemo(
+    () =>
+      tab === 'coach' &&
+      coachRequest !== null &&
+      positionFen === session.fen &&
+      (!coachRequestPosition ||
+        (coachRequestPosition.gameId === game?.id && coachRequestPosition.fen === session.fen))
+        ? instantPositionExplanation(session.fen, game?.userColor ?? 'w', coachLanguage)
+        : null,
+    [
+      tab,
+      coachRequest,
+      coachRequestPosition,
+      positionFen,
+      session.fen,
+      game?.id,
+      game?.userColor,
+      coachLanguage
+    ]
+  )
+  const originId = instantPosition
+    ? 'position:' + positionFen
+    : commentMove
+      ? 'comment:' + commentMove.ply + ':' + commentMove.uci
+      : adviceEntry
+        ? 'advice:' + adviceEntry.id
+        : null
+  const activePreview =
+    view === 'game' &&
+    coachPreview?.gameId === game?.id &&
+    coachPreview?.originId === originId &&
+    coachPreview?.anchorFen === positionFen
+      ? coachPreview
+      : null
+  const commentIndex = commentMove ? game!.moves.indexOf(commentMove) : -1
+  const previewStart =
+    activePreview?.line.kind === 'best' && commentMove
+      ? fenAtPly(game, commentIndex - 1)
+      : positionFen
+  const previewPosition = useMemo(
+    () =>
+      activePreview
+        ? commentLinePosition(activePreview.line, previewStart, activePreview.step)
+        : null,
+    [activePreview, previewStart]
+  )
+  const browsing = isBrowsing({ session, browsePly }) || !!previewPosition
+  const fen = previewPosition?.fen ?? positionFen
+  const lastMove = previewPosition
+    ? previewPosition.lastMove
+    : boardLastMove({ session, browsePly })
+  const boardAnnotations = useMemo(() => {
+    if (view !== 'game' || previewPosition) return []
+    if (commentMove) {
+      const explanation =
+        commentMove.coachExplanation ??
+        (!commentMove.coachComment
+          ? (instantMoveExplanation(
+              commentMove,
+              fenAtPly(game, commentIndex - 1),
+              game?.userColor ?? 'w',
+              coachLanguage
+            ) ?? undefined)
+          : undefined)
+      return positionAnnotations(
+        commentMove.fenAfter,
+        explanation,
+        commentMove.coachComment,
+        t('coach.mentionedSquare')
+      )
+    }
+    if (instantPosition)
+      return positionAnnotations(
+        positionFen,
+        instantPosition,
+        undefined,
+        t('coach.mentionedSquare')
+      )
+    if (adviceEntry)
+      return positionAnnotations(
+        positionFen,
+        adviceEntry.coachExplanation,
+        adviceEntry.text,
+        t('coach.mentionedSquare')
+      )
+    return []
+  }, [
+    view,
+    previewPosition,
+    commentMove,
+    commentIndex,
+    game,
+    coachLanguage,
+    instantPosition,
+    adviceEntry,
+    positionFen,
+    t
+  ])
+  const selectComment = (move: Move): void => {
+    const index =
+      game?.moves.findIndex(
+        (candidate) =>
+          candidate.ply === move.ply &&
+          candidate.uci === move.uci &&
+          candidate.fenAfter === move.fenAfter
+      ) ?? -1
+    if (index < 0) return
+    saveAnnotationsEnabled(true)
+    setCoachPreview(null)
+    setBrowsePly(index)
+  }
+  const selectAdvice = (entry: CoachLogEntry): void => {
+    if (!game || !game.coachLog.some((item) => item.id === entry.id)) return
+    const index = entry.ply - 1
+    if (index < -1 || index >= game.moves.length || fenAtPly(game, index) !== entryFen(entry))
+      return
+    setSelectedAdvice({ gameId: game.id, id: entry.id })
+    saveAnnotationsEnabled(true)
+    setCoachPreview(null)
+    setBrowsePly(index)
+  }
+  const previewComment = (move: Move, line: CoachEvidenceLine, step: number): void => {
+    if (!game || !move.coachExplanation?.evidence?.lines.includes(line)) return
+    selectComment(move)
+    setCoachPreview({
+      gameId: game.id,
+      originId: 'comment:' + move.ply + ':' + move.uci,
+      anchorFen: move.fenAfter,
+      line,
+      step
+    })
+  }
+  const previewAdvice = (entry: CoachLogEntry, line: CoachEvidenceLine, step: number): void => {
+    if (!game || !entry.coachExplanation?.evidence?.lines.includes(line)) return
+    selectAdvice(entry)
+    setCoachPreview({
+      gameId: game.id,
+      originId: 'advice:' + entry.id,
+      anchorFen: entryFen(entry),
+      line,
+      step
+    })
+  }
   const playing = !!game && session.status === 'playing'
   const userColor = game?.userColor ?? 'w'
 
@@ -288,17 +487,30 @@ export function PlayScreen(): React.JSX.Element {
   // The hint belongs to the live position: browsing a past ply puts the arrow away until we are
   // back on it, and the main process drops the hint itself as soon as the user moves (spec §4.2).
   const hint = session.coach.hint
-  const arrows = useMemo<BoardArrow[]>(
-    () =>
-      hint && !browsing
-        ? [
-            // A ring on the piece to move, then the arrow to its destination: spec §4.2.
-            { from: hint.uci.slice(0, 2), color: 'accent' },
-            { from: hint.uci.slice(0, 2), to: hint.uci.slice(2, 4), color: 'accent' }
-          ]
-        : [],
-    [hint, browsing]
-  )
+  const arrows = useMemo<BoardArrow[]>(() => {
+    const shapes: BoardArrow[] = (annotationsEnabled ? boardAnnotations : []).flatMap(
+      (annotation) =>
+        annotation.kind === 'threat' && annotation.from
+          ? [{ from: annotation.from, to: annotation.square, color: 'red' as const }]
+          : []
+    )
+    // Explicit move advice keeps its familiar arrow; the explanatory layer uses the same toggle.
+    const belongsToAdvice =
+      !adviceEntry || (adviceEntry.move === hint?.move && adviceEntry.text === hint?.reason)
+    if (
+      hint &&
+      !browsing &&
+      tab !== 'comments' &&
+      (tab !== 'coach' || annotationsEnabled) &&
+      belongsToAdvice
+    ) {
+      shapes.push(
+        { from: hint.uci.slice(0, 2), color: 'accent' },
+        { from: hint.uci.slice(0, 2), to: hint.uci.slice(2, 4), color: 'accent' }
+      )
+    }
+    return shapes
+  }, [hint, browsing, tab, adviceEntry, boardAnnotations, annotationsEnabled])
   const aiColor: 'w' | 'b' = userColor === 'w' ? 'b' : 'w'
   // "Solo il mio tempo" gives the opponent no clock at all, so there is nothing to draw for it.
   const aiClock = game?.clock?.aiClock === true
@@ -314,16 +526,25 @@ export function PlayScreen(): React.JSX.Element {
     const live = browsePly === null
     if (live && !browsedRef.current) return
     browsedRef.current = !live
-    void useGameStore.getState().navigateEval(fen)
-  }, [game, engineAvailable, browsePly, fen])
+    void useGameStore.getState().navigateEval(positionFen)
+  }, [game, engineAvailable, browsePly, positionFen])
 
   // ← → Home End walk the game while the board is on screen (task T22 item 4); the move list and
   // the dialogs handle their own keys first, and this never fires while the user is writing.
   useMoveKeys({
-    previous: useCallback(() => browseBy(-1), [browseBy]),
-    next: useCallback(() => browseBy(1), [browseBy]),
-    first: useCallback(() => setBrowsePly(-1), [setBrowsePly]),
-    last: useCallback(() => returnToLive(), [returnToLive]),
+    previous: useCallback(() => {
+      setCoachPreview(null)
+      browseBy(-1)
+    }, [browseBy]),
+    next: useCallback(() => {
+      setCoachPreview(null)
+      browseBy(1)
+    }, [browseBy]),
+    first: useCallback(() => {
+      setCoachPreview(null)
+      setBrowsePly(-1)
+    }, [setBrowsePly]),
+    last: returnLive,
     enabled: view === 'game' && (game?.moves.length ?? 0) > 0
   })
 
@@ -352,7 +573,10 @@ export function PlayScreen(): React.JSX.Element {
           <Button
             variant={view === 'archive' ? 'secondary' : 'ghost'}
             aria-pressed={view === 'archive'}
-            onClick={() => setView('archive')}
+            onClick={() => {
+              setCoachPreview(null)
+              setView('archive')
+            }}
           >
             {t('play.tabArchive')}
           </Button>
@@ -420,7 +644,7 @@ export function PlayScreen(): React.JSX.Element {
               <div className={styles.boardViewport}>
                 <div className={styles.boardRow}>
                   <EvalBar
-                    evaluation={evaluation}
+                    evaluation={previewPosition ? null : evaluation}
                     orientation={userColor === 'w' ? 'white' : 'black'}
                     available={engineAvailable}
                   />
@@ -433,9 +657,16 @@ export function PlayScreen(): React.JSX.Element {
                       viewOnly={browsing || !playing}
                       movable={{ color: movableColor }}
                       arrows={arrows}
+                      annotations={boardAnnotations}
+                      annotationsVisible={annotationsEnabled}
+                      onHideAnnotations={() => saveAnnotationsEnabled(false)}
+                      onShowAnnotations={() => saveAnnotationsEnabled(true)}
                       onMove={(uci) => void userMove(uci)}
                     />
-                    {feedbackMove && liveMoveFeedback ? (
+                    {feedbackMove &&
+                    liveMoveFeedback &&
+                    !browsing &&
+                    boardAnnotations.length === 0 ? (
                       <div
                         className={cx(
                           styles.qualityOverlay,
@@ -462,6 +693,22 @@ export function PlayScreen(): React.JSX.Element {
                 </div>
               </div>
 
+              {originId ? (
+                <div className={styles.commentContext} data-testid="coach-board-context">
+                  <span>
+                    {previewPosition
+                      ? t('coach.variationPosition', { move: previewPosition.san ?? '…' })
+                      : commentMove
+                        ? t('coach.commentPosition', { move: commentMove.san })
+                        : t('coach.name')}
+                  </span>
+                  {browsing ? (
+                    <Button size="sm" variant="ghost" onClick={returnLive}>
+                      {t('play.returnToLive')}
+                    </Button>
+                  ) : null}
+                </div>
+              ) : null}
               <div className={styles.playerStrip}>
                 <div className={styles.playerIdentity}>
                   <span
@@ -517,7 +764,7 @@ export function PlayScreen(): React.JSX.Element {
               className={styles.tabs}
               role="tablist"
               aria-label={t('play.panel')}
-              onKeyDown={(event) => tabStripKeyDown(event, TAB_IDS, tab, setTab)}
+              onKeyDown={(event) => tabStripKeyDown(event, TAB_IDS, tab, changeTab)}
             >
               {TABS.map((entry) => (
                 <button
@@ -529,7 +776,7 @@ export function PlayScreen(): React.JSX.Element {
                   aria-controls={`play-panel-${entry.id}`}
                   tabIndex={tab === entry.id ? 0 : -1}
                   className={cx(styles.tab, tab === entry.id && styles.tabActive)}
-                  onClick={() => setTab(entry.id)}
+                  onClick={() => changeTab(entry.id)}
                 >
                   {t(entry.key)}
                 </button>
@@ -563,15 +810,34 @@ export function PlayScreen(): React.JSX.Element {
                   onSelect={(ply) => (ply === null ? returnToLive() : setBrowsePly(ply))}
                 />
               ) : tab === 'comments' ? (
-                <CommentsTab session={session} showQuality={liveMoveFeedback} />
+                <CommentsTab
+                  session={session}
+                  showQuality={liveMoveFeedback}
+                  selectedPly={commentMove?.ply ?? null}
+                  onSelectMove={selectComment}
+                  onPreviewLine={previewComment}
+                  onClearPreview={leavePreview}
+                  annotationsEnabled={annotationsEnabled}
+                  onAnnotationsEnabledChange={saveAnnotationsEnabled}
+                />
               ) : (
-                <CoachTab session={session} engineAvailable={engineAvailable} />
+                <CoachTab
+                  session={session}
+                  engineAvailable={engineAvailable}
+                  selectedEntryId={adviceEntry?.id ?? null}
+                  onSelectEntry={selectAdvice}
+                  onSelectCurrentPosition={returnLive}
+                  onPreviewLine={previewAdvice}
+                  onClearPreview={leavePreview}
+                  annotationsEnabled={annotationsEnabled}
+                  onAnnotationsEnabledChange={saveAnnotationsEnabled}
+                />
               )}
             </div>
-            {browsing && tab === 'moves' ? (
+            {browsing ? (
               <div className={styles.panelFoot}>
                 <p className={styles.note}>{t('play.browsing')}</p>
-                <Button size="sm" onClick={() => returnToLive()}>
+                <Button size="sm" onClick={returnLive}>
                   {t('play.returnToLive')}
                 </Button>
               </div>

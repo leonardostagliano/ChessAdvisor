@@ -1013,3 +1013,16 @@
     height: calc(100vh - 91px);
   }
 }
+
+.commentContext {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 14px;
+  border-top: 1px solid var(--border);
+  background: var(--accent-soft);
+  color: var(--text-2);
+  font-size: var(--fs-xs);
+}

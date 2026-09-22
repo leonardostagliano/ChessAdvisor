@@ -75,8 +75,47 @@ describe('commentText', () => {
     expect(text).toContain('+0.24')
     expect(text).toContain('1. Nf3 (+0.35) — Nf3 Nc6 Bb5')
     expect(text).toContain('3. Nc3')
-    expect(text).toMatch(/due a quattro frasi/)
+    expect(text).toMatch(/due frasi causali brevi/)
     expect(text).not.toMatch(OPPONENT_WORDS)
+  })
+
+  it('bounds automatic comment history and candidate lines while keeping relevant evidence', () => {
+    const history = Array.from({ length: 20 }, (_, index) => ({
+      ...move,
+      ply: index + 1,
+      san: `M${index + 1}`
+    }))
+    const longEngine: EngineContext = {
+      ...engine,
+      bestLines: Array.from({ length: 5 }, (_, index) => ({
+        san: `Candidate${index + 1}`,
+        pv: Array.from({ length: 12 }, (_, ply) => `P${index + 1}-${ply + 1}`),
+        eval: { cp: 35 - index * 10 }
+      })),
+      replyLines: [
+        { san: 'Reply', pv: Array.from({ length: 12 }, (_, i) => `R${i + 1}`), eval: { cp: 10 } }
+      ]
+    }
+    const text = commentText({
+      move: history[19]!,
+      by: 'user',
+      fen: FEN_AFTER,
+      pgn: PGN,
+      history,
+      engine: longEngine,
+      language: 'en'
+    })
+    expect(text).toContain('PGN: 5. M9 M10')
+    expect(text).toContain('10. M19 M20')
+    expect(text).not.toContain('M8')
+    expect(text).toContain('3. Candidate3')
+    expect(text).not.toContain('4. Candidate4')
+    expect(text).toContain('P1-6')
+    expect(text).not.toContain('P1-7')
+    expect(text).toContain('R6')
+    expect(text).not.toContain('R7')
+    expect(text).toContain('Evaluation after')
+    expect(text).toContain('about 80 words total')
   })
 
   it('writes a mate score and the classification when the pipeline provides one', () => {
@@ -129,7 +168,7 @@ describe('commentText', () => {
     const text = commentText({ move, by: 'user', fen: FEN_AFTER, pgn: PGN, engine, language: 'en' })
     expect(text).toContain('Comment on the move')
     expect(text).toContain('Best lines')
-    expect(text).toMatch(/two to four sentences/)
+    expect(text).toMatch(/two short causal sentences/)
   })
 })
 
@@ -152,12 +191,12 @@ describe('adviceText', () => {
     expect(text).toContain('"answer"')
     expect(text).toContain('"move"')
     expect(text).toContain('Colore della persona: il Bianco')
-    expect(text).toContain('usa null')
+    expect(text).toContain('altrimenti null')
     expect(text).not.toMatch(OPPONENT_WORDS)
   })
 
   it('uses a strict nullable-move schema', () => {
-    expect(ADVICE_SCHEMA.required).toEqual(['answer', 'move'])
+    expect(ADVICE_SCHEMA.required).toEqual(['answer', 'move', 'card'])
     expect(ADVICE_SCHEMA.additionalProperties).toBe(false)
     expect(Object.keys(ADVICE_SCHEMA.properties)).toEqual(ADVICE_SCHEMA.required)
     expect(ADVICE_SCHEMA.properties.move.type).toEqual(['string', 'null'])
@@ -190,7 +229,7 @@ describe('hintText', () => {
   })
 
   it('follows the strict-mode rules of the structured output', () => {
-    expect(HINT_SCHEMA.required).toEqual(['move', 'reason'])
+    expect(HINT_SCHEMA.required).toEqual(['move', 'reason', 'card'])
     expect(HINT_SCHEMA.additionalProperties).toBe(false)
     expect(Object.keys(HINT_SCHEMA.properties)).toEqual(HINT_SCHEMA.required)
     expect(JSON.stringify(HINT_SCHEMA)).not.toMatch(/minItems|maxItems|pattern/)

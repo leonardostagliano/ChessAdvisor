@@ -195,6 +195,11 @@ try {
     const uci =
       pref.find((m) => legal.includes(m)) ?? legal[Math.floor(Math.random() * legal.length)]
     const before = s.game.moves.length
+    // IPC can report the new turn before the renderer unlocks chessground and finishes its
+    // 200 ms move animation. Wait for the visible turn and settle before measuring drag bounds.
+    await page.getByText('Tocca a te', { exact: true }).first().waitFor()
+    await board.scrollIntoViewIfNeeded()
+    await sleep(300)
     // alternate the two real input methods: click-click and drag-and-drop
     if (i % 2 === 0) {
       await clickSquare(uci.slice(0, 2))
@@ -256,7 +261,10 @@ try {
   const feed = commented ? await page.locator('[role="tabpanel"]').innerText() : ''
   ok(
     'the coach comments a played move',
-    !!commented?.coachComment && feed.includes(commented.coachComment.slice(0, 24)),
+    !!commented?.coachComment &&
+      feed.includes(
+        (commented.coachExplanation?.explanation ?? commented.coachComment).slice(0, 24)
+      ),
     `${commented?.san ?? '—'}: ${(commented?.coachComment ?? '').slice(0, 60)}`
   )
   await sleep(300)
@@ -270,11 +278,16 @@ try {
     60000,
     'a coach answer'
   ).catch(() => null)
+  const displayedAnswer =
+    (await state()).game?.coachLog.filter((entry) => entry.kind === 'answer').at(-1)
+      ?.coachExplanation?.explanation ?? answer?.text
   // The renderer paints the answer a tick after the state carries it: poll the panel text too.
   const rendered = answer?.text
     ? await until(
         async () =>
-          (await page.locator('[role="tabpanel"]').innerText()).includes(answer.text.slice(0, 24)),
+          (await page.locator('[role="tabpanel"]').innerText()).includes(
+            displayedAnswer.slice(0, 24)
+          ),
         10000,
         'the answer on screen'
       ).catch(() => false)
@@ -312,7 +325,7 @@ try {
   ok(
     'advice is shown as readable text without JSON metadata',
     !!advice?.lastAnswer?.text &&
-      advicePanel.includes(advice.lastAnswer.text) &&
+      advicePanel.includes(advice.hint?.coachExplanation?.explanation ?? advice.lastAnswer.text) &&
       !advicePanel.includes('"answer":') &&
       !advicePanel.includes('"move":')
   )

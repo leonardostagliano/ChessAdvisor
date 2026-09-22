@@ -1,4 +1,4 @@
-import type { Game } from './game'
+import type { CoachExplanation, Game } from './game'
 import type { LegalMove } from '../chess/notation'
 
 /**
@@ -129,8 +129,16 @@ export interface CoachState {
   busy: boolean
   /** Correlates the `stream` deltas of the running coach turn; `null` when idle. */
   streamId: string | null
+  /** Exact move currently being explained; absent for older clients and null while idle. */
+  activeCommentPly?: number | null
   /** Last hint, drawn as an arrow on the board; cleared by the next user move. */
-  hint: { move: string; uci: string; reason: string } | null
+  hint: {
+    move: string
+    uci: string
+    reason: string
+    fen?: string
+    coachExplanation?: CoachExplanation
+  } | null
   /** Last answer of the Coach tab; `question` is `null` for an answer with no question. */
   lastAnswer: { question: string | null; text: string; ply: number } | null
 }

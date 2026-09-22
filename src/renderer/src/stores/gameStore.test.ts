@@ -65,12 +65,30 @@ beforeEach(() => {
     commentsVisible: true,
     coachStream: null,
     coachRequest: null,
+    coachRequestPosition: null,
     busy: false,
     error: null
   })
 })
 
 describe('gameStore', () => {
+  it('clears a deleted game and ignores a delayed IPC answer for its id', () => {
+    const deleted = session({ game: { ...game(), id: 'deleted-game' } })
+    useGameStore.getState().apply(deleted)
+    useGameStore.getState().setBrowsePly(1)
+    useGameStore.getState().discardDeletedGame('deleted-game')
+
+    expect(useGameStore.getState()).toMatchObject({
+      session: { game: null, status: 'idle' },
+      browsePly: null,
+      aiThinking: false
+    })
+    useGameStore.getState().apply(deleted)
+    expect(useGameStore.getState().session.game).toBeNull()
+    useGameStore.getState().apply(session({ game: { ...game(), id: 'another-game' } }))
+    expect(useGameStore.getState().session.game?.id).toBe('another-game')
+  })
+
   it('starts on the initial position with nothing in flight', () => {
     const state = useGameStore.getState()
     expect(state.session.game).toBeNull()
@@ -208,17 +226,42 @@ describe('gameStore', () => {
     )
     vi.stubGlobal('window', Object.assign(window, { api: { game: { askCoach } } }))
 
+    useGameStore.getState().apply(session())
     const pending = useGameStore.getState().askCoach('  Che piano seguo?  ')
     expect(askCoach).toHaveBeenCalledWith('Che piano seguo?')
     // A question can take half a minute: greying out every game control for that long would be
     // the wrong trade, so the coach has its own in-flight marker.
     expect(useGameStore.getState().busy).toBe(false)
     expect(useGameStore.getState().coachRequest).toBe('answer')
+    expect(useGameStore.getState().coachRequestPosition).toEqual({ gameId: 'g1', fen: FEN_3 })
+    useGameStore.getState().apply(session({ fen: FEN_1 }))
+    expect(useGameStore.getState().coachRequestPosition).toEqual({ gameId: 'g1', fen: FEN_3 })
 
     deferred.resolve(session())
     await pending
     expect(useGameStore.getState().coachRequest).toBeNull()
+    expect(useGameStore.getState().coachRequestPosition).toBeNull()
     expect(useGameStore.getState().session.fen).toBe(FEN_3)
+  })
+
+  it('releases Coach controls on a new game and ignores the old delayed answer', async () => {
+    let finish!: (value: SessionState) => void
+    const askCoach = vi.fn(
+      () =>
+        new Promise<SessionState>((resolve) => {
+          finish = resolve
+        })
+    )
+    vi.stubGlobal('window', Object.assign(window, { api: { game: { askCoach } } }))
+    useGameStore.getState().apply(session())
+    const pending = useGameStore.getState().askCoach('Quale piano?')
+    const next = session({ game: { ...game(), id: 'new-coach-game' } })
+    useGameStore.getState().apply(next)
+    expect(useGameStore.getState().coachRequest).toBeNull()
+    expect(useGameStore.getState().coachRequestPosition).toBeNull()
+    finish(session())
+    await pending
+    expect(useGameStore.getState().session.game?.id).toBe('new-coach-game')
   })
 
   it('collects the deltas of the coach turn in flight and ignores every other stream', () => {

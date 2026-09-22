@@ -6,7 +6,9 @@ import type { Config } from '@lichess-org/chessground/config'
 import type { DrawBrushes } from '@lichess-org/chessground/draw'
 import type { Color, Key } from '@lichess-org/chessground/types'
 import { legalMoves } from '@shared/chess/notation'
+import type { CoachAnnotation } from '@shared/types/game'
 import { cx } from '../components/ui/cx'
+import { BoardAnnotations } from './BoardAnnotations'
 
 import '@lichess-org/chessground/assets/chessground.base.css'
 import '@lichess-org/chessground/assets/chessground.cburnett.css'
@@ -54,6 +56,10 @@ export interface BoardProps {
   onMove?(uci: string): void
   check?: boolean
   arrows?: BoardArrow[]
+  annotations?: CoachAnnotation[]
+  annotationsVisible?: boolean
+  onHideAnnotations?(): void
+  onShowAnnotations?(): void
   /** Browsing a past position: pieces stay put and nothing is draggable. */
   viewOnly?: boolean
   coordinates?: boolean
@@ -217,6 +223,10 @@ export function Board({
   onMove,
   check = false,
   arrows,
+  annotations,
+  annotationsVisible = true,
+  onHideAnnotations,
+  onShowAnnotations,
   viewOnly = false,
   coordinates = true,
   label,
@@ -427,6 +437,16 @@ export function Board({
           className={cx('cg-wrap', styles.board)}
           style={{ width: size, height: size }}
         />
+        {annotations?.length && !promotion ? (
+          <BoardAnnotations
+            key={`${fen}:${annotations.map((item) => `${item.square}:${item.label}`).join('|')}`}
+            annotations={annotations}
+            orientation={orientation}
+            onHide={onHideAnnotations}
+            visible={annotationsVisible}
+            onShow={onShowAnnotations}
+          />
+        ) : null}
         {promotion && promotionStyle ? (
           <>
             <button

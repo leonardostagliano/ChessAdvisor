@@ -1,14 +1,17 @@
-import { useRef, useState, type FormEvent } from 'react'
+import { useMemo, useRef, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useFollowFeed } from './useFollowFeed'
-import type { CoachLogEntry, Game } from '@shared/types/game'
+import type { CoachEvidenceLine, CoachLogEntry, Game } from '@shared/types/game'
 import type { SessionState } from '@shared/types/session'
 import { Button } from '../../components/ui/Button'
 import { EmptyState } from '../../components/EmptyState'
 import { cx } from '../../components/ui/cx'
 import { useEngineStore } from '../../stores/engineStore'
 import { useGameStore } from '../../stores/gameStore'
+import { useUiStore } from '../../stores/uiStore'
 import { CommentCard } from './CommentCard'
+import { instantPositionExplanation } from './instantCoach'
+import { Switch } from '../../components/ui/Switch'
 import styles from './CoachPanel.module.css'
 
 /**
@@ -87,9 +90,16 @@ export interface CoachTabProps {
   session: SessionState
   /** Overrides the mirrored engine state; only tests and previews pass it. */
   engineAvailable?: boolean
+  selectedEntryId?: string | null
+  onSelectEntry?: (entry: CoachLogEntry) => void
+  onSelectCurrentPosition?: () => void
+  onPreviewLine?: (entry: CoachLogEntry, line: CoachEvidenceLine, step: number) => void
+  onClearPreview?: () => void
+  annotationsEnabled?: boolean
+  onAnnotationsEnabledChange?: (enabled: boolean) => void
 }
 
-export function CoachTab({ session, engineAvailable }: CoachTabProps): React.JSX.Element {
+export function CoachTab({ session, engineAvailable, selectedEntryId, onSelectEntry, onSelectCurrentPosition, onPreviewLine, onClearPreview, annotationsEnabled, onAnnotationsEnabledChange }: CoachTabProps): React.JSX.Element {
   const { t } = useTranslation()
   const mirrored = useEngineStore((state) => state.available)
   const askCoach = useGameStore((state) => state.askCoach)
@@ -97,6 +107,8 @@ export function CoachTab({ session, engineAvailable }: CoachTabProps): React.JSX
   const clearHint = useGameStore((state) => state.clearHint)
   const stream = useGameStore((state) => state.coachStream)
   const request = useGameStore((state) => state.coachRequest)
+  const requestPosition = useGameStore((state) => state.coachRequestPosition)
+  const language = useUiStore((state) => state.language)
   const [draft, setDraft] = useState('')
   const feedRef = useRef<HTMLDivElement>(null)
   const askRef = useRef<HTMLInputElement>(null)
@@ -105,12 +117,25 @@ export function CoachTab({ session, engineAvailable }: CoachTabProps): React.JSX
   const game = session.game
   const hint = session.coach.hint
   const dialogue = coachDialogue(game, hint)
+  const activeHintEntry = hint ? [...(game?.coachLog ?? [])].reverse().find((entry) =>
+    (entry.kind === 'hint' || entry.kind === 'answer') && entry.move === hint.move && entry.text === hint.reason
+  ) : undefined
   const pending = request !== null
   const answering = request === 'answer'
+  const requestMatchesPosition = !requestPosition ||
+    (requestPosition.gameId === game?.id && requestPosition.fen === session.fen)
+  const positionRead = useMemo(
+    () => pending && game && requestMatchesPosition
+      ? instantPositionExplanation(session.fen, game.userColor, language)
+      : null,
+    [pending, requestMatchesPosition, session.fen, game?.userColor, language]
+  )
 
-  const streamText = adviceAnswerFromStream(stream?.text)
+  const streamText = adviceAnswerFromStream(
+    requestMatchesPosition && stream?.streamId === session.coach.streamId ? stream.text : undefined
+  )
 
-  useFollowFeed(feedRef, [dialogue.length, streamText, hint?.uci, answering])
+  useFollowFeed(feedRef, [dialogue.length, streamText, hint?.uci, answering, positionRead])
 
   const submit = (event: FormEvent): void => {
     event.preventDefault()
@@ -136,10 +161,11 @@ export function CoachTab({ session, engineAvailable }: CoachTabProps): React.JSX
             {t('coach.noOracle')}
           </span>
         ) : null}
+        {onAnnotationsEnabledChange ? <Switch checked={annotationsEnabled ?? true} onChange={onAnnotationsEnabledChange} label={t('coach.annotationToggle')} disabled={!game} /> : null}
       </div>
 
       <div className={styles.feed} ref={feedRef}>
-        {dialogue.length === 0 && !hint && !answering ? (
+        {dialogue.length === 0 && !hint && !pending ? (
           <EmptyState
             title={t('coach.emptyTitle')}
             body={t('coach.empty')}
@@ -153,7 +179,13 @@ export function CoachTab({ session, engineAvailable }: CoachTabProps): React.JSX
           <CommentCard
             key={entry.id}
             text={entry.text}
+            explanation={entry.coachExplanation}
             language={entry.language}
+            selected={selectedEntryId === entry.id}
+            onSelectMove={onSelectEntry && entry.kind !== 'question' ? () => onSelectEntry(entry) : undefined}
+            selectionLabel={t('coach.viewPosition')}
+            onPreviewLine={onPreviewLine ? (line, step) => onPreviewLine(entry, line, step) : undefined}
+            onClearPreview={onClearPreview}
             title={
               entry.kind === 'question'
                 ? t('coach.you')
@@ -165,16 +197,39 @@ export function CoachTab({ session, engineAvailable }: CoachTabProps): React.JSX
           />
         ))}
 
+        {positionRead ? (
+          <CommentCard
+            text={answering ? streamText : ''}
+            explanation={positionRead}
+            title={t('coach.instantRead')}
+            streaming={answering}
+            language={language}
+            onSelectMove={onSelectCurrentPosition}
+            selectionLabel={t('coach.viewPosition')}
+          />
+        ) : null}
+
         {hint ? (
           <div className={styles.hint}>
-            <CommentCard text={hint.reason} title={t('coach.hintOf', { move: hint.move })} />
+            <CommentCard
+              key={activeHintEntry?.id ?? hint.uci}
+              text={hint.reason}
+              explanation={hint.coachExplanation ?? activeHintEntry?.coachExplanation}
+              title={t('coach.hintOf', { move: hint.move })}
+              selected={selectedEntryId === activeHintEntry?.id && !!activeHintEntry}
+              onSelectMove={activeHintEntry && onSelectEntry ? () => onSelectEntry(activeHintEntry) : undefined}
+              selectionLabel={t('coach.viewPosition')}
+              onPreviewLine={activeHintEntry && onPreviewLine ? (line, step) => onPreviewLine(activeHintEntry, line, step) : undefined}
+              onClearPreview={onClearPreview}
+            />
             <Button size="sm" variant="ghost" onClick={() => void clearHint()}>
               {t('coach.hideHint')}
             </Button>
           </div>
         ) : null}
 
-        {answering ? <CommentCard text={streamText} title={t('coach.name')} streaming /> : null}
+        {answering && requestMatchesPosition && !positionRead
+          ? <CommentCard text={streamText} title={t('coach.name')} streaming /> : null}
       </div>
 
       <form className={styles.ask} onSubmit={submit}>

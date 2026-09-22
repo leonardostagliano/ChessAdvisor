@@ -55,8 +55,10 @@ opening script: every legal move remains available.
   Difficulty ratings describe the requested playing style; they are not calibrated Elo claims.
 - **Live move feedback** for both players: a brief board overlay, persistent accessible badges,
   honest pending and unavailable states, and a setting available during play and in Settings.
-- **AI coach** with streamed answers, position-aware hints, move comments, and commentary grounded
-  in the same Stockfish evaluation shown in the interface.
+- **AI coach** with structured lessons in both Comments and Coach: causal explanations, immediate
+  priorities, optional progressive hints, and a takeaway. Numbered piece highlights and on-board
+  explanations share an on/off switch. Select a comment or answer to revisit its original position;
+  explore verified Stockfish variations without making moves in the game. Older prose comments remain readable. Cards keep their full height in the scrollable feed; board explanations have previous/next controls and can be reopened after closing. A factual reading of each move and its involved pieces appears immediately, before the AI reply; the same card gains the AI explanation later. Pending Coach answers also show immediate position facts. Automatic comments use a shorter prompt and progressively display the explanation, preserving the selected model and reasoning effort.
 - **Post-game review** with accuracy, ACPL, evaluation graph, classified moves, key moments, and a
   written lesson with practical takeaways.
 - **Personal training** from your own mistakes, thematic puzzle sets whose theme and rating band
@@ -66,6 +68,7 @@ opening script: every legal move remains available.
   accuracy trends, move classifications, themes, openings, and an evolving level estimate.
   Progress, the study plan, and game-derived exercises update automatically; interrupted analyses
   resume at startup. Deleting a game cancels its analysis and removes its learning contributions.
+  Deleting the active game also closes its live session, clocks, and pending opponent/coach work.
 - **Desktop polish** with Night and Editorial themes, Italian and English, keyboard navigation,
   a tray icon, and in-app updates.
 

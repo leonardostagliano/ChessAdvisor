@@ -306,6 +306,25 @@ describe('AnalysisManager', () => {
     expect(activity[1]!.payload).toMatchObject({ streamId: null, busy: false })
   })
 
+  it('retires a saved live card when review prose replaces that move comment', async () => {
+    const game = await saved(['e4'])
+    game.moves[0]!.coachComment = 'Old live comment.'
+    game.moves[0]!.coachExplanation = {
+      version: 1,
+      headline: 'Old card',
+      explanation: 'The live explanation.',
+      hints: [],
+      annotations: []
+    }
+    await store.save(game)
+
+    await manager.commentMove(game.id, 1)
+
+    const onDisk = await store.get(game.id)
+    expect(onDisk?.moves[0]?.coachComment).toBe('Commento finto in revisione.')
+    expect(onDisk?.moves[0]?.coachExplanation).toBeUndefined()
+  })
+
   it('streams the whole answer when the turn produced no delta at all', async () => {
     const game = await saved(['e4'])
     await manager.commentMove(game.id, 1)

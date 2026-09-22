@@ -25,9 +25,9 @@ export interface EngineContext {
   /** Filled by the post-game pipeline (M3); in game the coach usually has no classification yet. */
   classification?: MoveClassification
   /** Best lines of the position the move was played from, best first. Moves are SAN. */
-  bestLines: { san: string; pv: string[]; eval: CoachEval }[]
+  bestLines: { san: string; pv: string[]; eval: CoachEval; uciPv?: string[] }[]
   /** Concrete strongest continuation after the played move, never the private opponent plan. */
-  replyLines?: { san: string; pv: string[]; eval: CoachEval }[]
+  replyLines?: { san: string; pv: string[]; eval: CoachEval; uciPv?: string[] }[]
   /** A checkmate FEN is authoritative when Stockfish reports mate in zero. */
   terminal?: { winner: 'w' | 'b'; at: 'before' | 'after' }
 }
@@ -85,7 +85,7 @@ export function formatEval(value: CoachEval | null | undefined, language: 'it' |
 export function engineBlock(
   engine: EngineContext | null,
   language: 'it' | 'en',
-  opts: { withAfter: boolean }
+  opts: { withAfter: boolean; maxLines?: number; maxPlies?: number }
 ): string[] {
   const it = language === 'it'
   if (!engine) {
@@ -127,8 +127,8 @@ export function engineBlock(
         ? 'Migliori varianti dalla posizione di partenza:'
         : 'Best lines from the starting position:'
     )
-    for (const [index, line] of engine.bestLines.entries()) {
-      const pv = line.pv.length > 0 ? line.pv.join(' ') : line.san
+    for (const [index, line] of engine.bestLines.slice(0, opts.maxLines).entries()) {
+      const pv = line.pv.length > 0 ? line.pv.slice(0, opts.maxPlies).join(' ') : line.san
       lines.push(`${index + 1}. ${line.san} (${formatEval(line.eval, language)}) — ${pv}`)
     }
   }
@@ -136,8 +136,10 @@ export function engineBlock(
     lines.push(
       it ? 'Risposta più forte dopo la mossa giocata:' : 'Strongest reply after the played move:'
     )
-    for (const line of engine.replyLines)
-      lines.push(line.pv.join(' ') + ' (' + formatEval(line.eval, language) + ')')
+    for (const line of engine.replyLines.slice(0, opts.maxLines))
+      lines.push(
+        line.pv.slice(0, opts.maxPlies).join(' ') + ' (' + formatEval(line.eval, language) + ')'
+      )
   }
   return lines
 }
@@ -149,6 +151,17 @@ export function positionBlock(fen: string, pgn: string, language: 'it' | 'en'): 
     `FEN: ${fen}`,
     `PGN: ${text.length > 0 ? text : language === 'it' ? '(partita appena iniziata)' : '(game just started)'}`
   ]
+}
+
+/** The FEN carries the current position; automatic comments need only recent game context. */
+function recentHistory(moves: Move[]): string {
+  return moves
+    .slice(-12)
+    .map((move, index, recent) => {
+      if (move.ply % 2 === 1) return `${(move.ply + 1) / 2}. ${move.san}`
+      return recent[index - 1]?.ply === move.ply - 1 ? move.san : `${move.ply / 2}... ${move.san}`
+    })
+    .join(' ')
 }
 
 /**
@@ -195,13 +208,15 @@ export function coachBaseInstructions(p: {
 
 /**
  * Text of a comment on the move that has just been played, by either side (spec §4.2).
- * Two to four sentences of plain text: the answer is streamed straight into the feed.
+ * The comment is one structured card. Its text fields can still be saved as legacy prose.
  */
 export function commentText(p: {
   move: Move
   by: 'user' | 'ai'
   fen: string
   pgn: string
+  /** Canonical move list through the commented ply; bounds prompt growth in long games. */
+  history?: Move[]
   engine: EngineContext | null
   language: 'it' | 'en'
 }): string {
@@ -216,17 +231,67 @@ export function commentText(p: {
   const lines: string[] = [
     it ? `Commenta la mossa appena giocata ${who}.` : `Comment on the move just played ${who}.`,
     `${it ? 'Mossa' : 'Move'}: ${p.move.ply}. ${p.move.san} (${p.move.uci})`,
-    ...positionBlock(p.fen, p.pgn, p.language),
-    ...engineBlock(p.engine, p.language, { withAfter: true }),
+    ...positionBlock(p.fen, p.history ? recentHistory(p.history) : p.pgn, p.language),
+    ...engineBlock(p.engine, p.language, { withAfter: true, maxLines: 3, maxPlies: 6 }),
+    p.engine?.replyLines?.length
+      ? it
+        ? 'La domanda deve invitare a trovare la prossima risposta legale mostrata nella variante dopo la mossa; gli indizi guidano a cercarla senza nominare la mossa.'
+        : 'The question should invite finding the next legal reply shown in the line after the move; clues guide the search without naming the move.'
+      : p.engine?.bestLines.length
+        ? it
+          ? 'La domanda deve invitare a trovare la prima mossa della variante migliore dalla posizione precedente; gli indizi non devono nominarla.'
+          : 'The question should invite finding the first move of the best line from the previous position; clues must not name it.'
+        : it
+          ? 'Senza una variante calcolata, poni una domanda riflessiva senza suggerire una mossa forzata.'
+          : 'Without a calculated line, ask a reflective question without implying a forced move.',
     it
-      ? 'Usa la classificazione fornita anche per il giudizio scritto: è la stessa mostrata nel badge. Spiega il motivo tattico o strategico, confronta una alternativa concreta e la risposta più forte calcolata quando servono. Non inventare varianti; se i dati sono rapidi o incompleti, segnala l’incertezza. Le risposte calcolate sono possibilità della posizione, non intenzioni private dell’avversario.'
-      : 'Use the supplied classification for the written judgement too: it is the badge judgement. Explain the tactical or strategic reason, compare a concrete alternative and the calculated strongest reply when helpful. Do not invent variations; acknowledge uncertainty in fast or incomplete analysis. Calculated replies are possibilities in the position, not the opponent’s private intentions.',
+      ? 'Usa la classificazione fornita anche per il giudizio scritto: è la stessa mostrata nel badge. Spiega una causa concreta e ciò che cambia; evita consigli generici come sviluppare i pezzi o arroccare se non sono il punto della mossa. Cita alternative e risposte soltanto se compaiono nelle varianti fornite; non attribuire intenzioni private all’avversario. Se i dati sono rapidi o incompleti, segnala l’incertezza.'
+      : 'Use the supplied classification for the written judgement too: it is the badge judgement. Explain a concrete cause and what changes; avoid generic develop-pieces or castle advice unless it is the point of this move. Mention alternatives and replies only when they appear in supplied lines; never claim to know the opponent’s private intentions. Acknowledge fast or incomplete analysis.',
     it
-      ? 'Scrivi da due a quattro frasi di testo semplice: che cosa fa questa mossa, che cosa cambia nella posizione e che cosa conviene tenere d’occhio adesso. Niente elenchi, niente JSON, nessun accenno al piano dell’avversario.'
-      : 'Write two to four sentences of plain text: what the move does, what it changes in the position and what to watch now. No lists, no JSON, no hint about the opponent’s plan.'
+      ? 'Rispondi con il solo oggetto JSON richiesto, con circa 80 parole in totale e senza ripetere la stessa idea nei campi. headline: massimo otto parole; explanation: due frasi causali brevi; priority: breve cosa osservare ora, oppure stringa vuota; question: una domanda per far ragionare la persona, oppure stringa vuota; hints: da zero a due indizi progressivi che non rivelano la soluzione; takeaway: una frase trasferibile breve, oppure stringa vuota. annotations: una o due case occupate e pertinenti nel FEN dopo la mossa, fino a quattro se servono. Usa focus per una casa importante e threat solo per un pezzo che attacca davvero un altro pezzo, con from casa dell’attaccante e square casa del bersaglio. Non inventare valutazioni o varianti nel JSON.'
+      : 'Return only the requested JSON object, about 80 words total, without repeating the same idea across fields. headline: at most eight words; explanation: two short causal sentences; priority: brief point to watch now, or empty string; question: one question to invite thought, or empty string; hints: zero to two progressive clues that do not reveal the solution; takeaway: one short transferable sentence, or empty string. annotations: one or two relevant occupied squares in the FEN after the move, up to four when needed. Use focus for an important square and threat only for a piece actually attacking another piece, with from the attacker square and square the target square. Do not invent evaluations or variations in the JSON.'
   ]
   return lines.join('\n')
 }
+
+/** Strict output shape for one model call; engine evidence is attached separately. */
+export const COMMENT_SCHEMA = {
+  type: 'object',
+  required: [
+    'version',
+    'headline',
+    'explanation',
+    'priority',
+    'question',
+    'hints',
+    'takeaway',
+    'annotations'
+  ],
+  additionalProperties: false,
+  properties: {
+    version: { type: 'integer', enum: [1] },
+    headline: { type: 'string' },
+    explanation: { type: 'string' },
+    priority: { type: 'string' },
+    question: { type: 'string' },
+    hints: { type: 'array', items: { type: 'string' } },
+    takeaway: { type: 'string' },
+    annotations: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: ['square', 'label', 'kind', 'from'],
+        additionalProperties: false,
+        properties: {
+          square: { type: 'string' },
+          label: { type: 'string' },
+          kind: { type: 'string', enum: ['focus', 'threat'] },
+          from: { type: ['string', 'null'] }
+        }
+      }
+    }
+  }
+} as const
 
 /** Text of a free question asked from the Coach tab (spec §4.2, "Consiglio"). */
 export function adviceText(p: {
@@ -246,12 +311,19 @@ export function adviceText(p: {
     ...positionBlock(p.fen, p.pgn, p.language),
     `${it ? 'Colore della persona' : 'Coached player color'}: ${COLOR_NAME[p.language][p.userColor]}`,
     ...engineBlock(p.engine, p.language, { withAfter: false }),
+    p.engine?.bestLines.length
+      ? it
+        ? 'La domanda nella card invita a trovare la prima mossa della variante migliore; gli indizi non la nominano.'
+        : 'The card question invites finding the first move of the best line; clues do not name it.'
+      : it
+        ? 'Senza varianti calcolate, poni una domanda riflessiva e non inventare una soluzione forzata.'
+        : 'Without calculated lines, ask a reflective question and do not invent a forced solution.',
     it
       ? 'Confronta i candidati e la risposta più forte che compare nella variante prima di consigliare una mossa. Dai un’azione concreta, breve e adatta alla posizione; se le linee non bastano, dichiara l’incertezza invece di inventare continuazioni.'
       : 'Compare the candidate moves and the strongest reply shown in each line before recommending a move. Give one concise, concrete action for this position; when the lines are insufficient, state the uncertainty instead of inventing continuations.',
     it
-      ? 'Rispondi soltanto con il JSON richiesto. "answer" contiene due-quattro frasi concrete e utili subito, senza elenchi. "move" contiene una singola mossa legale in SAN soltanto se la risposta consiglia esplicitamente di giocarla adesso; per spiegazioni, valutazioni, consigli senza una mossa precisa e quando non è il turno della persona usa null. Non rivelare il piano dell’avversario.'
-      : 'Answer with the requested JSON only. "answer" contains two to four concrete, immediately useful sentences, without lists. "move" contains one legal move in SAN only when the answer explicitly recommends playing it now; use null for explanations, evaluations, advice without a specific move, and whenever it is not the coached player’s turn. Do not reveal the opponent’s plan.'
+      ? 'Rispondi soltanto con il JSON richiesto. "answer" contiene due-quattro frasi concrete; "move" è una mossa SAN legale solo se consigli esplicitamente di giocarla adesso, altrimenti null. "card" segue la struttura richiesta per il commento: una spiegazione causale, una domanda e fino a due indizi che non rivelano la soluzione, fino a quattro annotazioni su case occupate nel FEN corrente. Evita consigli generici e non inventare varianti o valutazioni. Non rivelare il piano dell’avversario.'
+      : 'Return only the requested JSON. "answer" has two to four concrete sentences; "move" is a legal SAN move only if you explicitly recommend playing it now, otherwise null. "card" follows the requested comment structure: a causal explanation, a question and up to two clues that do not reveal the solution, up to four annotations on occupied squares in the current FEN. Avoid generic advice and invented lines or evaluations. Never reveal the opponent’s plan.'
   ].join('\n')
 }
 
@@ -261,11 +333,12 @@ export function adviceText(p: {
  */
 export const ADVICE_SCHEMA = {
   type: 'object',
-  required: ['answer', 'move'],
+  required: ['answer', 'move', 'card'],
   additionalProperties: false,
   properties: {
     answer: { type: 'string' },
-    move: { type: ['string', 'null'] }
+    move: { type: ['string', 'null'] },
+    card: COMMENT_SCHEMA
   }
 } as const
 
@@ -283,12 +356,19 @@ export function hintText(p: {
       : 'Suggest to the person you coach the move to play now in this position.',
     ...positionBlock(p.fen, p.pgn, p.language),
     ...engineBlock(p.engine, p.language, { withAfter: false }),
+    p.engine?.bestLines.length
+      ? it
+        ? 'La domanda nella card invita a trovare la prima mossa della variante migliore, senza nominarla nella domanda o negli indizi.'
+        : 'The card question invites finding the first move of the best line without naming it in the question or clues.'
+      : it
+        ? 'Senza varianti calcolate, poni una domanda riflessiva senza suggerire una soluzione forzata.'
+        : 'Without calculated lines, ask a reflective question without implying a forced solution.',
     it
       ? 'Scegli il candidato che regge meglio alla risposta avversaria mostrata nella variante. Mantieni il motivo concreto e breve; se Stockfish non chiarisce la posizione, segnala l’incertezza senza inventare varianti.'
       : 'Choose the candidate that holds up best against the opponent reply shown in its line. Keep the reason concrete and brief; if Stockfish does not settle the position, state the uncertainty without inventing variations.',
     it
-      ? 'Rispondi soltanto con il JSON richiesto: "move" è la mossa in SAN, legale in questa posizione; "reason" è una frase breve che spiega perché. Non rivelare il piano dell’avversario.'
-      : 'Answer with the requested JSON only: "move" is the move in SAN, legal in this position; "reason" is one short sentence explaining why. Do not reveal the opponent’s plan.'
+      ? 'Rispondi soltanto con il JSON richiesto: "move" è una mossa SAN legale, "reason" ne spiega brevemente il perché; "card" segue la struttura del commento con una domanda e indizi progressivi che non rivelano la mossa. Le annotazioni indicano solo case occupate nel FEN corrente. Non inventare linee o valutazioni.'
+      : 'Return only the requested JSON: "move" is a legal SAN move, "reason" briefly explains why; "card" follows the comment structure with a question and progressive clues that do not reveal the move. Annotate only occupied squares in the current FEN. Do not invent lines or evaluations.'
   ].join('\n')
 }
 
@@ -298,11 +378,12 @@ export function hintText(p: {
  */
 export const HINT_SCHEMA = {
   type: 'object',
-  required: ['move', 'reason'],
+  required: ['move', 'reason', 'card'],
   additionalProperties: false,
   properties: {
     move: { type: 'string' },
-    reason: { type: 'string' }
+    reason: { type: 'string' },
+    card: COMMENT_SCHEMA
   }
 } as const
 
