@@ -76,6 +76,22 @@ describe('themePickText', () => {
     expect(text).toContain('- fork · 120')
     expect(text).not.toContain('- pin · 0')
   })
+
+  it('treats a reset profile as unknown and includes measured exercise outcomes', () => {
+    const text = themePickText({
+      profile: EMPTY_PROFILE,
+      language: 'en',
+      available: [{ theme: 'fork', count: 10 }],
+      practice: [
+        { theme: 'fork', attempted: 3, solved: 1, failed: 2, attempts: 7, averageRating: 1200 }
+      ],
+      suggestedWindow: { min: 900, max: 1300, reason: 'results from completed exercises' }
+    })
+    expect(text).toContain('not available yet')
+    expect(text).not.toContain('Estimated level: 0 (beginner)')
+    expect(text).toContain('exercises attempted')
+    expect(text).toContain('900–1300')
+  })
 })
 
 describe('explainExerciseText', () => {
@@ -107,6 +123,19 @@ describe('explainExerciseText', () => {
     expect(text).toContain('d3')
     expect(text).toContain('Niente elenchi e niente JSON.')
   })
+
+  it('grounds the explanation in level and supplied engine variations', () => {
+    const text = explainExerciseText({
+      exercise: { ...exercise, status: 'failed', attempts: 2 },
+      solutionSan: ['Ng5', 'd5'],
+      language: 'en',
+      profile,
+      engineLines: ['1. Ng5 d5 · +0.32 · depth 20']
+    })
+    expect(text).toContain('Estimated level: 950')
+    expect(text).toContain('Stockfish lines from the starting position')
+    expect(text).toContain('Ng5 d5 · +0.32')
+  })
 })
 
 describe('openingLessonText', () => {
@@ -131,6 +160,19 @@ describe('openingLessonText', () => {
     expect(text.startsWith('Spiega')).toBe(true)
     expect(text).toContain('C60 Partita spagnola')
     expect(text).toContain('- a6 · 3 · Nf6')
+  })
+
+  it('adds concrete engine context and the learner level when available', () => {
+    const epd = entry.deviations[0]!.epd
+    const text = openingLessonText({
+      entry,
+      language: 'en',
+      profile,
+      engineLines: { [epd]: ['1. ... Nf6 2. O-O · +0.18 · depth 20'] }
+    })
+    expect(text).toContain('Stockfish lines')
+    expect(text).toContain('Nf6 2. O-O')
+    expect(text).toContain('Estimated level: 950')
   })
 
   it('says plainly when there is no deviation on record', () => {
@@ -181,5 +223,19 @@ describe('the plan prompt', () => {
       language: 'en'
     })
     expect(text).toContain('- own_game: none available')
+  })
+
+  it('carries exercise outcomes into the requested progression', () => {
+    const text = planText({
+      catalogue,
+      profile: EMPTY_PROFILE,
+      language: 'en',
+      practice: [
+        { theme: 'pin', attempted: 2, solved: 0, failed: 2, attempts: 4, averageRating: 1100 }
+      ]
+    })
+    expect(text).toContain('Recent exercise results')
+    expect(text).toContain('- pin · 2 · 0 · 2 · 4')
+    expect(text).toContain('without assuming a level')
   })
 })

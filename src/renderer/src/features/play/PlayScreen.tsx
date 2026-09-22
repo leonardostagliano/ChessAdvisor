@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { gameStatus } from '@shared/chess/notation'
-import type { Eval } from '@shared/types/game'
+import type { Eval, Move } from '@shared/types/game'
 import { tabStripKeyDown, useMoveKeys } from '../../app/keyboard'
 import { Board, type BoardArrow } from '../../board/Board'
 import { EvalBar } from '../../board/EvalBar'
 import { Button } from '../../components/ui/Button'
 import { cx } from '../../components/ui/cx'
+import { Switch } from '../../components/ui/Switch'
 import { useEngineStore } from '../../stores/engineStore'
 import {
   boardFen,
@@ -22,6 +23,7 @@ import { CoachTab } from './CoachTab'
 import { CommentsTab } from './CommentsTab'
 import { GameControls } from './GameControls'
 import { MoveList } from './MoveList'
+import { moveQuality } from './moveQuality'
 import { NewGameDialog } from './NewGameDialog'
 import { OpponentCard } from './OpponentCard'
 import { PlayHome } from './PlayHome'
@@ -139,6 +141,45 @@ export function PlayScreen(): React.JSX.Element {
   const [reviewPly, setReviewPly] = useState<number | null>(null)
   const [tab, setTab] = useState<PanelTab>('moves')
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [liveMoveFeedback, setLiveMoveFeedback] = useState(true)
+  const [feedbackSettingError, setFeedbackSettingError] = useState<string | null>(null)
+  const [feedbackMove, setFeedbackMove] = useState<Move | null>(null)
+  const feedbackTimer = useRef<number | null>(null)
+
+  useEffect(() => {
+    let alive = true
+    const bridge = typeof window === 'undefined' ? undefined : window.api
+    if (!bridge) return
+    void bridge.settings
+      .get()
+      .then((value) => {
+        if (alive && value) setLiveMoveFeedback(value.liveMoveFeedback)
+      })
+      .catch(() => undefined)
+    const unsubscribe = bridge.on('settings:changed', (value) => {
+      if (alive) setLiveMoveFeedback(value.liveMoveFeedback)
+    })
+    return () => {
+      alive = false
+      unsubscribe()
+    }
+  }, [])
+
+  const saveLiveMoveFeedback = useCallback(
+    async (next: boolean): Promise<void> => {
+      const previous = liveMoveFeedback
+      setLiveMoveFeedback(next)
+      setFeedbackSettingError(null)
+      try {
+        const saved = await window.api?.settings.save({ liveMoveFeedback: next })
+        if (saved) setLiveMoveFeedback(saved.liveMoveFeedback)
+      } catch {
+        setLiveMoveFeedback(previous)
+        setFeedbackSettingError(t('play.qualitySettingFailed'))
+      }
+    },
+    [liveMoveFeedback, t]
+  )
 
   // Another area (the training section, spec §6.4) can ask for a review of one ply: the request
   // is one-shot, so it is consumed as soon as it is honoured.
@@ -157,6 +198,83 @@ export function PlayScreen(): React.JSX.Element {
   const game = session.game
   const playing = !!game && session.status === 'playing'
   const userColor = game?.userColor ?? 'w'
+
+  const feedbackSeen = useRef<{ gameId: string | null; length: number; assessment: string | null }>(
+    {
+      gameId: null,
+      length: 0,
+      assessment: null
+    }
+  )
+  const latestMove = game?.moves.at(-1) ?? null
+  const latestQuality = latestMove ? moveQuality(latestMove) : null
+  const latestAssessment = latestMove
+    ? latestMove.eval
+      ? `final:${latestMove.ply}`
+      : latestMove.liveEval
+        ? `live:${latestMove.ply}:${latestMove.liveEval.assessedAt}`
+        : null
+    : null
+  const gameId = game?.id ?? null
+  const moveCount = game?.moves.length ?? 0
+
+  useEffect(() => {
+    const previous = feedbackSeen.current
+    const changedGame = previous.gameId !== gameId
+    const wentBack = previous.gameId === gameId && moveCount < previous.length
+    const newMove = previous.gameId === gameId && moveCount > previous.length
+    const assessmentArrived =
+      previous.gameId === gameId &&
+      moveCount === previous.length &&
+      latestAssessment !== previous.assessment
+
+    feedbackSeen.current = { gameId, length: moveCount, assessment: latestAssessment }
+    if (
+      changedGame ||
+      wentBack ||
+      view !== 'game' ||
+      browsing ||
+      !liveMoveFeedback ||
+      !game ||
+      !latestMove
+    ) {
+      if (feedbackTimer.current !== null) window.clearTimeout(feedbackTimer.current)
+      feedbackTimer.current = null
+      setFeedbackMove(null)
+      return
+    }
+    if (newMove && !latestQuality) {
+      if (feedbackTimer.current !== null) window.clearTimeout(feedbackTimer.current)
+      feedbackTimer.current = null
+      setFeedbackMove(null)
+      return
+    }
+    if (!latestQuality || (!newMove && !assessmentArrived)) return
+
+    if (feedbackTimer.current !== null) window.clearTimeout(feedbackTimer.current)
+    setFeedbackMove(latestMove)
+    feedbackTimer.current = window.setTimeout(() => {
+      feedbackTimer.current = null
+      setFeedbackMove(null)
+    }, 2400)
+  }, [
+    gameId,
+    moveCount,
+    latestAssessment,
+    view,
+    browsing,
+    liveMoveFeedback,
+    game,
+    latestMove,
+    latestQuality
+  ])
+
+  useEffect(
+    () => () => {
+      if (feedbackTimer.current !== null) window.clearTimeout(feedbackTimer.current)
+    },
+    []
+  )
 
   const evaluation: Eval | null = session.liveEval
     ? {
@@ -306,16 +424,41 @@ export function PlayScreen(): React.JSX.Element {
                     orientation={userColor === 'w' ? 'white' : 'black'}
                     available={engineAvailable}
                   />
-                  <Board
-                    fen={fen}
-                    orientation={userColor === 'w' ? 'white' : 'black'}
-                    lastMove={lastMove ?? null}
-                    check={check}
-                    viewOnly={browsing || !playing}
-                    movable={{ color: movableColor }}
-                    arrows={arrows}
-                    onMove={(uci) => void userMove(uci)}
-                  />
+                  <div className={styles.boardStage}>
+                    <Board
+                      fen={fen}
+                      orientation={userColor === 'w' ? 'white' : 'black'}
+                      lastMove={lastMove ?? null}
+                      check={check}
+                      viewOnly={browsing || !playing}
+                      movable={{ color: movableColor }}
+                      arrows={arrows}
+                      onMove={(uci) => void userMove(uci)}
+                    />
+                    {feedbackMove && liveMoveFeedback ? (
+                      <div
+                        className={cx(
+                          styles.qualityOverlay,
+                          styles[
+                            `quality_${moveQuality(feedbackMove)?.evaluation.classification ?? 'good'}` as const
+                          ]
+                        )}
+                        role="status"
+                        aria-live="polite"
+                        data-testid="move-quality-overlay"
+                      >
+                        <span className={styles.qualityActor}>
+                          {feedbackMove.by === 'user' ? t('play.you') : t('opponent.title')}
+                        </span>
+                        <strong>
+                          {t(
+                            `review.classification.${moveQuality(feedbackMove)?.evaluation.classification ?? 'good'}`
+                          )}
+                        </strong>
+                        <span className={cx(styles.qualitySan, 'mono')}>{feedbackMove.san}</span>
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
               </div>
 
@@ -392,6 +535,20 @@ export function PlayScreen(): React.JSX.Element {
                 </button>
               ))}
             </div>
+            {tab === 'moves' ? (
+              <div className={styles.qualityToolbar}>
+                <Switch
+                  checked={liveMoveFeedback}
+                  onChange={(next) => void saveLiveMoveFeedback(next)}
+                  label={t('settings.liveMoveFeedback')}
+                />
+                {feedbackSettingError ? (
+                  <p className={styles.qualitySettingError} role="alert">
+                    {feedbackSettingError}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
             <div
               className={styles.panelBody}
               role="tabpanel"
@@ -402,10 +559,11 @@ export function PlayScreen(): React.JSX.Element {
                 <MoveList
                   moves={game.moves}
                   browsePly={browsePly}
+                  showQuality={liveMoveFeedback}
                   onSelect={(ply) => (ply === null ? returnToLive() : setBrowsePly(ply))}
                 />
               ) : tab === 'comments' ? (
-                <CommentsTab session={session} />
+                <CommentsTab session={session} showQuality={liveMoveFeedback} />
               ) : (
                 <CoachTab session={session} engineAvailable={engineAvailable} />
               )}
@@ -419,7 +577,13 @@ export function PlayScreen(): React.JSX.Element {
               </div>
             ) : tab === 'moves' ? (
               <div className={styles.panelFoot}>
-                <p className={styles.note}>{t('archive.plies', { count: game.moves.length })}</p>
+                <p className={styles.note} aria-live="polite">
+                  {liveMoveFeedback && latestMove?.liveEvalStatus === 'pending'
+                    ? t('play.qualityPending')
+                    : liveMoveFeedback && latestMove?.liveEvalStatus === 'unavailable'
+                      ? t('play.qualityUnavailable')
+                      : t('archive.plies', { count: game.moves.length })}
+                </p>
               </div>
             ) : null}
           </aside>

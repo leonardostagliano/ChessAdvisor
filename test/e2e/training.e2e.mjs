@@ -47,6 +47,13 @@ save('profile.json', {
     }
   }
 })
+// Fixtures represent data learned under the current policy; migration has separate coverage.
+save('learning-policy.json', {
+  version: 2,
+  migratedAt: '2026-09-22T00:00:00Z',
+  retiredGameIds: [],
+  backupDir: 'fixture'
+})
 const env = { ...process.env, CHESSADVISOR_USER_DATA: appData }
 delete env.ELECTRON_RUN_AS_NODE
 if (real) delete env.CHESSADVISOR_FAKE_CODEX

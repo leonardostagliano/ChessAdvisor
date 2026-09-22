@@ -47,8 +47,14 @@ export interface Move {
   effectiveModel?: string
   /** Set when the move did not come from the model at all. */
   fallback?: 'engine' | 'random'
+  /** Whether calculated continuations grounded and checked the opponent's choice. */
+  engineAssisted?: boolean
+  engineVerified?: boolean
   aiShortComment?: string
   eval?: MoveEval
+  /** Fast local estimate; the deeper post-game review remains authoritative. */
+  liveEval?: MoveEval & { depth: number; assessedAt: string }
+  liveEvalStatus?: 'pending' | 'unavailable'
   /** Key from the fixed taxonomy (spec §6.2). */
   theme?: string
   coachComment?: string

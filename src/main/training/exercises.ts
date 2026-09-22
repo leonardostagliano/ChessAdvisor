@@ -111,10 +111,9 @@ function lineScore(line: { scoreCp?: number; scoreMate?: number } | undefined): 
  * Turns one candidate into a playable exercise, or answers `null` when the engine does not back
  * it up (spec §6.4).
  *
- * At every user ply the position is searched with the `review` profile (MultiPV 2): the first line
- * is the solution's move, and the second one either is far enough behind — the move is unique — or
- * becomes an *alternative*, a line of the exercise whose last move is an equally good answer at
- * that ply. More than {@link MAX_ALTERNATIVES} of those and the position is simply not sharp
+ * At every user ply the position is searched with the `coach` profile (MultiPV 5): the first line
+ * is the solution's move, and every other legal line is either far enough behind or becomes an
+ * *alternative*, a line of the exercise whose last move is an equally good answer at that ply. More than {@link MAX_ALTERNATIVES} of those and the position is simply not sharp
  * enough to be an exercise. The line then grows as long as the evaluation stays inside
  * {@link SOLUTION_DRIFT_CP} from one user ply to the next, up to {@link MAX_SOLUTION_PLIES}
  * plies; the opponent replies come from the principal variation and are played automatically.
@@ -131,10 +130,11 @@ export async function buildExercise(
   let previousScore: number | null = null
 
   while (solution.length < MAX_SOLUTION_PLIES) {
-    const analysis = await engine.analyze(fen, 'review', signal)
+    const analysis = await engine.analyze(fen, 'coach', signal)
     const best = analysis.lines[0]
-    const bestUci = best?.move || analysis.bestMove || ''
-    if (!best || !bestUci) break
+    const bestMove = normalizeMove(fen, best?.move ?? '')
+    if (!best || !bestMove) break
+    const bestUci = bestMove.uci
 
     const score = lineScore(best)
     // A search that says nothing cannot prove anything: the line stops where it is.
@@ -143,13 +143,23 @@ export async function buildExercise(
     if (previousScore !== null && Math.abs(score - previousScore) >= SOLUTION_DRIFT_CP) break
     previousScore = score
 
-    // The `review` profile searches two lines, so in practice this looks at the second one; an
-    // engine that answers with more simply has every one of them judged by the same rule.
+    // Every returned root move is checked against the actual position before it can become a
+    // correct answer. Duplicate or malformed engine lines neither create false alternatives nor
+    // make an otherwise useful exercise look ambiguous.
     for (const other of analysis.lines.slice(1)) {
       const otherScore = lineScore(other)
       if (otherScore === null || score - otherScore >= UNIQUE_MARGIN_CP) continue
-      if (!other.move || other.move === bestUci) continue
-      alternatives.push([...solution, other.move])
+      const alternative = normalizeMove(fen, other.move)
+      if (!alternative || alternative.uci === bestUci) continue
+      const line = [...solution, alternative.uci]
+      if (
+        alternatives.some(
+          (saved) =>
+            saved.length === line.length && saved.every((move, index) => move === line[index])
+        )
+      )
+        continue
+      alternatives.push(line)
       if (alternatives.length > MAX_ALTERNATIVES) return null
     }
 

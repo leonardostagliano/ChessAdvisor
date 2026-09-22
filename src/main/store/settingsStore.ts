@@ -76,6 +76,7 @@ export function sanitizeSettings(raw: unknown, base: Settings = DEFAULT_SETTINGS
     coachEffort: nullableString(input.coachEffort, base.coachEffort),
     turnTimeoutSec: seconds(input.turnTimeoutSec, base.turnTimeoutSec),
     showReasoning: bool(input.showReasoning, base.showReasoning),
+    liveMoveFeedback: bool(input.liveMoveFeedback, base.liveMoveFeedback),
     pieceSet: oneOf(input.pieceSet, ['cburnett'] as const, base.pieceSet),
     engineBinary: engineBinary(input.engineBinary, base.engineBinary),
     lastDifficulty: difficulty(input.lastDifficulty, base.lastDifficulty),

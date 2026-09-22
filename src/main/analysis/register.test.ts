@@ -329,6 +329,24 @@ describe('AnalysisManager', () => {
     expect(onDisk?.moves[0]?.coachComment).toBe('Commento finto in revisione.')
   })
 
+  it('keeps the review badge and terminal explanation consistent for a Black checkmate', async () => {
+    const game = await saved(['f3', 'e5', 'g4', 'Qh4#'])
+    game.moves[3]!.eval = {
+      before: { mate: 1 },
+      after: { mate: 0 },
+      cpLoss: 0,
+      winPercentLoss: 0,
+      classification: 'best',
+      bestMove: 'd8h4',
+      bestLine: ['d8h4']
+    }
+    await store.save(game)
+    await manager.commentMove(game.id, 4)
+    expect(codex.requests[0]!.text).toContain('Classificazione: migliore')
+    expect(codex.requests[0]!.text).toContain('matto in 0 per il Nero')
+    expect(codex.requests[0]!.text).not.toContain('matto in 0 per il Bianco')
+  })
+
   it('clamps the lesson to three takeaways and saves it in the analysis', async () => {
     const game = await saved(['e4', 'e5'])
     await manager.run(game.id)

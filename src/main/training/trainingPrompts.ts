@@ -1,7 +1,7 @@
 import type { Profile } from '@shared/types/profile'
 import type { Language } from '@shared/types/settings'
 import type { Exercise, OpeningOverviewEntry, StudyCatalogue } from '@shared/types/training'
-import { DEFAULT_RATING_WINDOW, THEMATIC_SET_SIZE } from '@shared/types/training'
+import { THEMATIC_SET_SIZE } from '@shared/types/training'
 import { THEMES } from '../profile/themes'
 
 /**
@@ -77,9 +77,22 @@ const BAND_NAME: Record<Language, Record<Profile['level']['band'], string>> = {
 
 function levelLine(profile: Profile, language: Language): string {
   const it = language === 'it'
+  if (profile.level.estimate <= 0 || profile.level.confidence <= 0)
+    return it
+      ? 'Livello stimato: non ancora disponibile; usa gli esercizi come diagnosi, senza presumere che la persona sia principiante.'
+      : 'Estimated level: not available yet; use the exercises diagnostically without assuming the person is a beginner.'
   return `${it ? 'Livello stimato' : 'Estimated level'}: ${profile.level.estimate} (${BAND_NAME[language][profile.level.band]}), ${
     it ? 'confidenza' : 'confidence'
   } ${profile.level.confidence.toFixed(2)}`
+}
+
+export interface ThemePracticeSummary {
+  theme: string
+  attempted: number
+  solved: number
+  failed: number
+  attempts: number
+  averageRating: number | null
 }
 
 function themeLines(profile: Profile, language: Language): string[] {
@@ -110,6 +123,8 @@ export function themePickText(p: {
   profile: Profile
   language: Language
   available: { theme: string; count: number }[]
+  practice?: ThemePracticeSummary[]
+  suggestedWindow?: { min: number; max: number; reason: string }
 }): string {
   const it = p.language === 'it'
   const lines: string[] = [
@@ -130,10 +145,27 @@ export function themePickText(p: {
     )
   }
 
+  if (p.practice && p.practice.length > 0) {
+    lines.push(
+      it
+        ? 'Risultati degli esercizi già proposti (tema · esercizi provati · risolti · falliti · mosse provate · rating medio):'
+        : 'Results from exercises already offered (theme · exercises attempted · solved · failed · move attempts · average rating):',
+      ...p.practice.map(
+        (row) =>
+          `- ${row.theme} · ${row.attempted} · ${row.solved} · ${row.failed} · ${row.attempts} · ${row.averageRating ?? (it ? 'non noto' : 'unknown')}`
+      )
+    )
+  }
+  if (p.suggestedWindow) {
+    lines.push(
+      `${it ? 'Fascia diagnostica suggerita' : 'Suggested diagnostic window'}: ${p.suggestedWindow.min}–${p.suggestedWindow.max} (${p.suggestedWindow.reason})`
+    )
+  }
+
   lines.push(
     it
-      ? `Rispondi soltanto con il JSON richiesto: "theme" è uno dei temi ammessi, "ratingMin" e "ratingMax" delimitano una fascia di circa 400 punti compresa fra 400 e 2200 e adatta al suo livello (in mancanza di dati usa ${DEFAULT_RATING_WINDOW.min}–${DEFAULT_RATING_WINDOW.max}), "motivation" è una frase che spiega alla persona perché allenare proprio quel tema adesso.`
-      : `Answer with the requested JSON only: "theme" is one of the allowed themes, "ratingMin" and "ratingMax" bound a window of about 400 points inside 400–2200 and suited to their level (with no data use ${DEFAULT_RATING_WINDOW.min}–${DEFAULT_RATING_WINDOW.max}), "motivation" is one sentence telling the person why this theme is worth training now.`
+      ? `Rispondi soltanto con il JSON richiesto: "theme" è uno dei temi ammessi; dai priorità a errori ricorrenti e temi falliti, alternandoli quando serve; "ratingMin" e "ratingMax" delimitano una fascia di circa 400 punti compresa fra 400 e 2200. Parti dalla fascia diagnostica suggerita e cambiala solo se i risultati forniti lo giustificano. "motivation" cita il dato concreto che motiva la scelta.`
+      : `Answer with the requested JSON only: "theme" is one of the allowed themes; prioritise recurring mistakes and failed themes while rotating when useful; "ratingMin" and "ratingMax" bound a window of about 400 points inside 400–2200. Start from the suggested diagnostic window and change it only when the supplied results justify that. "motivation" cites the concrete evidence behind the choice.`
   )
   return lines.join('\n')
 }
@@ -150,6 +182,8 @@ export function explainExerciseText(p: {
   solutionSan: string[]
   language: Language
   playedSan?: string
+  profile?: Profile
+  engineLines?: string[]
 }): string {
   const it = p.language === 'it'
   const colour =
@@ -174,10 +208,22 @@ export function explainExerciseText(p: {
         : 'The position comes from a game of the person you coach.'
     )
   }
+  if (p.profile) lines.push(levelLine(p.profile, p.language))
+  lines.push(
+    `${it ? 'Esperienza su questo esercizio' : 'Experience on this exercise'}: ${p.exercise.attempts} ${it ? 'tentativi' : 'attempts'} · ${p.exercise.status}`
+  )
+  if (p.engineLines && p.engineLines.length > 0) {
+    lines.push(
+      it
+        ? 'Varianti Stockfish dalla posizione iniziale (valutazione per chi muove):'
+        : 'Stockfish lines from the starting position (evaluation for the side to move):',
+      ...p.engineLines.map((line) => `- ${line}`)
+    )
+  }
   lines.push(
     it
-      ? 'Scrivi da due a quattro frasi di testo semplice: che cosa rende vincente la prima mossa, che cosa succede se l’avversario risponde diversamente e quale segnale riconoscere la prossima volta. Niente elenchi e niente JSON.'
-      : 'Write two to four sentences of plain text: what makes the first move work, what happens if the opponent answers differently, and which signal to recognise next time. No lists and no JSON.'
+      ? 'Scrivi da quattro a sei frasi di testo semplice, adatte al livello indicato: spiega il meccanismo tattico o strategico, calcola la linea principale, confronta almeno un’alternativa se è fornita e chiudi con il segnale da riconoscere la prossima volta. Non inventare varianti oltre quelle date. Niente elenchi e niente JSON.'
+      : 'Write four to six plain-text sentences suited to the stated level: explain the tactical or strategic mechanism, calculate the main line, compare at least one alternative when supplied, and finish with the signal to recognise next time. Do not invent variations beyond those supplied. No lists and no JSON.'
   )
   return lines.join('\n')
 }
@@ -185,7 +231,12 @@ export function explainExerciseText(p: {
 // ───────────────────────────────────────────────────── openings mini-lesson (§6.6)
 
 /** "Mini-lezione" of an opening (spec §6.6): plain text built on the user's own numbers. */
-export function openingLessonText(p: { entry: OpeningOverviewEntry; language: Language }): string {
+export function openingLessonText(p: {
+  entry: OpeningOverviewEntry
+  language: Language
+  profile?: Profile
+  engineLines?: Record<string, string[]>
+}): string {
   const it = p.language === 'it'
   const entry = p.entry
   const lines: string[] = [
@@ -206,6 +257,11 @@ export function openingLessonText(p: { entry: OpeningOverviewEntry; language: La
       lines.push(
         `- ${deviation.san} · ${deviation.count} · ${deviation.bestSan || (it ? 'non nota' : 'unknown')} · ${deviation.epd}`
       )
+      const linesForPosition = p.engineLines?.[deviation.epd] ?? []
+      if (linesForPosition.length > 0)
+        lines.push(
+          `${it ? '  Varianti Stockfish' : '  Stockfish lines'}: ${linesForPosition.join(' | ')}`
+        )
     }
   } else {
     lines.push(
@@ -214,10 +270,11 @@ export function openingLessonText(p: { entry: OpeningOverviewEntry; language: La
         : 'No recurring deviation is on record for this opening.'
     )
   }
+  if (p.profile) lines.push(levelLine(p.profile, p.language))
   lines.push(
     it
-      ? 'Scrivi da tre a cinque frasi di testo semplice: le idee di questa apertura, che cosa mostra il suo modo di giocarla e una cosa concreta da provare nella prossima partita. Niente elenchi e niente JSON.'
-      : 'Write three to five sentences of plain text: the ideas of this opening, what their way of playing it shows, and one concrete thing to try in the next game. No lists and no JSON.'
+      ? 'Scrivi da cinque a sette frasi di testo semplice, adatte al livello indicato: collega le idee strategiche dell’apertura ai dati reali, analizza la deviazione più frequente con le varianti fornite e proponi una sola regola concreta per la prossima partita. Non inventare teoria o varianti mancanti. Niente elenchi e niente JSON.'
+      : 'Write five to seven plain-text sentences suited to the stated level: connect the opening’s strategic ideas to the real data, analyse the most frequent deviation with the supplied lines, and give one concrete rule for the next game. Do not invent missing theory or variations. No lists and no JSON.'
   )
   return lines.join('\n')
 }
@@ -283,6 +340,7 @@ export function planText(p: {
   profile: Profile
   language: Language
   labels?: Record<string, string>
+  practice?: ThemePracticeSummary[]
 }): string {
   const it = p.language === 'it'
   const lines: string[] = [
@@ -304,6 +362,17 @@ export function planText(p: {
       lines.push(
         `- ${entry.date.slice(0, 10)}: ${entry.accuracy.toFixed(1)}% · ${Math.round(entry.acpl)}`
       )
+  }
+  if (p.practice && p.practice.length > 0) {
+    lines.push(
+      it
+        ? 'Risultati recenti degli esercizi (tema · esercizi provati · risolti · falliti · mosse provate):'
+        : 'Recent exercise results (theme · exercises attempted · solved · failed · move attempts):',
+      ...p.practice.map(
+        (row) =>
+          `- ${row.theme} · ${row.attempted} · ${row.solved} · ${row.failed} · ${row.attempts}`
+      )
+    )
   }
 
   const openings = Object.values(p.profile.openingStats)
@@ -344,8 +413,8 @@ export function planText(p: {
 
   lines.push(
     it
-      ? 'Rispondi soltanto con il JSON richiesto: ogni voce ha un "title" breve, un "why" di una frase che parla alla persona e un "activity" con il tipo e il ref presi dal catalogo (ref null solo per "play"). Non ripetere due volte lo stesso ref e non inventarne di nuovi.'
-      : 'Answer with the requested JSON only: every item has a short "title", a one-sentence "why" addressed to the person, and an "activity" with the type and the ref taken from the catalogue (a null ref only for "play"). Never repeat a ref and never invent one.'
+      ? 'Rispondi soltanto con il JSON richiesto: costruisci una progressione dal bisogno più provato verso applicazione e verifica; dai priorità agli esercizi falliti o ai temi ricorrenti, senza presumere un livello quando la stima manca. Ogni voce ha un "title" breve, un "why" che cita un dato fornito e un "activity" con tipo e ref presi dal catalogo (ref null solo per "play"). Non ripetere ref e non inventare attività.'
+      : 'Answer with the requested JSON only: build a progression from the strongest evidenced need toward application and verification; prioritise failed exercises or recurring themes without assuming a level when no estimate exists. Every item has a short "title", a "why" citing supplied evidence, and an "activity" whose type and ref come from the catalogue (a null ref only for "play"). Never repeat refs or invent activities.'
   )
   return lines.join('\n')
 }

@@ -103,6 +103,95 @@ describe('GameStore', () => {
     expect(store.list()[0].accuracy).toEqual({ w: 88.5, b: 71 })
   })
 
+  it('merges stale finished-game coach and analysis snapshots in either save order', async () => {
+    for (const order of ['analysis-first', 'coach-first'] as const) {
+      const game = await store.create(init())
+      game.moves.push({
+        ply: 1,
+        san: 'e4',
+        uci: 'e2e4',
+        fenAfter: 'after-e4',
+        epdAfter: 'after-e4',
+        by: 'user',
+        liveEvalStatus: 'pending'
+      })
+      game.status = 'finished'
+      game.result = { outcome: '1-0', reason: 'checkmate' }
+      game.coachLog.push({
+        id: 'existing-' + order,
+        ply: 0,
+        kind: 'question',
+        text: 'existing',
+        language: 'it',
+        createdAt: '2026-01-01T00:00:00.000Z'
+      })
+      await store.save(game)
+
+      const base = (await store.get(game.id))!
+      const analysed = structuredClone(base)
+      analysed.moves[0]!.eval = {
+        before: { cp: 20 },
+        after: { cp: 10 },
+        cpLoss: 10,
+        winPercentLoss: 1,
+        classification: 'excellent',
+        bestMove: 'e2e4',
+        bestLine: ['e2e4']
+      }
+      analysed.moves[0]!.liveEval = {
+        ...analysed.moves[0]!.eval!,
+        depth: 16,
+        assessedAt: '2026-01-01T00:00:01.000Z'
+      }
+      delete analysed.moves[0]!.liveEvalStatus
+      analysed.moves[0]!.theme = 'development'
+      analysed.analysis = {
+        accuracy: { w: 99, b: 98 },
+        acpl: { w: 10, b: 12 },
+        keyMoments: [1],
+        lesson: { takeaways: ['Develop'], summary: 'Sound play.', language: 'en' },
+        analyzedAt: '2026-01-01T00:00:02.000Z'
+      }
+      analysed.opening = { eco: 'C20', name: "King's Pawn Game", lastBookPly: 1 }
+
+      const commented = structuredClone(base)
+      commented.moves[0]!.coachComment = 'Una mossa centrale.'
+      commented.moves[0]!.coachCommentLanguage = 'it'
+      commented.coachLog.push({
+        id: 'comment-' + order,
+        ply: 1,
+        kind: 'comment',
+        text: 'Una mossa centrale.',
+        move: 'e4',
+        language: 'it',
+        createdAt: '2026-01-01T00:00:03.000Z'
+      })
+
+      const snapshots = order === 'analysis-first' ? [analysed, commented] : [commented, analysed]
+      await Promise.all(snapshots.map((snapshot) => store.save(snapshot)))
+
+      const saved = (await store.get(game.id))!
+      expect(saved.analysis).toEqual(analysed.analysis)
+      expect(saved.opening).toEqual(analysed.opening)
+      expect(saved.moves[0]).toMatchObject({
+        eval: analysed.moves[0]!.eval,
+        liveEval: analysed.moves[0]!.liveEval,
+        theme: 'development',
+        coachComment: 'Una mossa centrale.',
+        coachCommentLanguage: 'it'
+      })
+      expect(saved.moves[0]!.liveEvalStatus).toBeUndefined()
+      expect(saved.coachLog.map((entry) => entry.id)).toEqual([
+        'existing-' + order,
+        'comment-' + order
+      ])
+      expect(store.list().find((entry) => entry.id === game.id)?.accuracy).toEqual({
+        w: 99,
+        b: 98
+      })
+    }
+  })
+
   it('deletes a game from disk and from the index', async () => {
     const game = await store.create(init())
     await store.delete(game.id)

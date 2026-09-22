@@ -21,6 +21,8 @@ const moment = {
 }
 
 const profile: Profile = {
+  learningPolicyVersion: 2,
+  retiredGameIds: [],
   level: {
     band: 'intermediate',
     estimate: 1440,

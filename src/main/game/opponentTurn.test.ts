@@ -1,6 +1,6 @@
 import { legalMoves } from '@shared/chess/notation'
 import type { TurnRequest, TurnResult } from '@shared/types/codex'
-import type { Analysis, AnalysisProfile, EngineState } from '@shared/types/engine'
+import type { Analysis, EngineState } from '@shared/types/engine'
 import { describe, expect, it, vi } from 'vitest'
 import {
   MAX_ATTEMPTS,
@@ -24,17 +24,33 @@ const answer = (move: string, shortComment: string | null = 'ok'): TurnResult =>
   ok(JSON.stringify({ move, shortComment }))
 
 type RunTurn = OpponentDeps['codex']['runTurn']
+type Analyze = OpponentDeps['engine']['analyze']
 
 function deps(
   script: TurnResult[],
-  engine?: Partial<{ available: boolean; bestMove: string | null }>
-): OpponentDeps & { runTurn: ReturnType<typeof vi.fn<RunTurn>> } {
+  engine?: Partial<{ available: boolean; bestMove: string | null; analyses: Analysis[] }>
+): OpponentDeps & {
+  runTurn: ReturnType<typeof vi.fn<RunTurn>>
+  analyze: ReturnType<typeof vi.fn<Analyze>>
+} {
   const available = engine?.available ?? false
+  const analyses = engine?.analyses?.slice() ?? []
   const runTurn = vi.fn<RunTurn>(async () => script.shift() ?? ok('{}'))
+  const analyze = vi.fn<Analyze>(async (fen: string) => {
+    return (
+      analyses.shift() ?? {
+        bestMove: engine?.bestMove === undefined ? 'g8f6' : engine.bestMove,
+        lines: [],
+        depth: 18,
+        fen
+      }
+    )
+  })
   // Every call advances the clock by one second, so an attempt always costs exactly 1000 ms.
   let clock = 0
   return {
     runTurn,
+    analyze,
     codex: { runTurn },
     engine: {
       state: (): EngineState => ({
@@ -43,12 +59,7 @@ function deps(
         version: 'fake',
         message: null
       }),
-      analyze: async (fen: string, _profile: AnalysisProfile): Promise<Analysis> => ({
-        bestMove: engine?.bestMove === undefined ? 'g8f6' : engine.bestMove,
-        lines: [],
-        depth: 18,
-        fen
-      })
+      analyze
     },
     now: () => (clock += 1000)
   }
@@ -61,6 +72,7 @@ const params = (
   model: 'gpt-6-astra',
   effort: 'medium',
   language: 'it',
+  difficulty: { mode: 'fixed', level: 5, targetElo: 1800 },
   fen: AFTER_E4,
   pgn: '1. e4',
   lastUserMove: 'e4',
@@ -186,6 +198,113 @@ describe('playOpponentTurn', () => {
     await expect(
       playOpponentTurn(d, params({ fen: '7k/5Q2/6K1/8/8/8/8/8 b - - 0 1' }))
     ).rejects.toThrow(/no legal move/)
+    expect(d.runTurn).not.toHaveBeenCalled()
+  })
+
+  it('grounds the model with every line and retries an 1800-level tactical blunder', async () => {
+    const prepared: Analysis = {
+      bestMove: 'e7e5',
+      lines: [
+        { move: 'e7e5', pv: ['e7e5', 'g1f3', 'b8c6'], scoreCp: 30, depth: 20 },
+        { move: 'c7c5', pv: ['c7c5', 'g1f3', 'd7d6'], scoreCp: 18, depth: 20 }
+      ],
+      depth: 20,
+      fen: AFTER_E4
+    }
+    const badReply: Analysis = {
+      bestMove: 'g1f3',
+      lines: [{ move: 'g1f3', pv: ['g1f3', 'b8c6'], scoreCp: 500, depth: 20 }],
+      depth: 20,
+      fen: AFTER_E4
+    }
+    const safeReply: Analysis = {
+      bestMove: 'g1f3',
+      lines: [{ move: 'g1f3', pv: ['g1f3', 'b8c6'], scoreCp: -20, depth: 20 }],
+      depth: 20,
+      fen: AFTER_E4
+    }
+    const d = deps([answer('a6'), answer('e5')], {
+      available: true,
+      analyses: [prepared, badReply, safeReply]
+    })
+    const onRetry = vi.fn()
+    const move = await playOpponentTurn(d, params({ onRetry }))
+
+    expect(move).toMatchObject({
+      san: 'e5',
+      attempts: 2,
+      engineAssisted: true,
+      engineVerified: true
+    })
+    expect(onRetry).toHaveBeenCalledWith(1, expect.stringMatching(/unsafe move.*a6.*530 cp/i))
+    expect(d.analyze.mock.calls.map((call) => call[1])).toEqual([
+      'opponent-strong',
+      'opponent-check',
+      'opponent-check'
+    ])
+    const firstPrompt = (d.runTurn.mock.calls[0]![0] as TurnRequest).text
+    expect(firstPrompt).toContain('e7e5 g1f3 b8c6')
+    expect(firstPrompt).toContain('c7c5 g1f3 d7d6')
+    expect(firstPrompt).toContain('qualunque mossa legale')
+    const retryPrompt = (d.runTurn.mock.calls[1]![0] as TurnRequest).text
+    expect(retryPrompt).toContain('CONTROLLO TATTICO')
+    expect(retryPrompt).toContain('e7e5 g1f3 b8c6')
+  })
+
+  it('rejects throwing away a forced win by stalemate and verifies a mating move without a child search', async () => {
+    const fen = 'k7/8/1QK5/8/8/8/8/8 w - - 0 1'
+    const prepared: Analysis = {
+      fen,
+      bestMove: 'b6b7',
+      depth: 20,
+      lines: [{ move: 'b6b7', pv: ['b6b7'], scoreMate: 1, depth: 20 }]
+    }
+    const d = deps([answer('Qc7'), answer('Qb7#')], { available: true, analyses: [prepared] })
+    const onRetry = vi.fn()
+    const move = await playOpponentTurn(d, params({ fen, pgn: '', onRetry }))
+    expect(move).toMatchObject({ san: 'Qb7#', attempts: 2, engineVerified: true })
+    expect(onRetry).toHaveBeenCalledWith(1, expect.stringContaining('unsafe move'))
+    expect(d.analyze).toHaveBeenCalledTimes(1)
+  })
+
+  it('uses the adaptive target to select the breadth/depth profile', async () => {
+    const d = deps([answer('e5')], { available: true })
+    await playOpponentTurn(
+      d,
+      params({ difficulty: { mode: 'adaptive', level: 1, targetElo: 1520 } })
+    )
+    expect(d.analyze).toHaveBeenCalledWith(AFTER_E4, 'opponent-challenging', {
+      signal: undefined
+    })
+  })
+
+  it('resigns a deeply verified forced mate without asking the model for a move', async () => {
+    const forcedMate: Analysis = {
+      bestMove: 'g8f6',
+      lines: [{ move: 'g8f6', pv: ['g8f6', 'f1b5'], scoreMate: -4, depth: 20 }],
+      depth: 20,
+      fen: AFTER_E4
+    }
+    const d = deps([answer('e5')], { available: true, analyses: [forcedMate] })
+    const move = await playOpponentTurn(d, params({ allowResign: true }))
+    expect(move).toMatchObject({
+      resign: true,
+      san: '',
+      uci: '',
+      shortComment: 'Mi arrendo.',
+      engineAssisted: true
+    })
+    expect(d.runTurn).not.toHaveBeenCalled()
+  })
+
+  it('does not start analysis or a model turn after cancellation', async () => {
+    const controller = new AbortController()
+    controller.abort()
+    const d = deps([answer('e5')], { available: true })
+    await expect(playOpponentTurn(d, params({ signal: controller.signal }))).rejects.toMatchObject({
+      name: 'AbortError'
+    })
+    expect(d.analyze).not.toHaveBeenCalled()
     expect(d.runTurn).not.toHaveBeenCalled()
   })
 })

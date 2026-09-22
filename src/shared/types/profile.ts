@@ -57,6 +57,10 @@ export interface ProfileHistoryEntry {
 }
 
 export interface Profile {
+  /** Version of the learning data policy that produced this profile. */
+  learningPolicyVersion: number
+  /** Games recorded before the current learning policy; retained but excluded from learning. */
+  retiredGameIds: string[]
   /** Target Elo of the adaptive opponent and how many adaptive matches fed it (spec §4.1). */
   adaptive?: { elo: number; games: number; updatedAt: string }
   level: ProfileLevel
@@ -70,6 +74,8 @@ export interface Profile {
 
 /** The profile of someone who has never played: every collection empty, no level yet. */
 export const EMPTY_PROFILE: Profile = {
+  learningPolicyVersion: 2,
+  retiredGameIds: [],
   level: { band: 'beginner', estimate: 0, confidence: 0, updatedAt: new Date(0).toISOString() },
   themeStats: {},
   openingStats: {},

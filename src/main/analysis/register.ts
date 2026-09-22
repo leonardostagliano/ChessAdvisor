@@ -11,7 +11,7 @@ import type {
 } from '@shared/types/api'
 import type { Eval, Game } from '@shared/types/game'
 import type { Language } from '@shared/types/settings'
-import { coachBaseInstructions, type EngineContext } from '../game/coachPrompts'
+import { coachBaseInstructions, type CoachEval, type EngineContext } from '../game/coachPrompts'
 import type { SessionCodex, SessionEngine } from '../game/gameSession'
 import type { GameStore } from '../store/gameStore'
 import type { SettingsStore } from '../store/settingsStore'
@@ -35,9 +35,9 @@ export const MAX_KEY_MOMENT_COMMENTS = 8
 /** Takeaways kept from the lesson, whatever the model answered. */
 export const LESSON_TAKEAWAYS = 3
 /** Best lines shown to the model when the analysis has not filled the move yet. */
-const BEST_LINES = 3
+const BEST_LINES = 5
 /** Plies of a principal variation written into a prompt. */
-const PV_PLIES = 6
+const PV_PLIES = 12
 
 /** Carries a machine-readable code through the IPC error contract (`serializeError`). */
 export class AnalysisError extends Error {
@@ -112,9 +112,12 @@ function pvInSan(fen: string, pv: string[]): string[] {
 function whiteEval(
   line: { scoreCp?: number; scoreMate?: number } | undefined,
   fen: string
-): Eval | null {
+): CoachEval | null {
   if (!line) return null
   const flip = sideToMove(fen) === 'b' ? -1 : 1
+  if (line.scoreMate === 0 && new Chess(fen).isCheckmate()) {
+    return { mate: 0, mateWinner: sideToMove(fen) === 'w' ? 'b' : 'w' }
+  }
   if (typeof line.scoreMate === 'number') return { mate: flip * line.scoreMate }
   if (typeof line.scoreCp === 'number') return { cp: flip * line.scoreCp }
   return null
@@ -374,16 +377,35 @@ export class AnalysisManager {
     const fenBefore = this.fenBefore(game, ply)
     const mover = sideToMove(fenBefore)
 
-    const saved = move.eval
+    const saved = move.eval ?? move.liveEval
     if (saved) {
       const bestSan = pvInSan(
         fenBefore,
         saved.bestLine.length > 0 ? saved.bestLine : [saved.bestMove]
       )
       const before = toWhite(saved.before, mover)
+      const next = game.moves[ply]?.eval
+      const reply = next ? pvInSan(move.fenAfter, next.bestLine) : []
+      const terminal = new Chess(move.fenAfter).isCheckmate()
+        ? { winner: mover, at: 'after' as const }
+        : undefined
       return {
+        ...(terminal ? { terminal } : {}),
+        replyLines:
+          next && reply.length
+            ? [
+                {
+                  san: reply[0]!,
+                  pv: reply,
+                  eval: toWhite(next.before, sideToMove(move.fenAfter)) ?? {}
+                }
+              ]
+            : [],
         evalBefore: before,
-        evalAfter: toWhite(saved.after, mover),
+        evalAfter:
+          terminal && saved.after.mate === 0
+            ? { mate: 0, mateWinner: mover }
+            : toWhite(saved.after, mover),
         classification: saved.classification,
         bestLines: bestSan.length > 0 ? [{ san: bestSan[0]!, pv: bestSan, eval: before ?? {} }] : []
       }
@@ -403,6 +425,9 @@ export class AnalysisManager {
       return {
         evalBefore: whiteEval(analysis.lines[0], fenBefore),
         evalAfter: after ? whiteEval(after.lines[0], move.fenAfter) : null,
+        ...(new Chess(move.fenAfter).isCheckmate()
+          ? { terminal: { winner: mover, at: 'after' as const } }
+          : {}),
         bestLines
       }
     } catch (error) {

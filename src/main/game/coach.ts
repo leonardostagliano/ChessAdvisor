@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto'
 import { Chess } from 'chess.js'
 import { normalizeMove } from '@shared/chess/notation'
+import { classify } from '../analysis/classify'
+import { winPercentLoss } from '../analysis/winPercent'
 import type { StreamEnvelope } from '@shared/types/api'
 import type { TurnResult } from '@shared/types/codex'
 import type { Eval, Game } from '@shared/types/game'
@@ -14,6 +16,7 @@ import {
   commentText,
   hintText,
   resumeSummaryText,
+  type CoachEval,
   type EngineContext
 } from './coachPrompts'
 import type { SessionCodex, SessionEngine } from './gameSession'
@@ -59,17 +62,31 @@ export interface CoachActivity {
 }
 
 /** Plies of a principal variation written into a prompt: enough to show the idea, no more. */
-const PV_PLIES = 6
+const PV_PLIES = 12
 /** Best lines asked of the engine, as in spec §4.2 ("migliori 3 varianti"). */
-const BEST_LINES = 3
+const BEST_LINES = 5
 
 const sideToMove = (fen: string): 'w' | 'b' => (fen.split(/\s+/)[1] === 'b' ? 'b' : 'w')
 
+function terminalWinner(fen: string): 'w' | 'b' | null {
+  try {
+    const chess = new Chess(fen)
+    if (!chess.isCheckmate()) return null
+    return chess.turn() === 'w' ? 'b' : 'w'
+  } catch {
+    return null
+  }
+}
+
 /** Engine scores are from the side to move; every number the coach reads is White's. */
-function whiteEval(line: EngineLine | undefined, fen: string): Eval | null {
-  if (!line) return null
+function whiteEval(line: EngineLine | undefined, fen: string): CoachEval | null {
+  const winner = terminalWinner(fen)
+  if (!line) return winner ? { mate: 0, mateWinner: winner } : null
   const flip = sideToMove(fen) === 'b' ? -1 : 1
-  if (typeof line.scoreMate === 'number') return { mate: flip * line.scoreMate }
+  if (typeof line.scoreMate === 'number') {
+    if (winner && line.scoreMate === 0) return { mate: 0, mateWinner: winner }
+    return { mate: flip * line.scoreMate }
+  }
   if (typeof line.scoreCp === 'number') return { cp: flip * line.scoreCp }
   return null
 }
@@ -228,10 +245,60 @@ export class CoachSession {
     const threadId = this.threadId
     if (!move || !threadId || this.disabled || opts.signal?.aborted) return null
     const language = this.language()
-    const engine = await this.engineContext(opts.fenBefore, opts.fenAfter, 'comment', opts.signal)
+    let engine = await this.engineContext(opts.fenBefore, opts.fenAfter, 'comment', opts.signal)
+    // The fast grade may arrive while the deeper contextual search is running.
+    const measured = move.eval ?? move.liveEval
+    // If Stockfish is unavailable, retain the move-time oracle so the coach can still explain
+    // the recorded classification and measured before/after evaluations.
+    if (!engine && measured) {
+      const flip = sideToMove(opts.fenBefore) === 'b' ? -1 : 1
+      const toWhite = (value: Eval, fen: string): CoachEval => {
+        const winner = value.mate === 0 ? terminalWinner(fen) : null
+        if (winner) return { mate: 0, mateWinner: winner }
+        return value.mate !== undefined
+          ? { mate: flip * value.mate }
+          : { cp: flip * (value.cp ?? 0) }
+      }
+      const beforeWinner = terminalWinner(opts.fenBefore)
+      const afterWinner = terminalWinner(opts.fenAfter)
+      engine = {
+        evalBefore: toWhite(measured.before, opts.fenBefore),
+        evalAfter: toWhite(measured.after, opts.fenAfter),
+        classification: measured.classification,
+        bestLines: [],
+        ...(beforeWinner
+          ? { terminal: { winner: beforeWinner, at: 'before' as const } }
+          : afterWinner
+            ? { terminal: { winner: afterWinner, at: 'after' as const } }
+            : {})
+      }
+    }
     // The game may have closed or been replaced while Stockfish was preparing the prompt.
     // Never let an old position leak into the new game's coach thread.
     if (opts.signal?.aborted || this.threadId !== threadId) return null
+    if (engine) {
+      // The badge and explanation share the same measured judgement when available.
+      if (measured) {
+        const flip = sideToMove(opts.fenBefore) === 'b' ? -1 : 1
+        const toWhite = (value: Eval, fen: string): CoachEval => {
+          const winner = value.mate === 0 ? terminalWinner(fen) : null
+          if (winner) return { mate: 0, mateWinner: winner }
+          return value.mate !== undefined
+            ? { mate: flip * value.mate }
+            : { cp: flip * (value.cp ?? 0) }
+        }
+        engine.evalBefore = toWhite(measured.before, opts.fenBefore)
+        engine.evalAfter = toWhite(measured.after, opts.fenAfter)
+        engine.classification = measured.classification
+      } else if (engine.evalBefore && engine.evalAfter) {
+        engine.classification = classify({
+          loss: winPercentLoss(engine.evalBefore, engine.evalAfter, sideToMove(opts.fenBefore)),
+          playedUci: move.uci,
+          bestUci: normalizeMove(opts.fenBefore, engine.bestLines[0]?.san ?? '')?.uci ?? '',
+          inBook: false
+        })
+      }
+    }
     const text = commentText({
       move,
       by: move.by,
@@ -466,12 +533,28 @@ export class CoachSession {
       }
       // The score after the move is only worth the cheap live budget: the comment quotes it, the
       // judgement comes from the deeper analysis of the position the move was played from.
-      let evalAfter: Eval | null = null
+      let evalAfter: CoachEval | null = null
+      const replyLines: EngineContext['bestLines'] = []
       if (fenAfter) {
         const after = await this.deps.engine.analyze(fenAfter, 'live', { signal })
         evalAfter = whiteEval(after.lines[0], fenAfter)
+        const reply = after.lines[0]
+        const rendered = reply ? pvInSan(fenAfter, reply.pv.length ? reply.pv : [reply.move]) : null
+        if (rendered && evalAfter) replyLines.push({ ...rendered, eval: evalAfter })
       }
-      return { evalBefore: whiteEval(analysis.lines[0], fenBefore), evalAfter, bestLines }
+      const beforeWinner = terminalWinner(fenBefore)
+      const afterWinner = fenAfter ? terminalWinner(fenAfter) : null
+      return {
+        evalBefore: whiteEval(analysis.lines[0], fenBefore),
+        evalAfter,
+        bestLines,
+        replyLines,
+        ...(beforeWinner
+          ? { terminal: { winner: beforeWinner, at: 'before' as const } }
+          : afterWinner
+            ? { terminal: { winner: afterWinner, at: 'after' as const } }
+            : {})
+      }
     } catch (error) {
       if (signal?.aborted || (error as Error)?.name === 'AbortError') return null
       console.error('[coach] the engine context is unavailable:', error)

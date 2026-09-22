@@ -248,6 +248,63 @@
   min-height: 0;
 }
 
+.boardStage {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+}
+
+.qualityOverlay {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: grid;
+  grid-template-columns: auto auto;
+  align-items: baseline;
+  column-gap: 8px;
+  min-width: 154px;
+  padding: 11px 15px 12px;
+  border: 1px solid color-mix(in srgb, currentColor 32%, var(--border));
+  border-left-width: 3px;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--surface) 93%, transparent);
+  box-shadow: var(--shadow-pop);
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  animation: qualityIn 220ms var(--ease) both;
+  backdrop-filter: blur(8px);
+}
+
+.qualityOverlay strong {
+  color: currentColor;
+  font-family: var(--font-serif);
+  font-size: clamp(19px, 2vw, 25px);
+  font-weight: 620;
+  line-height: 1.05;
+}
+
+.qualityActor {
+  grid-column: 1 / -1;
+  margin-bottom: 2px;
+  color: var(--text-3);
+  font-size: 9px;
+  font-weight: 650;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.qualitySan {
+  color: var(--text-2);
+  font-size: 11px;
+}
+
+@keyframes qualityIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, calc(-50% + 7px));
+  }
+}
+
 .playerStrip {
   display: flex;
   align-items: center;
@@ -439,6 +496,18 @@
   padding: 12px;
 }
 
+.qualityToolbar {
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.qualitySettingError {
+  margin-top: 4px;
+  color: var(--danger);
+  font-size: 10px;
+}
+
 .panelFoot {
   display: flex;
   align-items: center;
@@ -528,6 +597,42 @@
   color: var(--danger);
   font-family: var(--font-mono);
   font-size: 9px;
+}
+
+.qualityBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 17px;
+  height: 17px;
+  margin-left: auto;
+  padding: 0 3px;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.quality_book {
+  color: var(--text-3);
+}
+.quality_best,
+.quality_excellent {
+  color: var(--eval-good);
+}
+.quality_good {
+  color: var(--text-2);
+}
+.quality_inaccuracy {
+  color: var(--accent);
+}
+.quality_mistake {
+  color: color-mix(in srgb, var(--eval-bad) 70%, var(--accent));
+}
+.quality_blunder {
+  color: var(--eval-bad);
 }
 
 /* No-game invitation */
@@ -818,7 +923,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .thinkingDot {
+  .thinkingDot,
+  .qualityOverlay {
     animation: none;
   }
 }

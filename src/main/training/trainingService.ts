@@ -2,9 +2,10 @@ import { randomUUID } from 'node:crypto'
 import { Chess } from 'chess.js'
 import { normalizeMove } from '@shared/chess/notation'
 import type { StreamEnvelope } from '@shared/types/api'
+import type { Analysis } from '@shared/types/engine'
 import type { Game } from '@shared/types/game'
 import type { Profile } from '@shared/types/profile'
-import type { NewGameOptions, SessionState } from '@shared/types/session'
+import { DIFFICULTY_LEVELS, type NewGameOptions, type SessionState } from '@shared/types/session'
 import type { Language } from '@shared/types/settings'
 import type {
   AttemptResult,
@@ -51,6 +52,7 @@ import {
   planText,
   themePickText,
   trainingBaseInstructions,
+  type ThemePracticeSummary,
   THEME_PICK_SCHEMA
 } from './trainingPrompts'
 
@@ -150,6 +152,24 @@ function sanLine(fen: string, uci: string[]): string[] {
   return san
 }
 
+const RATING_FLOOR = 400
+const RATING_CEILING = 2200
+const RATING_SPAN = 400
+
+function ratingWindow(center: number): { min: number; max: number } {
+  let min = Math.round(center - RATING_SPAN / 2)
+  let max = min + RATING_SPAN
+  if (min < RATING_FLOOR) {
+    min = RATING_FLOOR
+    max = min + RATING_SPAN
+  }
+  if (max > RATING_CEILING) {
+    max = RATING_CEILING
+    min = max - RATING_SPAN
+  }
+  return { min, max }
+}
+
 export class TrainingService {
   /** Every write is read-modify-write on one file: they run one after the other, never together. */
   private queue: Promise<unknown> = Promise.resolve()
@@ -168,6 +188,160 @@ export class TrainingService {
 
   private language(): Language {
     return this.deps.settings.get().language
+  }
+
+  /** Measured practice history, grouped by theme; untouched exercises add no evidence. */
+  private practiceSummaries(): ThemePracticeSummary[] {
+    const grouped = new Map<string, ThemePracticeSummary & { rated: number; ratingTotal: number }>()
+    for (const exercise of this.deps.exercises.list('thematic')) {
+      if (exercise.attempts <= 0 && exercise.status === 'new') continue
+      const row = grouped.get(exercise.theme) ?? {
+        theme: exercise.theme,
+        attempted: 0,
+        solved: 0,
+        failed: 0,
+        attempts: 0,
+        averageRating: null,
+        rated: 0,
+        ratingTotal: 0
+      }
+      row.attempted += 1
+      row.solved += exercise.status === 'solved' ? 1 : 0
+      row.failed += exercise.status === 'failed' ? 1 : 0
+      row.attempts += exercise.attempts
+      if (typeof exercise.rating === 'number') {
+        row.rated += 1
+        row.ratingTotal += exercise.rating
+      }
+      grouped.set(exercise.theme, row)
+    }
+    return [...grouped.values()]
+      .map(({ rated, ratingTotal, ...row }) => ({
+        ...row,
+        averageRating: rated > 0 ? Math.round(ratingTotal / rated) : null
+      }))
+      .sort(
+        (a, b) => b.failed - a.failed || b.attempts - a.attempts || a.theme.localeCompare(b.theme)
+      )
+  }
+
+  /** A cautious puzzle band: trusted games, then actual puzzle results, then habitual difficulty. */
+  private suggestedRatingWindow(
+    profile: Profile,
+    practice: ThemePracticeSummary[]
+  ): { min: number; max: number; reason: string } {
+    const it = this.language() === 'it'
+    const attempted = practice.reduce((sum, row) => sum + row.attempted, 0)
+    const solved = practice.reduce((sum, row) => sum + row.solved, 0)
+    const failed = practice.reduce((sum, row) => sum + row.failed, 0)
+    const practiceAdjustment =
+      attempted >= 3 ? (solved / attempted >= 0.75 ? 100 : failed / attempted >= 0.5 ? -100 : 0) : 0
+    if (
+      profile.level.estimate > 0 &&
+      profile.level.confidence >= 0.35 &&
+      profile.history.length >= 3
+    ) {
+      return {
+        ...ratingWindow(profile.level.estimate + practiceAdjustment),
+        reason: it
+          ? `stima sostenuta da partite analizzate${practiceAdjustment === 0 ? '' : ' e progressi negli esercizi'}`
+          : `estimate supported by analysed games${practiceAdjustment === 0 ? '' : ' and exercise progress'}`
+      }
+    }
+    const rated = practice.filter((row) => row.averageRating !== null)
+    if (rated.length > 0) {
+      const center =
+        rated.reduce((sum, row) => sum + row.averageRating! * row.attempted, 0) /
+        Math.max(
+          1,
+          rated.reduce((sum, row) => sum + row.attempted, 0)
+        )
+      return {
+        ...ratingWindow(center + practiceAdjustment),
+        reason: it ? 'risultati degli esercizi già svolti' : 'results from completed exercises'
+      }
+    }
+    const level = this.deps.settings.get().lastDifficulty.level
+    const indicativeRating = DIFFICULTY_LEVELS[level].elo ?? 1800
+    return {
+      ...ratingWindow(indicativeRating),
+      reason: it
+        ? 'stima iniziale dalla difficoltà abituale'
+        : 'initial estimate from usual difficulty'
+    }
+  }
+
+  private fallbackTheme(
+    rotation: number,
+    available: readonly string[],
+    profile: Profile,
+    practice: ThemePracticeSummary[]
+  ): string {
+    const struggled = practice.find((row) => row.failed > 0 && available.includes(row.theme))
+    if (struggled) return struggled.theme
+    const recurring = Object.entries(profile.themeStats)
+      .filter(([theme]) => available.includes(theme))
+      .sort((a, b) => b[1].occurrences - a[1].occurrences)[0]?.[0]
+    return recurring ?? rotationPick(rotation, available).theme
+  }
+
+  private fallbackPick(
+    rotation: number,
+    available: readonly string[],
+    profile: Profile,
+    practice: ThemePracticeSummary[],
+    window: { min: number; max: number; reason: string }
+  ): ThemePick {
+    return {
+      theme: this.fallbackTheme(rotation, available, profile, practice) as ThemePick['theme'],
+      ratingMin: window.min,
+      ratingMax: window.max,
+      motivation:
+        this.language() === 'it'
+          ? `Criterio della serie: ${window.reason}.`
+          : `Selection basis: ${window.reason}.`,
+      fallback: true
+    }
+  }
+
+  /** Keep the coach's theme, but do not let an unsupported rating guess override the evidence. */
+  private alignPickWithEvidence(
+    pick: ThemePick,
+    window: { min: number; max: number; reason: string }
+  ): ThemePick {
+    const pickedCenter = (pick.ratingMin + pick.ratingMax) / 2
+    const evidenceCenter = (window.min + window.max) / 2
+    if (Math.abs(pickedCenter - evidenceCenter) <= 200) return pick
+    return {
+      ...pick,
+      ratingMin: window.min,
+      ratingMax: window.max,
+      motivation:
+        this.language() === 'it'
+          ? `${pick.motivation || 'Tema scelto dal coach'} Fascia mantenuta: ${window.reason}.`
+          : `${pick.motivation || 'Theme selected by the coach'} Rating band retained: ${window.reason}.`
+    }
+  }
+
+  private async engineLines(fen: string, limit = 5): Promise<string[]> {
+    if (!this.deps.engine.state().available) return []
+    let analysis: Analysis
+    try {
+      analysis = await this.deps.engine.analyze(fen, 'coach')
+    } catch {
+      return []
+    }
+    return analysis.lines.slice(0, limit).flatMap((line, index) => {
+      const san = sanLine(fen, line.pv)
+      if (san.length === 0) return []
+      const score =
+        typeof line.scoreMate === 'number'
+          ? `M${line.scoreMate}`
+          : typeof line.scoreCp === 'number'
+            ? `${line.scoreCp >= 0 ? '+' : ''}${(line.scoreCp / 100).toFixed(2)}`
+            : '?'
+      return [`${index + 1}. ${san.join(' ')} · ${score} · depth ${line.depth}`]
+    })
   }
 
   private enqueue<T>(work: () => Promise<T>): Promise<T> {
@@ -268,6 +442,7 @@ export class TrainingService {
   onGameAnalyzed(game: Game): Promise<void> {
     return this.enqueue(async () => {
       if (game.kind !== 'match' || !game.analysis) return
+      if (this.deps.profile.get().retiredGameIds.includes(game.id)) return
       if (!this.deps.engine.state().available) return
       const built: Exercise[] = []
       try {
@@ -384,6 +559,8 @@ export class TrainingService {
         exercise,
         solutionSan: sanLine(exercise.fen, exercise.solution),
         language: this.language(),
+        profile: this.deps.profile.get(),
+        engineLines: await this.engineLines(exercise.fen),
         ...(playedSan ? { playedSan } : {})
       }),
       activity: { kind: 'explain', ref: id }
@@ -414,32 +591,59 @@ export class TrainingService {
    */
   async nextThematicSet(): Promise<ThematicSet> {
     const profile = this.deps.profile.get()
+    const practice = this.practiceSummaries()
+    const suggestedWindow = this.suggestedRatingWindow(profile, practice)
     const available = this.deps.library.themes()
     const availableThemes = available.map((entry) => entry.theme)
     const rotation = Math.floor(this.deps.exercises.list('thematic').length / THEMATIC_SET_SIZE)
 
     let pick: ThemePick | null = null
-    if (this.hasProfileData(profile) && this.resolveModel().model) {
+    if ((this.hasProfileData(profile) || practice.length > 0) && this.resolveModel().model) {
       try {
         const answer = await this.runTurn({
-          text: themePickText({ profile, language: this.language(), available }),
+          text: themePickText({
+            profile,
+            language: this.language(),
+            available,
+            practice,
+            suggestedWindow
+          }),
           outputSchema: THEME_PICK_SCHEMA,
           activity: { kind: 'thematic', ref: null }
         })
-        pick = sanitizeThemePick(parseObject(answer))
+        const parsed = sanitizeThemePick(parseObject(answer))
+        pick = parsed ? this.alignPickWithEvidence(parsed, suggestedWindow) : null
       } catch (error) {
         // Spec §6.5: without a usable answer the themes simply rotate.
         console.error('[training] the coach could not choose a theme:', error)
       }
     }
-    const chosen = pick ?? rotationPick(rotation, availableThemes)
+    const fallback = this.fallbackPick(
+      rotation,
+      availableThemes,
+      profile,
+      practice,
+      suggestedWindow
+    )
+    const chosen = pick ?? fallback
 
     let puzzles = this.drawPuzzles(chosen)
     let used = chosen
     if (puzzles.length === 0 && !chosen.fallback) {
-      // The window the coach asked for is never widened (spec §6.5); the rotation answers instead.
-      used = rotationPick(rotation, availableThemes)
+      // Keep the evidence-based calibration when the model requested an empty slice.
+      used = fallback
       puzzles = this.drawPuzzles(used)
+    }
+    if (puzzles.length === 0 && used.fallback) {
+      for (const theme of availableThemes) {
+        if (theme === used.theme) continue
+        const candidate = { ...used, theme: theme as ThemePick['theme'] }
+        const candidatePuzzles = this.drawPuzzles(candidate)
+        if (candidatePuzzles.length === 0) continue
+        used = candidate
+        puzzles = candidatePuzzles
+        break
+      }
     }
 
     const stamp = this.stamp()
@@ -500,8 +704,18 @@ export class TrainingService {
   async openingLesson(eco: string): Promise<string> {
     const entry = (await this.openingsOverview()).find((row) => row.eco === eco)
     if (!entry) throw new TrainingError('OPENING_NOT_FOUND', `no opening ${eco} in the profile`)
+    const engineLines: Record<string, string[]> = {}
+    for (const deviation of entry.deviations.slice(0, 2)) {
+      const fen = `${deviation.epd} 0 1`
+      engineLines[deviation.epd] = await this.engineLines(fen)
+    }
     const text = await this.runTurn({
-      text: openingLessonText({ entry, language: this.language() }),
+      text: openingLessonText({
+        entry,
+        language: this.language(),
+        profile: this.deps.profile.get(),
+        engineLines
+      }),
       activity: { kind: 'lesson', ref: eco }
     })
     if (text.length === 0)
@@ -511,9 +725,10 @@ export class TrainingService {
 
   /** The analysed matches of the archive, newest first; drills never enter here. */
   private async analysedGames(): Promise<Game[]> {
+    const retired = new Set(this.deps.profile.get().retiredGameIds)
     const rows = this.deps.games
       .list({ kind: 'match', status: 'finished' })
-      .filter((row) => Boolean(row.accuracy))
+      .filter((row) => !retired.has(row.id) && Boolean(row.accuracy))
     const games: Game[] = []
     for (const row of rows) {
       const game = await this.deps.games.get(row.id).catch(() => null)
@@ -635,7 +850,8 @@ export class TrainingService {
         catalogue,
         profile: this.deps.profile.get(),
         language: this.language(),
-        labels: this.catalogueLabels(catalogue)
+        labels: this.catalogueLabels(catalogue),
+        practice: this.practiceSummaries()
       }),
       outputSchema: planSchema(catalogue),
       activity: { kind: 'lesson', ref: null }
@@ -648,7 +864,11 @@ export class TrainingService {
     const labels: Record<string, string> = {}
     const language = this.language()
     for (const endgame of this.endgamePositions()) {
-      if (catalogue.endgames.includes(endgame.id)) labels[endgame.id] = endgame.name[language]
+      if (catalogue.endgames.includes(endgame.id)) {
+        const record = this.deps.exercises.get(endgameExerciseId(endgame.id))
+        labels[endgame.id] =
+          `${endgame.name[language]} · ${language === 'it' ? 'obiettivo' : 'goal'} ${endgame.goal} · ${language === 'it' ? 'difficoltà' : 'difficulty'} ${endgame.difficulty} · ${record?.status ?? 'new'} · ${record?.attempts ?? 0} ${language === 'it' ? 'partite avviate' : 'games started'}`
+      }
     }
     const openings = this.deps.profile.get().openingStats
     for (const eco of catalogue.openings) {
@@ -659,7 +879,7 @@ export class TrainingService {
       const exercise = this.deps.exercises.get(id)
       if (exercise)
         labels[id] =
-          `${exercise.theme}${exercise.sourcePly ? ` · ${language === 'it' ? 'semimossa' : 'ply'} ${exercise.sourcePly}` : ''}`
+          `${exercise.theme}${exercise.sourcePly ? ` · ${language === 'it' ? 'semimossa' : 'ply'} ${exercise.sourcePly}` : ''} · ${exercise.status} · ${exercise.attempts} ${language === 'it' ? 'mosse provate' : 'move attempts'}${exercise.rating ? ` · rating ${exercise.rating}` : ''}`
     }
     return labels
   }

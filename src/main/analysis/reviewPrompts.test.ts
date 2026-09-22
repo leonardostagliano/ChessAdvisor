@@ -1,3 +1,4 @@
+import { Chess } from 'chess.js'
 import type { Game, Move } from '@shared/types/game'
 import { describe, expect, it } from 'vitest'
 import type { EngineContext } from '../game/coachPrompts'
@@ -123,6 +124,53 @@ describe('lessonText', () => {
     expect(text).toContain('Momenti chiave')
     expect(text).toContain('1. e4')
     expect(text).toContain('esattamente tre')
+  })
+
+  it('grounds lessons in legal variations and keeps Black scores and terminal wins correct', () => {
+    const chess = new Chess(FEN_AFTER)
+    chess.move('e5')
+    const evalData = {
+      before: { cp: 0 },
+      after: { cp: -200 },
+      cpLoss: 200,
+      winPercentLoss: 15,
+      classification: 'mistake' as const,
+      bestMove: 'c7c5',
+      bestLine: ['c7c5', 'g1f3']
+    }
+    const position = game({
+      userColor: 'b',
+      startFen: FEN_AFTER,
+      moves: [
+        move({
+          ply: 1,
+          san: 'e5',
+          uci: 'e7e5',
+          fenAfter: chess.fen(),
+          eval: evalData
+        })
+      ]
+    })
+    const text = lessonText({ game: position, language: 'en', pgn: '1... e5' })
+    expect(text).toContain('after, White perspective +2.00')
+    expect(text).toContain('Calculated continuation: c5 Nf3')
+    expect(text).toContain('FEN: ' + FEN_AFTER)
+    const mateFen = '8/8/8/8/8/6k1/5q2/7K b - - 0 1'
+    const mate = new Chess(mateFen)
+    mate.move('Qg2#')
+    position.startFen = mateFen
+    position.moves = [
+      move({
+        ply: 1,
+        san: 'Qg2#',
+        uci: 'f2g2',
+        fenAfter: mate.fen(),
+        eval: { ...evalData, after: { mate: 0 }, bestMove: 'f2g2', bestLine: ['f2g2'] }
+      })
+    ]
+    expect(lessonText({ game: position, language: 'en', pgn: '1... Qg2#' })).toContain(
+      'mate in 0 for Black'
+    )
   })
 
   it('tells the model it has no engine numbers when the game was never analysed', () => {

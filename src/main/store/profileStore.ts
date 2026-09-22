@@ -51,6 +51,7 @@ const isoString = (value: unknown, fallback: string): string =>
 function clone(profile: Profile): Profile {
   return {
     ...profile,
+    retiredGameIds: [...profile.retiredGameIds],
     ...(profile.adaptive ? { adaptive: { ...profile.adaptive } } : {}),
     level: { ...profile.level },
     ...(profile.qualitative
@@ -85,6 +86,16 @@ function sanitizeStrings(raw: unknown): string[] {
 export function sanitizeProfile(raw: unknown): Profile {
   const profile: Profile = clone(EMPTY_PROFILE)
   if (!isRecord(raw)) return profile
+
+  if (typeof raw.learningPolicyVersion === 'number' && Number.isFinite(raw.learningPolicyVersion))
+    profile.learningPolicyVersion = Math.max(0, Math.round(raw.learningPolicyVersion))
+  if (Array.isArray(raw.retiredGameIds)) {
+    profile.retiredGameIds = [
+      ...new Set(
+        raw.retiredGameIds.filter((id): id is string => typeof id === 'string' && id.length > 0)
+      )
+    ]
+  }
 
   const adaptive = raw.adaptive
   if (isRecord(adaptive) && typeof adaptive.elo === 'number' && Number.isFinite(adaptive.elo)) {

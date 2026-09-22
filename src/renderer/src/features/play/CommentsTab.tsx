@@ -25,9 +25,10 @@ export function uncommentedMoves(game: Game | null | undefined): Move[] {
 
 export interface CommentsTabProps {
   session: SessionState
+  showQuality?: boolean
 }
 
-export function CommentsTab({ session }: CommentsTabProps): React.JSX.Element {
+export function CommentsTab({ session, showQuality = true }: CommentsTabProps): React.JSX.Element {
   const { t } = useTranslation()
   const setCommentsVisible = useGameStore((state) => state.setCommentsVisible)
   const commentSkipped = useGameStore((state) => state.commentSkipped)
@@ -93,7 +94,8 @@ export function CommentsTab({ session }: CommentsTabProps): React.JSX.Element {
               <CommentCard
                 key={`${move.ply}-${move.uci}`}
                 text={move.coachComment ?? ''}
-                move={{ san: move.san, by: move.by }}
+                move={move}
+                showQuality={showQuality}
                 language={move.coachCommentLanguage ?? null}
               />
             ))}

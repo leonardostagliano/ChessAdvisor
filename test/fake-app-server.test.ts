@@ -544,7 +544,12 @@ FEN: ${OPENING_FEN}`,
       ratingMax: number
       motivation: string
     }
-    expect(pick).toEqual({ theme: 'fork', ratingMin: 800, ratingMax: 1200, motivation: 'fake' })
+    expect(pick).toEqual({
+      theme: 'fork',
+      ratingMin: 800,
+      ratingMax: 1200,
+      motivation: 'Allena gli attacchi doppi: cerca due bersagli con una sola mossa.'
+    })
 
     const catalogue = {
       themes: ['fork', 'pin', 'back_rank'],

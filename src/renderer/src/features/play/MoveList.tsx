@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Move } from '@shared/types/game'
+import { moveQuality } from './moveQuality'
 import { cx } from '../../components/ui/cx'
 import styles from './PlayScreen.module.css'
 
@@ -13,6 +14,7 @@ import styles from './PlayScreen.module.css'
 
 export interface MoveListProps {
   moves: Move[]
+  showQuality?: boolean
   /** Ply shown on the board; `null` is the live position, `-1` the position before move 1. */
   browsePly: number | null
   onSelect(ply: number | null): void
@@ -56,7 +58,12 @@ export function moveRows(moves: Move[]): MoveRow[] {
   return rows
 }
 
-export function MoveList({ moves, browsePly, onSelect }: MoveListProps): React.JSX.Element {
+export function MoveList({
+  moves,
+  browsePly,
+  onSelect,
+  showQuality = true
+}: MoveListProps): React.JSX.Element {
   const { t } = useTranslation()
   const listRef = useRef<HTMLDivElement>(null)
   const rows = moveRows(moves)
@@ -91,6 +98,16 @@ export function MoveList({ moves, browsePly, onSelect }: MoveListProps): React.J
               const entry = row[side]
               if (!entry) return <span key={side} className={styles.moveEmpty} aria-hidden="true" />
               const { ply, move } = entry
+              const quality = showQuality ? moveQuality(move) : null
+              const classification = quality?.evaluation.classification
+              const qualityLabel = classification
+                ? t(`review.classification.${classification}`)
+                : null
+              const qualityTitle = qualityLabel
+                ? quality?.quick
+                  ? t('play.qualityQuickTitle', { classification: qualityLabel })
+                  : qualityLabel
+                : null
               return (
                 <button
                   key={side}
@@ -100,6 +117,32 @@ export function MoveList({ moves, browsePly, onSelect }: MoveListProps): React.J
                   onClick={() => onSelect(ply === livePly ? null : ply)}
                 >
                   <span className="mono">{move.san}</span>
+                  {classification && qualityTitle ? (
+                    <span
+                      className={cx(
+                        styles.qualityBadge,
+                        styles[`quality_${classification}` as const]
+                      )}
+                      title={qualityTitle}
+                      aria-label={qualityTitle}
+                      data-testid="move-quality-badge"
+                      data-quality-source={quality?.quick ? 'live' : 'final'}
+                    >
+                      {classification === 'book'
+                        ? '≡'
+                        : classification === 'best'
+                          ? '★'
+                          : classification === 'excellent'
+                            ? '!'
+                            : classification === 'good'
+                              ? '·'
+                              : classification === 'inaccuracy'
+                                ? '?!'
+                                : classification === 'mistake'
+                                  ? '?'
+                                  : '??'}
+                    </span>
+                  ) : null}
                   {move.fallback ? (
                     <span
                       className={styles.moveFlag}

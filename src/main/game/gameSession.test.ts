@@ -123,9 +123,15 @@ class FakeCodex implements SessionCodex {
     return this.catalogue
   }
 
-  /** The next turn hangs until `interrupt` resolves it. */
+  /** The next turn hangs until `interrupt` or `releaseHeld` resolves it. */
   hold(): void {
     this.holding = true
+  }
+
+  releaseHeld(result: TurnResult): void {
+    const pending = this.pending
+    this.pending = null
+    pending?.(result)
   }
 
   /** Holds the opponent thread while allowing the independent coach thread to answer. */
@@ -153,12 +159,12 @@ class FakeCodex implements SessionCodex {
       : schema.includes('answer')
         ? JSON.stringify({ answer: 'Risposta finta.', move: null })
         : schema.includes('reason')
-        ? JSON.stringify({ move: moves[0]?.san ?? 'resign', reason: 'occupa il centro' })
-        : schema.includes('move')
-          ? JSON.stringify({ move: moves[0]?.san ?? 'resign', shortComment: 'ok' })
-          : req.text.includes('Domanda:')
-            ? 'Risposta finta.'
-            : 'Commento finto.'
+          ? JSON.stringify({ move: moves[0]?.san ?? 'resign', reason: 'occupa il centro' })
+          : schema.includes('move')
+            ? JSON.stringify({ move: moves[0]?.san ?? 'resign', shortComment: 'ok' })
+            : req.text.includes('Domanda:')
+              ? 'Risposta finta.'
+              : 'Commento finto.'
     return {
       ok: true,
       text,
@@ -274,8 +280,8 @@ describe('GameSession', () => {
     expect(moves[1]!.epdAfter).toBe(epdOf(moves[1]!.fenAfter))
     expect(state.userToMove).toBe(true)
     expect(state.ai.thinking).toBe(false)
-    // One write for the user move, one for the AI answer.
-    expect(save).toHaveBeenCalledTimes(2)
+    // Moves persist immediately; completed live grades also autosave.
+    expect(save.mock.calls.length).toBeGreaterThanOrEqual(2)
     expect(await store.get(state.game!.id)).toMatchObject({
       moves: [expect.anything(), expect.anything()]
     })
@@ -285,6 +291,90 @@ describe('GameSession', () => {
       'FEN: rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1'
     )
     expect(codex.requests[0]!.text).toContain('PGN: 1. e4')
+  })
+
+  it('publishes and persists quality for both players before any post-game review', async () => {
+    await session.newGame(options())
+    await session.userMove('e2e4')
+    await vi.waitFor(() =>
+      expect(session.state().game!.moves.every((move) => move.liveEval)).toBe(true)
+    )
+    const id = session.state().game!.id
+    await session.close()
+    const saved = await store.get(id)
+    expect(saved!.moves.map((move) => move.liveEval?.classification)).toHaveLength(2)
+    expect(saved!.moves.every((move) => move.liveEval && !move.eval)).toBe(true)
+  })
+
+  it('supports disabling feedback and enabling it during an existing game', async () => {
+    await settings.save({ liveMoveFeedback: false })
+    await session.newGame(options())
+    await session.userMove('e2e4')
+    expect(session.state().game!.moves.every((move) => !move.liveEval)).toBe(true)
+    await settings.save({ liveMoveFeedback: true })
+    await vi.waitFor(() => expect(session.state().game!.moves.at(-1)!.liveEval).toBeDefined())
+    expect(session.state().game!.moves[0].liveEval).toBeUndefined()
+  })
+
+  it('marks unavailable feedback without inventing a grade', async () => {
+    await build(fakeEngine(false))
+    await session.newGame(options())
+    await session.userMove('e2e4')
+    expect(session.state().game!.moves[0]).toMatchObject({ liveEvalStatus: 'unavailable' })
+    expect(session.state().game!.moves[0].liveEval).toBeUndefined()
+  })
+
+  it('finishes with unavailable feedback instead of persisting a timed-out pending grade', async () => {
+    const engine = fakeEngine()
+    const analyze = engine.analyze
+    const afterE4 = applyMove(START_FEN, 'e2e4')!.fen
+    let release!: (analysis: Analysis) => void
+    engine.analyze = async (fen, profile, opts) =>
+      fen === afterE4
+        ? new Promise<Analysis>((resolve) => {
+            release = resolve
+          })
+        : analyze(fen, profile, opts)
+    await build(engine)
+    await session.newGame(options())
+    const moving = session.userMove('e2e4')
+    await vi.waitFor(() => expect(session.state().game!.moves[0]?.liveEvalStatus).toBe('pending'))
+    const finished = await session.resign()
+    expect((await store.get(finished.game!.id))!.moves[0].liveEvalStatus).toBe('unavailable')
+    release(await analyze(afterE4, 'feedback'))
+    await moving
+    expect(session.state().game!.moves[0].liveEval).toBeUndefined()
+    expect((await store.get(finished.game!.id))!.moves[0].liveEvalStatus).toBe('unavailable')
+  })
+
+  it('cancels preparatory opponent search before waiting for model interruption on takeback', async () => {
+    const engine = fakeEngine()
+    const analyze = engine.analyze
+    let release!: (analysis: Analysis) => void
+    let signal: AbortSignal | undefined
+    let searchedFen = ''
+    engine.analyze = async (fen, profile, opts) => {
+      if (profile === 'opponent-medium') {
+        signal = opts?.signal
+        searchedFen = fen
+        return new Promise<Analysis>((resolve) => {
+          release = resolve
+        })
+      }
+      return analyze(fen, profile, opts)
+    }
+    await build(engine)
+    await session.newGame(options())
+    const moving = session.userMove('e2e4')
+    await vi.waitFor(() => expect(signal).toBeDefined())
+    vi.spyOn(codex, 'interrupt').mockImplementationOnce(async () => {
+      expect(signal!.aborted).toBe(true)
+      release(await analyze(searchedFen, 'opponent-medium'))
+    })
+    await session.takeback()
+    await moving
+    expect(codex.requests).toHaveLength(0)
+    expect(session.state().game!.moves).toHaveLength(0)
   })
 
   it('lets the AI open when the user plays Black', async () => {
@@ -449,6 +539,49 @@ describe('GameSession', () => {
     const answer = await session.offerDraw()
     expect(answer.accepted).toBe(true)
     expect(session.state().game!.result).toEqual({ outcome: '1/2-1/2', reason: 'draw_agreed' })
+  })
+
+  it('ignores an accepted draw offer that resolves after a new game starts', async () => {
+    const first = await session.newGame(options())
+    codex.hold()
+    const offer = session.offerDraw()
+    await vi.waitFor(() => expect(codex.requests.at(-1)?.outputSchema).toBeTruthy())
+
+    const second = await session.newGame(options())
+    expect(second.game!.id).not.toBe(first.game!.id)
+    codex.releaseHeld({
+      ok: true,
+      text: JSON.stringify({ accept: true, reason: 'accetto' }),
+      turnId: 'late-draw',
+      effectiveModel: null,
+      durationMs: 1
+    })
+
+    expect(await offer).toEqual({ accepted: false, reason: '' })
+    expect(session.state().game!.id).toBe(second.game!.id)
+    expect(session.state().game!.status).toBe('in_progress')
+    expect(session.state().game!.result).toBeUndefined()
+  })
+
+  it('ignores an accepted draw offer after the position has changed', async () => {
+    await session.newGame(options())
+    codex.hold()
+    const offer = session.offerDraw()
+    await vi.waitFor(() => expect(codex.requests.at(-1)?.outputSchema).toBeTruthy())
+
+    await session.userMove('e2e4')
+    codex.releaseHeld({
+      ok: true,
+      text: JSON.stringify({ accept: true, reason: 'accetto' }),
+      turnId: 'late-draw',
+      effectiveModel: null,
+      durationMs: 1
+    })
+
+    expect(await offer).toEqual({ accepted: false, reason: '' })
+    expect(session.state().game!.moves).toHaveLength(2)
+    expect(session.state().game!.status).toBe('in_progress')
+    expect(session.state().game!.result).toBeUndefined()
   })
 
   it('pauses the game when the quota runs out', async () => {
@@ -918,9 +1051,7 @@ describe('GameSession', () => {
       const pendingHint = session.requestHint()
       await vi.waitFor(() => expect(session.state().coach.busy).toBe(true))
       await session.userMove(legalMoves(session.state().fen)[0]!.uci)
-      codex.releaseCoach(
-        JSON.stringify({ move: hintedMove, reason: 'mossa ormai vecchia' })
-      )
+      codex.releaseCoach(JSON.stringify({ move: hintedMove, reason: 'mossa ormai vecchia' }))
       await pendingHint
 
       expect(session.state().coach.hint).toBeNull()

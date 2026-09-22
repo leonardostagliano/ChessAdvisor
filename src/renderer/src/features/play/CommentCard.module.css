@@ -39,6 +39,35 @@
   font-size: 9px;
 }
 
+.quality {
+  padding: 1px 6px;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 650;
+}
+
+.quality_book {
+  color: var(--text-3);
+}
+.quality_best,
+.quality_excellent {
+  color: var(--eval-good);
+}
+.quality_good {
+  color: var(--text-2);
+}
+.quality_inaccuracy {
+  color: var(--accent);
+}
+.quality_mistake {
+  color: color-mix(in srgb, var(--eval-bad) 70%, var(--accent));
+}
+.quality_blunder {
+  color: var(--eval-bad);
+}
+
 .text {
   overflow-wrap: anywhere;
   color: var(--text);

@@ -50,11 +50,63 @@ function newestFirst(a: GameSummary, b: GameSummary): number {
 }
 
 /**
+ * Finished games can be enriched by independent async owners: the session writes late coach
+ * comments while the review pipeline writes evaluations, themes and the lesson. Each owner may
+ * have read the game before the other saved, so queue ordering alone cannot make its snapshot
+ * current. Merge the append-only enrichments once the queued write reaches disk.
+ */
+function mergeFinishedGame(current: Game, incoming: Game): Game {
+  const moves = incoming.moves.map((move, index) => {
+    const saved = current.moves[index]
+    if (!saved || saved.ply !== move.ply || saved.uci !== move.uci) return move
+    const merged = { ...saved, ...move }
+    // A completed grade supersedes a stale pending/unavailable marker from another snapshot.
+    if (merged.liveEval) delete merged.liveEvalStatus
+    return merged
+  })
+
+  const coachLog = [...current.coachLog]
+  const logIds = new Set(coachLog.map((entry) => entry.id))
+  for (const entry of incoming.coachLog) {
+    const index = coachLog.findIndex((saved) => saved.id === entry.id)
+    if (index >= 0) coachLog[index] = entry
+    else if (!logIds.has(entry.id)) {
+      coachLog.push(entry)
+      logIds.add(entry.id)
+    }
+  }
+  coachLog.sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id))
+
+  const analysis =
+    incoming.analysis && current.analysis
+      ? {
+          ...current.analysis,
+          ...incoming.analysis,
+          ...((incoming.analysis.lesson ?? current.analysis.lesson)
+            ? { lesson: incoming.analysis.lesson ?? current.analysis.lesson! }
+            : {})
+        }
+      : (incoming.analysis ?? current.analysis)
+
+  return {
+    ...current,
+    ...incoming,
+    moves,
+    coachLog,
+    ...(analysis ? { analysis } : {}),
+    ...((incoming.opening ?? current.opening)
+      ? { opening: incoming.opening ?? current.opening! }
+      : {})
+  }
+}
+
+/**
  * One JSON file per game under `dir`, written atomically, plus an in-memory index so the
  * archive list never has to read every game back.
  */
 export class GameStore {
   private readonly index = new Map<string, GameSummary>()
+  private readonly writes = new Map<string, Promise<void>>()
 
   /** `now` is injectable so tests can pin createdAt/updatedAt; production uses the wall clock. */
   constructor(
@@ -140,11 +192,28 @@ export class GameStore {
   /** Stamps `updatedAt` on the caller's object (the session keeps using it) and writes it. */
   async save(game: Game): Promise<void> {
     game.updatedAt = this.stamp()
-    await writeJsonAtomic(this.file(game.id), game)
-    this.index.set(game.id, summaryOf(game))
+    let snapshot = structuredClone(game)
+    const previous = this.writes.get(game.id) ?? Promise.resolve()
+    const writing = previous
+      .catch(() => undefined)
+      .then(async () => {
+        if (snapshot.status === 'finished') {
+          const current = await this.get(snapshot.id)
+          if (current?.status === 'finished') snapshot = mergeFinishedGame(current, snapshot)
+        }
+        await writeJsonAtomic(this.file(snapshot.id), snapshot)
+        this.index.set(snapshot.id, summaryOf(snapshot))
+      })
+    this.writes.set(game.id, writing)
+    try {
+      await writing
+    } finally {
+      if (this.writes.get(game.id) === writing) this.writes.delete(game.id)
+    }
   }
 
   async delete(id: string): Promise<void> {
+    await this.writes.get(id)?.catch(() => undefined)
     await fsp.rm(this.file(id), { force: true }).catch(() => undefined)
     this.index.delete(id)
   }

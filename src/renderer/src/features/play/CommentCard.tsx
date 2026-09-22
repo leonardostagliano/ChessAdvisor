@@ -1,8 +1,10 @@
 import { useTranslation } from 'react-i18next'
 import type { Language } from '@shared/types/settings'
+import type { Move } from '@shared/types/game'
 import { cx } from '../../components/ui/cx'
 import { useUiStore } from '../../stores/uiStore'
 import styles from './CommentCard.module.css'
+import { moveQuality } from './moveQuality'
 
 /**
  * One thing the coach said (spec §4.2): a comment on a move, an answer to a question, a hint.
@@ -15,7 +17,8 @@ import styles from './CommentCard.module.css'
 export interface CommentCardProps {
   text: string
   /** Move the comment is about; absent for an answer or a hint. */
-  move?: { san: string; by: 'user' | 'ai' } | null
+  move?: Pick<Move, 'san' | 'by' | 'eval' | 'liveEval'> | null
+  showQuality?: boolean
   /** Language the text was written in. */
   language?: Language | null
   /** Eyebrow above the prose: the question that was asked, "Coach", "Suggerimento". */
@@ -30,6 +33,7 @@ export function CommentCard({
   move,
   language,
   title,
+  showQuality = true,
   streaming = false,
   className
 }: CommentCardProps): React.JSX.Element {
@@ -37,6 +41,14 @@ export function CommentCard({
   const uiLanguage = useUiStore((state) => state.language)
   const foreign = !!language && language !== uiLanguage
   const body = text.length > 0 ? text : streaming ? t('coach.writing') : ''
+  const quality = move && showQuality ? moveQuality(move) : null
+  const classification = quality?.evaluation.classification
+  const classificationLabel = classification ? t(`review.classification.${classification}`) : null
+  const qualityTitle = classificationLabel
+    ? quality?.quick
+      ? t('play.qualityQuickTitle', { classification: classificationLabel })
+      : classificationLabel
+    : null
 
   return (
     // While the text streams in, the card is a polite live region: a screen reader is told the
@@ -53,6 +65,17 @@ export function CommentCard({
               title={move.by === 'ai' ? t('opponent.title') : t('play.you')}
             >
               {move.san}
+            </span>
+          ) : null}
+          {classification && qualityTitle ? (
+            <span
+              className={cx(styles.quality, styles[`quality_${classification}` as const])}
+              title={qualityTitle}
+              aria-label={qualityTitle}
+              data-testid="move-quality-badge"
+              data-quality-source={quality?.quick ? 'live' : 'final'}
+            >
+              {classificationLabel}
             </span>
           ) : null}
           {title ? <span className={styles.title}>{title}</span> : null}

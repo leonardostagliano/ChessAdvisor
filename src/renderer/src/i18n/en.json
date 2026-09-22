@@ -47,7 +47,11 @@
     "comments": "Comments",
     "coach": "Coach",
     "clockYou": "Your clock",
-    "clockOpponent": "Opponent clock"
+    "clockOpponent": "Opponent clock",
+    "qualityQuickTitle": "{{classification}} · quick evaluation",
+    "qualityPending": "Evaluating the move…",
+    "qualityUnavailable": "Move evaluation unavailable",
+    "qualitySettingFailed": "The preference could not be saved."
   },
   "empty": {
     "note": "available after your first analysed game",
@@ -74,6 +78,8 @@
     "languageHint": "Interface labels change immediately.",
     "languageIt": "Italian",
     "languageEn": "English",
+    "liveMoveFeedback": "Move evaluation",
+    "liveMoveFeedbackHint": "Show Stockfish’s judgement on the board, in the move list and in comments.",
     "models": "Models",
     "modelsHint": "Preselection of the New game dialog; difficulty stays independent.",
     "defaultModel": "Default model",

@@ -177,6 +177,33 @@ describe('opponentTurnText', () => {
     expect(text).toContain('PGN: 1. e4 e5 2. Nf3 Nc6')
     expect(text).toContain('Legal moves (SAN = UCI): ')
   })
+
+  it('presents every database continuation as incomplete non-binding context', () => {
+    const legal = legalMoves(START_FEN)
+    const text = opponentTurnText({
+      lastUserMove: null,
+      fen: START_FEN,
+      pgn: '',
+      legal,
+      opening: {
+        current: { eco: 'A00', name: 'Starting position' },
+        continuations: [
+          { san: 'd4', uci: 'd2d4', eco: 'A40', name: "Queen's Pawn Game" },
+          { san: 'e4', uci: 'e2e4', eco: 'B00', name: "King's Pawn Game" }
+        ]
+      },
+      takebackNotice: null,
+      language: 'en'
+    })
+
+    expect(text).toContain('A00 — Starting position')
+    expect(text).toContain("d4 (d2d4) → A40 — Queen's Pawn Game")
+    expect(text).toContain("e4 (e2e4) → B00 — King's Pawn Game")
+    expect(text).toContain('archive is incomplete')
+    expect(text).toContain('not restricted to the listed continuations')
+    expect(text).toContain('prioritize the current position and your own calculation')
+    expect(text).toContain('Nf3 = g1f3')
+  })
 })
 
 describe('output schemas', () => {

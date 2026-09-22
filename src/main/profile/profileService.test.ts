@@ -284,6 +284,17 @@ describe('ProfileService', () => {
     expect(codex.requests).toHaveLength(calls)
   })
 
+  it('does not learn from a retired game when it is analysed again', async () => {
+    const game = await saved(['e4', 'e5', 'Nf3'])
+    await profile.update({ retiredGameIds: [game.id] })
+
+    await service.onGameAnalyzed(game)
+
+    expect(service.get().history).toEqual([])
+    expect(service.get().themeStats).toEqual({})
+    expect(service.get().openingStats).toEqual({})
+    expect(codex.requests).toHaveLength(0)
+  })
   it('ignores an endgame drill and a game that was never analysed (spec §6.7)', async () => {
     const drill = await saved(['e4'], { kind: 'endgame_drill' })
     await service.onGameAnalyzed(drill)

@@ -1,6 +1,6 @@
 import { Chess } from 'chess.js'
 import { applyMove, epdOf, legalMoves } from '@shared/chess/notation'
-import type { Analysis } from '@shared/types/engine'
+import type { Analysis, AnalysisProfile } from '@shared/types/engine'
 import type { Game, Move, MoveClassification } from '@shared/types/game'
 import type { Exercise } from '@shared/types/training'
 import { describe, expect, it } from 'vitest'
@@ -23,10 +23,12 @@ const MIDDLEGAME = 'r1bqkb1r/pppp1ppp/2n2n2/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQk
  */
 class FakeEngine implements ExerciseEngine {
   readonly calls: string[] = []
+  readonly profiles: AnalysisProfile[] = []
 
   constructor(private readonly plan: { score: number; gaps?: number[] }[]) {}
 
-  async analyze(fen: string): Promise<Analysis> {
+  async analyze(fen: string, profile: AnalysisProfile): Promise<Analysis> {
+    this.profiles.push(profile)
     const step = this.plan[Math.min(this.calls.length, this.plan.length - 1)] ?? { score: 0 }
     this.calls.push(fen)
     const moves = legalMoves(fen)
@@ -169,6 +171,7 @@ describe('buildExercise', () => {
     expect(exercise!.kind).toBe('own_game')
     expect(exercise!.sourcePly).toBe(7)
     expect(exercise!.status).toBe('new')
+    expect(new Set(engine.profiles)).toEqual(new Set(['coach']))
   })
 
   it('records an equally good second line as an alternative', async () => {
@@ -180,6 +183,53 @@ describe('buildExercise', () => {
     expect(exercise!.alternatives).toHaveLength(1)
     expect(exercise!.alternatives![0]).toHaveLength(1)
     expect(exercise!.alternatives![0]![0]).not.toBe(exercise!.solution[0])
+  })
+
+  it('records and accepts every returned legal near-equivalent answer', async () => {
+    const engine = new FakeEngine([
+      { score: 300, gaps: [10, 20] },
+      { score: 300, gaps: [400] }
+    ])
+    const exercise = await buildExercise(candidateOf(MIDDLEGAME), engine, { now: () => 0 })
+    expect(exercise?.alternatives).toHaveLength(2)
+    for (const line of exercise!.alternatives!) {
+      const attempt = judgeAttempt(exercise!, startProgress(exercise!), line[0]!)
+      expect(attempt.result).toMatchObject({
+        correct: true,
+        done: true,
+        alternativesAccepted: true
+      })
+    }
+  })
+
+  it('ignores malformed and duplicate engine lines instead of inventing ambiguity', async () => {
+    const engine: ExerciseEngine = {
+      analyze: async (fen, profile) => {
+        expect(profile).toBe('coach')
+        const moves = legalMoves(fen)
+        const best = moves[0]!
+        const after = applyMove(fen, best.uci)
+        const reply = after ? legalMoves(after.fen)[0] : undefined
+        return {
+          fen,
+          bestMove: best.uci,
+          depth: 20,
+          lines: [
+            {
+              move: best.uci,
+              pv: reply ? [best.uci, reply.uci] : [best.uci],
+              scoreCp: 300,
+              depth: 20
+            },
+            { move: 'not-a-move', pv: [], scoreCp: 299, depth: 20 },
+            { move: best.san, pv: [best.uci], scoreCp: 298, depth: 20 }
+          ]
+        }
+      }
+    }
+    const exercise = await buildExercise(candidateOf(MIDDLEGAME), engine, { now: () => 0 })
+    expect(exercise).not.toBeNull()
+    expect(exercise?.alternatives).toBeUndefined()
   })
 
   it('discards a position with more than two equally good moves', async () => {
@@ -194,6 +244,19 @@ describe('buildExercise', () => {
     ])
     const exercise = await buildExercise(candidateOf(MIDDLEGAME), engine, { now: () => 0 })
     expect(exercise!.solution).toHaveLength(2)
+  })
+
+  it('refuses an invalid scored principal move instead of attaching its score elsewhere', async () => {
+    const fallback = legalMoves(MIDDLEGAME)[0]!
+    const engine: ExerciseEngine = {
+      analyze: async (fen) => ({
+        fen,
+        bestMove: fallback.uci,
+        depth: 20,
+        lines: [{ move: 'not-a-move', pv: [], scoreCp: 500, depth: 20 }]
+      })
+    }
+    expect(await buildExercise(candidateOf(MIDDLEGAME), engine, { now: () => 0 })).toBeNull()
   })
 
   it('answers null when the engine has nothing to say', async () => {

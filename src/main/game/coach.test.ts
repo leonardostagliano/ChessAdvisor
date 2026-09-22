@@ -11,6 +11,7 @@ import { CoachSession, type CoachLogEntry } from './coach'
 import type { SessionCodex, SessionEngine } from './gameSession'
 
 const START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
+const BLACK_MATED = '8/8/8/8/8/6k1/6q1/7K w - - 0 1'
 const AFTER_E4 = 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1'
 
 /** A game with one move played, the minimum a comment needs. */
@@ -164,6 +165,59 @@ describe('CoachSession', () => {
     expect(codex.started[0]!.baseInstructions).not.toMatch(/senza oracolo/)
   })
 
+  it('uses the badge judgement that arrives during preparation and a concrete reply', async () => {
+    const match = game()
+    match.moves[0].liveEval = {
+      before: { cp: 20 },
+      after: { cp: -500 },
+      cpLoss: 520,
+      winPercentLoss: 38,
+      classification: 'blunder',
+      bestMove: 'd2d4',
+      bestLine: ['d2d4'],
+      depth: 16,
+      assessedAt: '2026-09-22T00:00:00Z'
+    }
+    const grade = match.moves[0].liveEval
+    delete match.moves[0].liveEval
+    const analyze = engine.analyze
+    engine.analyze = async (fen, profile, opts) => {
+      const result = await analyze(fen, profile, opts)
+      if (fen === AFTER_E4) match.moves[0].liveEval = grade
+      return result
+    }
+    await coach.start(match, { language: 'it' })
+    await coach.commentOn(match, 1, { fenBefore: START_FEN, fenAfter: AFTER_E4, pgn: '1. e4 *' })
+    expect(codex.requests[0].text).toContain('Classificazione: errore grave')
+    expect(codex.requests[0].text).toContain('Valutazione dopo: -5.00')
+    expect(codex.requests[0].text).toContain('Risposta più forte dopo la mossa giocata:')
+    expect(codex.requests[0].text).toContain('stessa mostrata nel badge')
+  })
+
+  it('keeps a terminal mate for Black when the engine reports mate zero', async () => {
+    const terminal = fakeEngine()
+    const normalAnalyze = terminal.analyze
+    terminal.analyze = async (fen, profile) =>
+      fen === BLACK_MATED
+        ? {
+            bestMove: null,
+            lines: [{ move: '', pv: [], scoreMate: 0, depth: 20 }],
+            depth: 20,
+            fen
+          }
+        : normalAnalyze(fen, profile)
+    build({ engine: terminal })
+    const match = game({
+      moves: [{ ply: 1, san: 'e4', uci: 'e2e4', fenAfter: BLACK_MATED, epdAfter: 'x', by: 'user' }]
+    })
+    await coach.start(match, { language: 'it' })
+
+    await coach.commentOn(match, 1, { fenBefore: START_FEN, fenAfter: BLACK_MATED, pgn: '1. e4 *' })
+
+    expect(codex.requests[0]!.text).toContain('matto in 0 per il Nero')
+    expect(codex.requests[0]!.text).toContain('ha vinto il Nero')
+  })
+
   it('uses the separate coach model and effort when Settings ask for it', async () => {
     await settings.save({ separateCoach: true, coachModel: 'gpt-5.5', coachEffort: 'low' })
     await coach.start(game(), { language: 'it' })
@@ -176,17 +230,30 @@ describe('CoachSession', () => {
   it('writes the oracle-less persona and skips the engine entirely when Stockfish is missing', async () => {
     const missing = fakeEngine(false)
     build({ engine: missing })
-    await coach.start(game(), { language: 'it' })
+    const match = game()
+    match.moves[0].liveEval = {
+      before: { cp: 20 },
+      after: { cp: -500 },
+      cpLoss: 520,
+      winPercentLoss: 38,
+      classification: 'blunder',
+      bestMove: 'd2d4',
+      bestLine: ['d2d4'],
+      depth: 16,
+      assessedAt: '2026-09-22T00:00:00Z'
+    }
+    await coach.start(match, { language: 'it' })
     expect(codex.started[0]!.baseInstructions).toMatch(/senza oracolo/)
 
-    const comment = await coach.commentOn(game(), 1, {
+    const comment = await coach.commentOn(match, 1, {
       fenBefore: START_FEN,
       fenAfter: AFTER_E4,
       pgn: '1. e4 *'
     })
     expect(comment).not.toBeNull()
     expect(missing.calls).toHaveLength(0)
-    expect(codex.requests[0]!.text).toMatch(/senza oracolo/)
+    expect(codex.requests[0]!.text).toContain('Classificazione: errore grave')
+    expect(codex.requests[0]!.text).toContain('Valutazione dopo: -5.00')
   })
 
   it('comments a move with the engine data and returns the text and the stream id', async () => {

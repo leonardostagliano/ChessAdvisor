@@ -15,15 +15,21 @@ import { movetext } from './prompts'
  */
 
 /** Stockfish material handed to the coach for one call; `null` is the oracle-less mode. */
+export type CoachEval = Eval & { mateWinner?: 'w' | 'b' }
+
 export interface EngineContext {
   /** Score of the position the move was played from, from White's point of view. */
-  evalBefore: Eval | null
+  evalBefore: CoachEval | null
   /** Score of the position after the move, from White's point of view. */
-  evalAfter: Eval | null
+  evalAfter: CoachEval | null
   /** Filled by the post-game pipeline (M3); in game the coach usually has no classification yet. */
   classification?: MoveClassification
   /** Best lines of the position the move was played from, best first. Moves are SAN. */
-  bestLines: { san: string; pv: string[]; eval: Eval }[]
+  bestLines: { san: string; pv: string[]; eval: CoachEval }[]
+  /** Concrete strongest continuation after the played move, never the private opponent plan. */
+  replyLines?: { san: string; pv: string[]; eval: CoachEval }[]
+  /** A checkmate FEN is authoritative when Stockfish reports mate in zero. */
+  terminal?: { winner: 'w' | 'b'; at: 'before' | 'after' }
 }
 
 export const COLOR_NAME: Record<'it' | 'en', { w: string; b: string }> = {
@@ -53,10 +59,15 @@ export const CLASSIFICATION_NAME: Record<'it' | 'en', Record<MoveClassification,
 }
 
 /** Pawns with a sign, or "matto in N": the notation a player reads on an evaluation bar. */
-export function formatEval(value: Eval | null | undefined, language: 'it' | 'en'): string {
+export function formatEval(value: CoachEval | null | undefined, language: 'it' | 'en'): string {
   if (!value) return language === 'it' ? 'non disponibile' : 'not available'
   if (typeof value.mate === 'number') {
-    const side = value.mate >= 0 ? COLOR_NAME[language].w : COLOR_NAME[language].b
+    const winner = 'mateWinner' in value ? value.mateWinner : undefined
+    const side = winner
+      ? COLOR_NAME[language][winner]
+      : value.mate >= 0
+        ? COLOR_NAME[language].w
+        : COLOR_NAME[language].b
     const plies = Math.abs(value.mate)
     return language === 'it' ? `matto in ${plies} per ${side}` : `mate in ${plies} for ${side}`
   }
@@ -91,6 +102,15 @@ export function engineBlock(
       : 'Stockfish data (evaluations from White’s point of view, in pawns):',
     `${it ? 'Valutazione prima' : 'Evaluation before'}: ${formatEval(engine.evalBefore, language)}`
   ]
+  if (engine.terminal) {
+    lines.push(
+      it
+        ? 'Posizione terminale: scacco matto; ha vinto ' +
+            COLOR_NAME.it[engine.terminal.winner] +
+            '.'
+        : 'Terminal position: checkmate; ' + COLOR_NAME.en[engine.terminal.winner] + ' won.'
+    )
+  }
   if (opts.withAfter) {
     lines.push(
       `${it ? 'Valutazione dopo' : 'Evaluation after'}: ${formatEval(engine.evalAfter, language)}`
@@ -111,6 +131,13 @@ export function engineBlock(
       const pv = line.pv.length > 0 ? line.pv.join(' ') : line.san
       lines.push(`${index + 1}. ${line.san} (${formatEval(line.eval, language)}) — ${pv}`)
     }
+  }
+  if (opts.withAfter && engine.replyLines?.length) {
+    lines.push(
+      it ? 'Risposta più forte dopo la mossa giocata:' : 'Strongest reply after the played move:'
+    )
+    for (const line of engine.replyLines)
+      lines.push(line.pv.join(' ') + ' (' + formatEval(line.eval, language) + ')')
   }
   return lines
 }
@@ -147,7 +174,7 @@ export function coachBaseInstructions(p: {
     lines.push(
       p.engineAvailable
         ? 'Quando il turno contiene i dati di Stockfish (valutazioni e varianti migliori) usali come base del tuo giudizio e traducili in parole: non contraddirli e non inventarne altri.'
-        : 'In questa partita lavori senza oracolo: non ricevi valutazioni né varianti di Stockfish, quindi ragiona sulla posizione con le tue forze e dichiara apertamente quando un giudizio è incerto.'
+        : 'Il motore non è disponibile per nuove ricerche. Se il turno contiene valutazioni già registrate, usale come base; altrimenti lavori senza oracolo e devi dichiarare apertamente quando un giudizio è incerto.'
     )
   } else {
     lines.push(
@@ -160,7 +187,7 @@ export function coachBaseInstructions(p: {
     lines.push(
       p.engineAvailable
         ? 'When the turn carries Stockfish data (evaluations and best lines) use it as the basis of your judgement and put it into words: never contradict it and never invent more of it.'
-        : 'In this game you work without the engine oracle: you receive no Stockfish evaluation and no best line, so reason on the position with your own eyes and say openly when a judgement is uncertain.'
+        : 'The engine is unavailable for new searches. If the turn provides recorded evaluations, use them as evidence; otherwise work without the engine oracle and say openly when a judgement is uncertain.'
     )
   }
   return lines.join('\n')
@@ -192,6 +219,9 @@ export function commentText(p: {
     ...positionBlock(p.fen, p.pgn, p.language),
     ...engineBlock(p.engine, p.language, { withAfter: true }),
     it
+      ? 'Usa la classificazione fornita anche per il giudizio scritto: è la stessa mostrata nel badge. Spiega il motivo tattico o strategico, confronta una alternativa concreta e la risposta più forte calcolata quando servono. Non inventare varianti; se i dati sono rapidi o incompleti, segnala l’incertezza. Le risposte calcolate sono possibilità della posizione, non intenzioni private dell’avversario.'
+      : 'Use the supplied classification for the written judgement too: it is the badge judgement. Explain the tactical or strategic reason, compare a concrete alternative and the calculated strongest reply when helpful. Do not invent variations; acknowledge uncertainty in fast or incomplete analysis. Calculated replies are possibilities in the position, not the opponent’s private intentions.',
+    it
       ? 'Scrivi da due a quattro frasi di testo semplice: che cosa fa questa mossa, che cosa cambia nella posizione e che cosa conviene tenere d’occhio adesso. Niente elenchi, niente JSON, nessun accenno al piano dell’avversario.'
       : 'Write two to four sentences of plain text: what the move does, what it changes in the position and what to watch now. No lists, no JSON, no hint about the opponent’s plan.'
   ]
@@ -216,6 +246,9 @@ export function adviceText(p: {
     ...positionBlock(p.fen, p.pgn, p.language),
     `${it ? 'Colore della persona' : 'Coached player color'}: ${COLOR_NAME[p.language][p.userColor]}`,
     ...engineBlock(p.engine, p.language, { withAfter: false }),
+    it
+      ? 'Confronta i candidati e la risposta più forte che compare nella variante prima di consigliare una mossa. Dai un’azione concreta, breve e adatta alla posizione; se le linee non bastano, dichiara l’incertezza invece di inventare continuazioni.'
+      : 'Compare the candidate moves and the strongest reply shown in each line before recommending a move. Give one concise, concrete action for this position; when the lines are insufficient, state the uncertainty instead of inventing continuations.',
     it
       ? 'Rispondi soltanto con il JSON richiesto. "answer" contiene due-quattro frasi concrete e utili subito, senza elenchi. "move" contiene una singola mossa legale in SAN soltanto se la risposta consiglia esplicitamente di giocarla adesso; per spiegazioni, valutazioni, consigli senza una mossa precisa e quando non è il turno della persona usa null. Non rivelare il piano dell’avversario.'
       : 'Answer with the requested JSON only. "answer" contains two to four concrete, immediately useful sentences, without lists. "move" contains one legal move in SAN only when the answer explicitly recommends playing it now; use null for explanations, evaluations, advice without a specific move, and whenever it is not the coached player’s turn. Do not reveal the opponent’s plan.'
@@ -250,6 +283,9 @@ export function hintText(p: {
       : 'Suggest to the person you coach the move to play now in this position.',
     ...positionBlock(p.fen, p.pgn, p.language),
     ...engineBlock(p.engine, p.language, { withAfter: false }),
+    it
+      ? 'Scegli il candidato che regge meglio alla risposta avversaria mostrata nella variante. Mantieni il motivo concreto e breve; se Stockfish non chiarisce la posizione, segnala l’incertezza senza inventare varianti.'
+      : 'Choose the candidate that holds up best against the opponent reply shown in its line. Keep the reason concrete and brief; if Stockfish does not settle the position, state the uncertainty without inventing variations.',
     it
       ? 'Rispondi soltanto con il JSON richiesto: "move" è la mossa in SAN, legale in questa posizione; "reason" è una frase breve che spiega perché. Non rivelare il piano dell’avversario.'
       : 'Answer with the requested JSON only: "move" is the move in SAN, legal in this position; "reason" is one short sentence explaining why. Do not reveal the opponent’s plan.'

@@ -14,9 +14,17 @@ export const PROFILES: Record<
   { depth: number; movetimeMs?: number; multipv: number }
 > = {
   live: { depth: 14, movetimeMs: 300, multipv: 1 },
+  feedback: { depth: 16, movetimeMs: 300, multipv: 1 },
+  'opponent-beginner': { depth: 10, movetimeMs: 300, multipv: 3 },
+  'opponent-easy': { depth: 12, movetimeMs: 500, multipv: 4 },
+  'opponent-medium': { depth: 15, movetimeMs: 800, multipv: 5 },
+  'opponent-challenging': { depth: 18, movetimeMs: 1500, multipv: 6 },
+  'opponent-strong': { depth: 20, movetimeMs: 2500, multipv: 8 },
+  opponent: { depth: 22, movetimeMs: 4000, multipv: 12 },
+  'opponent-check': { depth: 20, movetimeMs: 700, multipv: 1 },
   // Automatic move comments need several candidate lines, but must reach the model promptly.
-  comment: { depth: 14, movetimeMs: 700, multipv: 3 },
-  coach: { depth: 18, multipv: 3 },
+  comment: { depth: 18, movetimeMs: 900, multipv: 5 },
+  coach: { depth: 20, movetimeMs: 2500, multipv: 5 },
   review: { depth: 20, multipv: 2 }
 }
 
@@ -34,6 +42,14 @@ const ANALYSIS_CACHE_SIZE = 32
 /** A search that never reports `bestmove` must not wedge the queue for good. */
 const SEARCH_TIMEOUT_MS: Record<AnalysisProfile, number> = {
   live: 10_000,
+  feedback: 10_000,
+  'opponent-beginner': 10_000,
+  'opponent-easy': 10_000,
+  'opponent-medium': 10_000,
+  'opponent-challenging': 10_000,
+  'opponent-strong': 10_000,
+  opponent: 10_000,
+  'opponent-check': 10_000,
   comment: 10_000,
   coach: 60_000,
   review: 180_000
@@ -59,6 +75,8 @@ export class EngineAbortError extends Error {
 }
 
 export interface EngineServiceDeps {
+  threads?: number
+  hashMb?: number
   settings: SettingsStore
   resourcePath(...s: string[]): string
   emit(channel: string, payload: unknown): void
@@ -208,9 +226,9 @@ export class EngineService {
     try {
       proc.write('uci\n')
       await this.waitFor('uciok', timeout)
-      const threads = Math.min(4, Math.max(1, cpus().length - 2))
+      const threads = this.deps.threads ?? Math.min(4, Math.max(1, cpus().length - 2))
       proc.write(`setoption name Threads value ${threads}\n`)
-      proc.write(`setoption name Hash value ${HASH_MB}\n`)
+      proc.write(`setoption name Hash value ${this.deps.hashMb ?? HASH_MB}\n`)
       proc.write('isready\n')
       await this.waitFor('readyok', timeout)
       return null

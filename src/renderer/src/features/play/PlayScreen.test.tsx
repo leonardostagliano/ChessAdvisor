@@ -3,7 +3,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import '@testing-library/jest-dom/vitest'
 import '../../i18n'
 import type { CodexState } from '@shared/types/codex'
-import type { Game, GameSummary, Move } from '@shared/types/game'
+import type { Game, GameSummary, Move, MoveEval } from '@shared/types/game'
 import type { SessionState } from '@shared/types/session'
 import { EMPTY_SESSION, START_FEN, useGameStore } from '../../stores/gameStore'
 import { useCodexStore } from '../../stores/codexStore'
@@ -45,6 +45,23 @@ function move(
     epdAfter: fenAfter.split(' ').slice(0, 4).join(' '),
     by,
     ...patch
+  }
+}
+
+function liveQuality(
+  classification: MoveEval['classification'],
+  assessedAt = '2026-09-12T10:05:02.000Z'
+): NonNullable<Move['liveEval']> {
+  return {
+    before: { cp: 20 },
+    after: { cp: 35 },
+    cpLoss: 0,
+    winPercentLoss: 0,
+    classification,
+    bestMove: 'g1f3',
+    bestLine: ['g1f3'],
+    depth: 12,
+    assessedAt
   }
 }
 
@@ -146,6 +163,7 @@ const navigateEval = vi.fn(async () => undefined)
 const resumeGame = vi.fn(async () => session())
 const requestHint = vi.fn(async () => session())
 const setCommentsVisible = vi.fn(async () => session())
+const saveSettings = vi.fn(async () => null)
 
 function mockApi(): void {
   Object.defineProperty(window, 'api', {
@@ -153,7 +171,7 @@ function mockApi(): void {
     writable: true,
     value: {
       app: { versionInfo: async () => ({ version: '0.1.0', isPackaged: false }) },
-      settings: { get: async () => null, save: async () => null },
+      settings: { get: async () => null, save: saveSettings },
       games: { list: async () => archive, get: async () => null, delete: deleteGame },
       analysis: { run: async () => null, status: async () => ({ state: 'idle' }) },
       review: {
@@ -292,6 +310,65 @@ describe('PlayScreen', () => {
       'Salva ed esci'
     ]) {
       expect(screen.getAllByRole('button', { name: label }).length).toBeGreaterThan(0)
+    }
+  })
+
+  it('shows live quality consistently in the move list and comments', async () => {
+    const graded = game()
+    graded.moves[1] = {
+      ...graded.moves[1]!,
+      liveEval: liveQuality('good'),
+      coachComment: 'Una risposta solida.',
+      coachCommentLanguage: 'it'
+    }
+    useGameStore.setState({ session: session({ game: graded }), browsePly: null })
+    render(<PlayScreen />)
+
+    expect(screen.getByLabelText('Buona · valutazione rapida')).toHaveAttribute(
+      'data-quality-source',
+      'live'
+    )
+    await act(async () => {
+      fireEvent.click(screen.getByRole('switch', { name: 'Valutazione mosse' }))
+    })
+    expect(saveSettings).toHaveBeenCalledWith({ liveMoveFeedback: false })
+    expect(screen.queryByLabelText('Buona · valutazione rapida')).not.toBeInTheDocument()
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('switch', { name: 'Valutazione mosse' }))
+    })
+    fireEvent.click(screen.getByRole('tab', { name: 'Commenti' }))
+    expect(screen.getByLabelText('Buona · valutazione rapida')).toHaveTextContent('Buona')
+  })
+
+  it('expires a new quality overlay and clears it when the user browses the game', async () => {
+    render(<PlayScreen />)
+    await act(async () => undefined)
+    vi.useFakeTimers()
+    try {
+      const current = useGameStore.getState().session
+      const graded = { ...current.game!, moves: [...current.game!.moves] }
+      graded.moves[2] = { ...graded.moves[2]!, liveEval: liveQuality('excellent') }
+      act(() => useGameStore.setState({ session: { ...current, game: graded } }))
+
+      expect(screen.getByTestId('move-quality-overlay')).toHaveTextContent('TuOttimaNf3')
+
+      // Repeated snapshots with the same assessment must not restart or cancel the expiry timer.
+      act(() => useGameStore.setState({ session: { ...current, game: { ...graded } } }))
+      act(() => vi.advanceTimersByTime(2401))
+      expect(screen.queryByTestId('move-quality-overlay')).not.toBeInTheDocument()
+
+      const nextAssessment = { ...graded, moves: [...graded.moves] }
+      nextAssessment.moves[2] = {
+        ...nextAssessment.moves[2]!,
+        liveEval: liveQuality('best', '2026-09-12T10:05:03.000Z')
+      }
+      act(() => useGameStore.setState({ session: { ...current, game: nextAssessment } }))
+      expect(screen.getByTestId('move-quality-overlay')).toBeInTheDocument()
+      act(() => useGameStore.getState().setBrowsePly(0))
+      expect(screen.queryByTestId('move-quality-overlay')).not.toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
     }
   })
 

@@ -25,7 +25,19 @@ export interface Analysis {
   fen: string
 }
 
-export type AnalysisProfile = 'live' | 'comment' | 'coach' | 'review'
+export type AnalysisProfile =
+  | 'live'
+  | 'feedback'
+  | 'opponent-beginner'
+  | 'opponent-easy'
+  | 'opponent-medium'
+  | 'opponent-challenging'
+  | 'opponent-strong'
+  | 'opponent'
+  | 'opponent-check'
+  | 'comment'
+  | 'coach'
+  | 'review'
 
 export interface EngineState {
   available: boolean

@@ -77,6 +77,8 @@ function game(id: string, classifications: MoveClassification[]): Game {
 
 function profile(patch: Partial<Profile> = {}): Profile {
   return {
+    learningPolicyVersion: 2,
+    retiredGameIds: [],
     level: {
       band: 'intermediate',
       estimate: 1345,

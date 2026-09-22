@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs'
 import { join, resolve } from 'node:path'
-import { BrowserWindow, app, nativeTheme, powerMonitor, shell } from 'electron'
+import { BrowserWindow, app, dialog, nativeTheme, powerMonitor, shell } from 'electron'
 import icon from '../../resources/icon.png?asset'
 import { AnalysisManager } from './analysis/register'
 import { CodexService } from './codex/codexService'
@@ -17,6 +17,7 @@ import { ExerciseStore } from './store/exerciseStore'
 import { GameStore } from './store/gameStore'
 import { ProfileStore } from './store/profileStore'
 import { SettingsStore } from './store/settingsStore'
+import { migrateLearningData } from './store/learningMigration'
 import { StudyPlanStore } from './store/studyPlanStore'
 import { TrainingService } from './training/trainingService'
 import { createTray, type TrayHandle } from './tray'
@@ -36,6 +37,23 @@ const settings = new SettingsStore(join(dataDir(), 'settings.json'))
 // --- Task 7: Stockfish engine ---
 const engine = new EngineService({ settings, resourcePath, emit })
 shutdown.register(() => engine.shutdown())
+// Dedicated queues keep instant move feedback clear of long analysis or opponent searches.
+const feedbackEngine = new EngineService({
+  settings,
+  resourcePath,
+  emit: () => {},
+  threads: 1,
+  hashMb: 32
+})
+const opponentEngine = new EngineService({
+  settings,
+  resourcePath,
+  emit: () => {},
+  threads: 2,
+  hashMb: 64
+})
+shutdown.register(() => feedbackEngine.shutdown())
+shutdown.register(() => opponentEngine.shutdown())
 // --- end Task 7 ---
 // Task 6: the Codex session. `CHESSADVISOR_FAKE_CODEX=1` swaps the real CLI for the fake
 // app-server, so a development run never consumes OpenAI quota.
@@ -92,6 +110,9 @@ shutdown.register(() => analysis.close())
 const game = new GameManager({
   codex,
   engine,
+  feedbackEngine,
+  opponentEngine,
+  openingsPath: () => resourcePath('data', 'openings.json'),
   store: games,
   settings,
   profile,
@@ -204,6 +225,17 @@ if (!gotLock) {
       console.error('[main] settings could not be loaded, using the defaults:', error)
       return undefined
     })
+    try {
+      await migrateLearningData(dataDir())
+    } catch (error) {
+      console.error('[main] learning data migration failed:', error)
+      dialog.showErrorBox(
+        'ChessAdvisor',
+        'Impossibile preparare il backup dei dati di apprendimento. Chiudi le altre istanze e riapri ChessAdvisor. Le partite sono conservate.'
+      )
+      app.quit()
+      return
+    }
     // Task 9: the archive index and the profile are read once, before the first IPC call.
     await games
       .load()
@@ -249,6 +281,12 @@ if (!gotLock) {
     void engine
       .start()
       .catch((error) => console.error('[main] the chess engine could not start:', error))
+    void feedbackEngine
+      .start()
+      .catch((error) => console.error('[main] feedback engine failed:', error))
+    void opponentEngine
+      .start()
+      .catch((error) => console.error('[main] opponent engine failed:', error))
     // Repair this app's existing pins after an NSIS replacement, without delaying first paint.
     mainWindow?.once('ready-to-show', () => {
       void repairPinnedShortcuts().catch(() => undefined)

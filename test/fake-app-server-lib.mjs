@@ -317,7 +317,15 @@ export function createFakeServer(io, options = {}) {
     }
     // Theme and rating window of a thematic set (spec §6.5).
     if (properties && 'theme' in properties && 'ratingMin' in properties) {
-      return JSON.stringify({ theme: 'fork', ratingMin: 800, ratingMax: 1200, motivation: 'fake' })
+      const italian = /\b(?:Scegli|Rispondi soltanto|persona che alleni)\b/i.test(text)
+      return JSON.stringify({
+        theme: 'fork',
+        ratingMin: 800,
+        ratingMax: 1200,
+        motivation: italian
+          ? 'Allena gli attacchi doppi: cerca due bersagli con una sola mossa.'
+          : 'Train double attacks: look for two targets with a single move.'
+      })
     }
     // Study plan (spec §6.8): the items point at the catalogue written into the prompt.
     if (properties && 'items' in properties) {

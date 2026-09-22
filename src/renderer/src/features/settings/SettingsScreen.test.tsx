@@ -156,6 +156,16 @@ describe('SettingsScreen', () => {
     expect(save).toHaveBeenCalledWith({ defaultModel: 'gpt-5.5' })
   })
 
+  it('persists the live move evaluation switch', async () => {
+    render(<SettingsScreen />)
+    const toggle = await screen.findByRole('switch', { name: 'Valutazione mosse' })
+    expect(toggle).toHaveAttribute('aria-checked', 'true')
+
+    await act(async () => fireEvent.click(toggle))
+    expect(save).toHaveBeenCalledWith({ liveMoveFeedback: false })
+    expect(toggle).toHaveAttribute('aria-checked', 'false')
+  })
+
   it('reveals the coach model and effort only once they are kept separate', async () => {
     render(<SettingsScreen />)
     await screen.findByRole('combobox', { name: 'Modello predefinito' })

@@ -13,6 +13,7 @@ export interface Settings {
   coachEffort: string | null
   turnTimeoutSec: number
   showReasoning: boolean
+  liveMoveFeedback: boolean
   pieceSet: 'cburnett'
   engineBinary: 'avx2' | 'popcnt' | 'none' | null
   /** Last difficulty picked in the new-game dialog, preselected for the next game (spec §4.3). */
@@ -30,6 +31,7 @@ export const DEFAULT_SETTINGS: Settings = {
   coachEffort: null,
   turnTimeoutSec: 180,
   showReasoning: false,
+  liveMoveFeedback: true,
   pieceSet: 'cburnett',
   engineBinary: null,
   lastDifficulty: { mode: 'fixed', level: 3 },

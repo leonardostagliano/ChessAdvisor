@@ -354,6 +354,21 @@ describe('TrainingService', () => {
     expect(engine.analysed.length).toBe(before)
   })
 
+  it('does not build exercises for a retired analysed game', async () => {
+    const game = await storeGame(
+      analysedGame({
+        sans: ['e4', 'e5', 'Nf3'],
+        classifications: [undefined, undefined, 'blunder']
+      })
+    )
+    await profile.update({ retiredGameIds: [game.id] })
+
+    await service.onGameAnalyzed(game)
+
+    expect(service.list('own_game')).toEqual([])
+    expect(engine.analysed).toHaveLength(0)
+  })
+
   it('builds nothing without an engine, and nothing for a drill', async () => {
     engine.available = false
     const game = await storeGame(
@@ -466,10 +481,67 @@ describe('TrainingService', () => {
     const set = await service.nextThematicSet()
     expect(codex.requests).toHaveLength(0)
     expect(set.fallback).toBe(true)
-    expect(set.theme).toBe('fork')
-    expect(set.ratingMin).toBe(800)
-    expect(set.ratingMax).toBe(1200)
-    expect(set.exercises.map((exercise) => exercise.id)).toEqual([thematicExerciseId('p3')])
+    expect(set.theme).toBe('pin')
+    expect(set.ratingMin).toBe(1000)
+    expect(set.ratingMax).toBe(1400)
+    expect(set.exercises.map((exercise) => exercise.id)).toEqual([
+      thematicExerciseId('p1'),
+      thematicExerciseId('p2')
+    ])
+  })
+
+  it('uses completed exercises to progress the diagnostic band without game history', async () => {
+    codex.themePick = null
+    for (const [index, rating] of [1100, 1200, 1300].entries()) {
+      await exercises.put({
+        id: `practice-${index}`,
+        kind: 'thematic',
+        fen: MIDDLEGAME,
+        sideToMove: 'w',
+        solution: solutionOf(MIDDLEGAME, 2),
+        theme: 'pin',
+        rating,
+        status: 'solved',
+        attempts: 2,
+        createdAt: '2026-03-01T10:00:00.000Z'
+      })
+    }
+
+    const set = await service.nextThematicSet()
+
+    expect(codex.requests.at(-1)?.text).toContain('3 · 3 · 0 · 6')
+    expect(codex.requests.at(-1)?.text).toContain('1100–1500')
+    expect(set.ratingMin).toBe(1100)
+    expect(set.ratingMax).toBe(1500)
+  })
+
+  it('keeps a model rating guess within the evidence-based band', async () => {
+    await profile.update({
+      level: {
+        band: 'advanced',
+        estimate: 1800,
+        confidence: 0.8,
+        updatedAt: '2026-03-01T10:00:00.000Z'
+      },
+      history: [
+        { gameId: 'g1', date: '2026-03-01T10:00:00.000Z', accuracy: 75, acpl: 50 },
+        { gameId: 'g2', date: '2026-03-02T10:00:00.000Z', accuracy: 76, acpl: 48 },
+        { gameId: 'g3', date: '2026-03-03T10:00:00.000Z', accuracy: 77, acpl: 46 }
+      ]
+    })
+    codex.themePick = {
+      theme: 'pin',
+      ratingMin: 800,
+      ratingMax: 1200,
+      motivation: 'troppo facile'
+    }
+    library.puzzles.push(puzzle('p4', 1700, 'pin'), puzzle('p5', 1800, 'pin'))
+
+    const set = await service.nextThematicSet()
+
+    expect(set.ratingMin).toBe(1600)
+    expect(set.ratingMax).toBe(2000)
+    expect(set.motivation).toContain('Fascia mantenuta')
   })
 
   it('asks the coach once the profile has something to read, and excludes the solved puzzles', async () => {
@@ -505,9 +577,11 @@ describe('TrainingService', () => {
       ratingMax: 2200,
       motivation: 'niente in quella fascia'
     }
-    const empty = await service.nextThematicSet()
-    expect(empty.fallback).toBe(true)
-    expect(empty.exercises.length).toBeGreaterThan(0)
+    const corrected = await service.nextThematicSet()
+    expect(corrected.fallback).toBe(false)
+    expect(corrected.ratingMin).toBe(1000)
+    expect(corrected.ratingMax).toBe(1400)
+    expect(corrected.exercises.length).toBeGreaterThan(0)
   })
 
   // ───────────────────────────────────────────────────────────────── openings

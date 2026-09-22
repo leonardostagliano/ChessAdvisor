@@ -47,7 +47,11 @@
     "comments": "Commenti",
     "coach": "Coach",
     "clockYou": "Il tuo orologio",
-    "clockOpponent": "Orologio dell’avversario"
+    "clockOpponent": "Orologio dell’avversario",
+    "qualityQuickTitle": "{{classification}} · valutazione rapida",
+    "qualityPending": "Valutazione della mossa in corso…",
+    "qualityUnavailable": "Valutazione della mossa non disponibile",
+    "qualitySettingFailed": "Non è stato possibile salvare la preferenza."
   },
   "empty": {
     "note": "disponibile dopo la prima partita analizzata",
@@ -74,6 +78,8 @@
     "languageHint": "Le etichette dell'interfaccia cambiano subito.",
     "languageIt": "Italiano",
     "languageEn": "Inglese",
+    "liveMoveFeedback": "Valutazione mosse",
+    "liveMoveFeedbackHint": "Mostra il giudizio di Stockfish sulla scacchiera, nelle mosse e nei commenti.",
     "models": "Modelli",
     "modelsHint": "Preselezione del dialogo Nuova partita; la difficoltà resta indipendente.",
     "defaultModel": "Modello predefinito",

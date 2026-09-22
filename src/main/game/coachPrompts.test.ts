@@ -7,6 +7,7 @@ import {
   coachBaseInstructions,
   commentText,
   hintText,
+  formatEval,
   resumeSummaryText,
   type EngineContext
 } from './coachPrompts'
@@ -89,6 +90,24 @@ describe('commentText', () => {
     })
     expect(text).toContain('matto in 3 per il Nero')
     expect(text).toContain('Classificazione: errore grave')
+  })
+
+  it('keeps the winner explicit for mate in zero on a terminal position', () => {
+    expect(formatEval({ mate: 0, mateWinner: 'b' }, 'it')).toBe('matto in 0 per il Nero')
+    const text = commentText({
+      move,
+      by: 'user',
+      fen: FEN_AFTER,
+      pgn: PGN,
+      engine: {
+        ...engine,
+        evalAfter: { mate: 0, mateWinner: 'b' },
+        terminal: { winner: 'b', at: 'after' }
+      },
+      language: 'it'
+    })
+    expect(text).toContain('matto in 0 per il Nero')
+    expect(text).toContain('Posizione terminale: scacco matto; ha vinto il Nero.')
   })
 
   it('says there is no engine data at all in the oracle-less mode', () => {

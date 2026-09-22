@@ -5,8 +5,7 @@ import type { LegalMove } from '../chess/notation'
  * Difficulty of the opponent and live state of the single active game (spec §4.1, §4.3).
  *
  * Difficulty replaces the old "style": six fixed levels plus an adaptive mode whose target Elo
- * follows the user's results. It never changes the model or the effort the user picked — only the
- * persona written into the opponent's base instructions.
+ * follows the user's results. It never changes the model or the effort the user picked — the persona, calculated search budget and tactical tolerance change instead.
  */
 
 export type DifficultyLevel = 1 | 2 | 3 | 4 | 5 | 6
@@ -24,7 +23,7 @@ export interface OpponentDifficulty {
   targetElo: number | null
 }
 
-/** Key of the i18n label of each level, and the Elo the persona plays at. */
+/** Key of the i18n label of each level, and the indicative requested Elo (not a calibrated strength). */
 export const DIFFICULTY_LEVELS: Record<
   DifficultyLevel,
   { key: 'beginner' | 'easy' | 'medium' | 'challenging' | 'strong' | 'max'; elo: number | null }

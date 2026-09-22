@@ -325,9 +325,10 @@ export class ProfileService {
 
   /** The last {@link LEVEL_WINDOW} analysed matches from the archive, oldest first (spec §6.1). */
   private async levelSamples(): Promise<LevelSample[]> {
+    const retired = new Set(this.deps.profile.get().retiredGameIds)
     const rows = this.deps.games
       .list({ kind: 'match', status: 'finished' })
-      .filter((row) => Boolean(row.accuracy))
+      .filter((row) => !retired.has(row.id) && Boolean(row.accuracy))
       .slice(0, LEVEL_SCAN)
     const samples: LevelSample[] = []
     for (const row of rows) {
@@ -368,6 +369,7 @@ export class ProfileService {
     return this.enqueue(async () => {
       if (game.kind !== 'match' || !game.analysis) return
       const before = this.deps.profile.get()
+      if (before.retiredGameIds.includes(game.id)) return
       const known = before.history.some((row) => row.gameId === game.id)
 
       let labels = new Map<number, Theme>()
@@ -425,9 +427,10 @@ export class ProfileService {
 
   /** Analysed matches known to the archive: what spec §6.1 counts to every third game. */
   private analysedMatches(): number {
+    const retired = new Set(this.deps.profile.get().retiredGameIds)
     return this.deps.games
       .list({ kind: 'match', status: 'finished' })
-      .filter((row) => Boolean(row.accuracy)).length
+      .filter((row) => !retired.has(row.id) && Boolean(row.accuracy)).length
   }
 
   /** The call itself; it assumes the queue is already held by the caller. */

@@ -1,17 +1,20 @@
 import type { LegalMove } from '@shared/chess/notation'
+import type { EngineLine } from '@shared/types/engine'
 import {
   DIFFICULTY_LEVELS,
   nearestLevel,
   type DifficultyLevel,
   type OpponentDifficulty
 } from '@shared/types/session'
+import type { OpponentBookContext } from './opponentBook'
 
 /**
  * The opponent's prompts (spec §4.1).
  *
- * The model receives the position, the game so far and the complete list of legal moves, and
- * nothing else: no engine score, no analysis, no tools. The difficulty is a persona, never a
- * change of model or effort, so the same model can play a plausible 600 or a plausible 1800.
+ * The model receives the position, the game so far, the complete list of legal moves and a
+ * difficulty-scaled set of calculated continuations. Those lines are evidence rather than a move
+ * command: the model compares them, calculates for itself and may choose any legal move. The
+ * difficulty remains a persona, never a change of model or effort.
  */
 
 interface Persona {
@@ -242,6 +245,72 @@ function legalList(legal: LegalMove[]): string {
   return legal.map((move) => `${move.san} = ${move.uci}`).join(', ')
 }
 
+function scoreText(line: EngineLine): string {
+  if (typeof line.scoreMate === 'number') return `mate ${line.scoreMate}`
+  if (typeof line.scoreCp === 'number') return `${line.scoreCp >= 0 ? '+' : ''}${line.scoreCp} cp`
+  return 'score unavailable'
+}
+
+/**
+ * Difficulty-scaled calculated continuations used to ground, but not dictate, the model's choice.
+ * UCI keeps the whole multi-ply line unambiguous and compact. All returned lines are preserved.
+ */
+export function opponentAnalysisText(lines: EngineLine[], language: 'it' | 'en'): string[] {
+  if (lines.length === 0) return []
+  const it = language === 'it'
+  return [
+    it
+      ? 'Analisi di riferimento (dal tuo punto di vista; non è un comando):'
+      : 'Reference analysis (from your point of view; it is not a command):',
+    ...lines.map(
+      (line, index) =>
+        `${index + 1}. ${line.move} | ${scoreText(line)} | ${line.pv.join(' ') || line.move}`
+    ),
+    it
+      ? 'Confronta tutte queste varianti, verifica autonomamente scacchi, catture, minacce e risposte forzanti, poi scegli la mossa adatta al tuo livello. Puoi scegliere qualunque mossa legale, anche se non compare nelle varianti.'
+      : 'Compare all these lines, independently verify checks, captures, threats and forcing replies, then choose the move appropriate to your level. You may choose any legal move, including one absent from the lines.'
+  ]
+}
+
+/** Opening names and continuations are historical context, never a move whitelist. */
+export function opponentBookText(
+  context: OpponentBookContext | null | undefined,
+  language: 'it' | 'en'
+): string[] {
+  if (!context) return []
+  const it = language === 'it'
+  const lines = [
+    it
+      ? 'Riferimento archivio aperture (incompleto; è contesto, non un vincolo):'
+      : 'Opening archive reference (incomplete; context, not a constraint):'
+  ]
+  if (context.current) {
+    lines.push(
+      (it ? 'Posizione corrente' : 'Current position') +
+        ': ' +
+        context.current.eco +
+        ' — ' +
+        context.current.name
+    )
+  }
+  if (context.continuations.length > 0) {
+    lines.push(
+      it
+        ? 'Continuazioni legali che raggiungono una posizione presente nell’archivio:'
+        : 'Legal continuations that reach a position present in the archive:'
+    )
+    for (const move of context.continuations) {
+      lines.push('- ' + move.san + ' (' + move.uci + ') → ' + move.eco + ' — ' + move.name)
+    }
+  }
+  lines.push(
+    it
+      ? 'L’archivio è incompleto: una mossa assente non è per questo inferiore. Non sei vincolato alle continuazioni elencate; dai priorità alla posizione attuale e al tuo calcolo autonomo.'
+      : 'The archive is incomplete: an absent move is not therefore inferior. You are not restricted to the listed continuations; prioritize the current position and your own calculation.'
+  )
+  return lines
+}
+
 /**
  * Text of one opponent turn. The FEN line is the authoritative position: the PGN is context and
  * the legal list is the only vocabulary the model is allowed to answer with.
@@ -251,6 +320,10 @@ export function opponentTurnText(p: {
   fen: string
   pgn: string
   legal: LegalMove[]
+  /** Calculated continuations, with breadth and depth selected for this difficulty level. */
+  analysisLines?: EngineLine[]
+  /** Exact opening-position matches for the current position and its legal continuations. */
+  opening?: OpponentBookContext | null
   /** Number of plies just taken back, or `null` when nothing was taken back. */
   takebackNotice: number | null
   language: 'it' | 'en'
@@ -280,7 +353,11 @@ export function opponentTurnText(p: {
   lines.push(
     `FEN: ${p.fen}`,
     `PGN: ${pgn.length > 0 ? pgn : it ? '(partita appena iniziata)' : '(game just started)'}`,
-    `${it ? 'Mosse legali (SAN = UCI)' : 'Legal moves (SAN = UCI)'}: ${legalList(p.legal)}`,
+    `${it ? 'Mosse legali (SAN = UCI)' : 'Legal moves (SAN = UCI)'}: ${legalList(p.legal)}`
+  )
+  lines.push(...opponentBookText(p.opening, p.language))
+  lines.push(...opponentAnalysisText(p.analysisLines ?? [], p.language))
+  lines.push(
     it
       ? 'Scegli una mossa presa esattamente da questa lista e rispondi soltanto con il JSON richiesto.'
       : 'Choose a move taken exactly from this list and answer with the requested JSON only.'

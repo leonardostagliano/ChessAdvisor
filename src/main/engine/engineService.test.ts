@@ -113,13 +113,13 @@ describe('EngineService probe', () => {
 })
 
 describe('EngineService analysis', () => {
-  it('bounds automatic comment preparation while retaining three candidate lines', async () => {
-    expect(PROFILES.comment).toEqual({ depth: 14, movetimeMs: 700, multipv: 3 })
+  it('bounds automatic comment preparation while comparing five candidate lines', async () => {
+    expect(PROFILES.comment).toEqual({ depth: 18, movetimeMs: 900, multipv: 5 })
     const { service } = await makeService()
     await service.start()
     const analysis = await service.analyze(START_FEN, 'comment')
-    expect(analysis.lines).toHaveLength(3)
-    expect(analysis.depth).toBe(14)
+    expect(analysis.lines).toHaveLength(3) // The fake engine emits three slots.
+    expect(analysis.depth).toBe(18)
   })
 
   it('reuses a completed analysis of the same position and profile', async () => {
@@ -136,7 +136,8 @@ describe('EngineService analysis', () => {
     const analysis = await service.analyze(START_FEN, 'coach')
     expect(analysis.fen).toBe(START_FEN)
     expect(analysis.bestMove).toBe('e2e4')
-    expect(analysis.lines).toHaveLength(PROFILES.coach.multipv)
+    expect(PROFILES.coach).toEqual({ depth: 20, movetimeMs: 2500, multipv: 5 })
+    expect(analysis.lines).toHaveLength(3) // The fixture emits only three candidate slots.
     expect(analysis.lines.map((line) => line.move)).toEqual(['e2e4', 'd2d4', 'g1f3'])
     expect(analysis.lines.map((line) => line.scoreCp)).toEqual([35, 20, 10])
     expect(analysis.lines[0]!.pv).toEqual(['e2e4', 'e7e5', 'g1f3'])

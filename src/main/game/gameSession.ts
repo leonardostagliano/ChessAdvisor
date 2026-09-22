@@ -14,6 +14,7 @@ import {
   type OpponentDifficulty,
   type SessionState
 } from '@shared/types/session'
+import { EMPTY_BOOK, loadOpenings, type OpeningBook } from '../analysis/openings'
 import type { CodexService } from '../codex/codexService'
 import type { EngineService } from '../engine/engineService'
 import type { GameStore } from '../store/gameStore'
@@ -22,6 +23,7 @@ import type { SettingsStore } from '../store/settingsStore'
 import { GameClock } from './clock'
 import { CoachSession, type CoachActivity } from './coach'
 import { OpponentTurnError, playOpponentTurn } from './opponentTurn'
+import { LiveMoveEvaluator } from './liveMoveEvaluator'
 import { DRAW_OFFER_SCHEMA, drawOfferText, opponentBaseInstructions } from './prompts'
 
 /**
@@ -58,6 +60,11 @@ export interface GameFinishedEvent {
 export interface GameSessionDeps {
   codex: SessionCodex
   engine: SessionEngine
+  /** Separate workers keep interactive searches independent of coach/review work. */
+  feedbackEngine?: SessionEngine
+  opponentEngine?: SessionEngine
+  /** Optional local opening dataset, loaded only when the opponent first needs it. */
+  openingsPath?(): string
   store: GameStore
   settings: SettingsStore
   /** Adaptive difficulty reads and writes `profile.json` through this store. */
@@ -173,8 +180,24 @@ export class GameSession {
   private turnEpoch = 0
   /** Monotonic board identity: equal FEN and ply after a replay must still reject old results. */
   private positionRevision = 0
+  private evalRequest = 0
+  private opponentController: AbortController | null = null
+  private openingBook: OpeningBook | null = null
+  private readonly feedback: LiveMoveEvaluator
+  private readonly feedbackTasks = new Set<Promise<void>>()
 
   constructor(private readonly deps: GameSessionDeps) {
+    this.feedback = new LiveMoveEvaluator(deps.feedbackEngine ?? deps.engine)
+    let feedbackEnabled = deps.settings.get().liveMoveFeedback
+    deps.settings.onChange((settings) => {
+      const enabledNow = settings.liveMoveFeedback
+      if (enabledNow && !feedbackEnabled && this.game?.status === 'in_progress') {
+        const move = this.game.moves.at(-1)
+        if (move && !move.liveEval)
+          this.gradeMove(this.game, this.fenBefore(this.game, move.ply), move)
+      }
+      feedbackEnabled = enabledNow
+    })
     this.coach = new CoachSession({
       codex: deps.codex,
       engine: deps.engine,
@@ -320,6 +343,13 @@ export class GameSession {
     return { mode: 'fixed', level: choice.level, targetElo: DIFFICULTY_LEVELS[choice.level].elo }
   }
 
+  /** The optional database is immutable and shared by every turn of this session. */
+  private openings(): OpeningBook {
+    if (this.openingBook) return this.openingBook
+    this.openingBook = this.deps.openingsPath ? loadOpenings(this.deps.openingsPath()) : EMPTY_BOOK
+    return this.openingBook
+  }
+
   /** Codex threads are ephemeral: every game and every resume starts a brand new one. */
   private async openThread(): Promise<void> {
     const game = this.requireGame()
@@ -419,8 +449,12 @@ export class GameSession {
 
   /** Unsubscribes the thread and forgets the game; the game stays `in_progress` on disk. */
   async close(): Promise<void> {
+    this.opponentController?.abort()
+    this.feedback.reset()
+    this.evalRequest += 1
     this.turnEpoch += 1
     this.positionRevision += 1
+    await this.settleFeedback()
     this.commentQueueEpoch += 1
     this.pendingComments = []
     this.activeComment?.controller.abort()
@@ -430,6 +464,7 @@ export class GameSession {
     // The interrupted comment must be given the chance to notice: a write landing after the game
     // has been forgotten would hit the next game's file (or none at all).
     await this.settleComments()
+    if (this.game) await this.autosave(this.game)
     const threadId = this.threadId
     this.threadId = null
     if (threadId) {
@@ -494,6 +529,9 @@ export class GameSession {
     if (this.sideToMove(fen) === game.userColor) return
     if (!this.threadId) throw new GameError('NO_THREAD', 'the opponent thread is not open')
 
+    this.opponentController?.abort()
+    const controller = new AbortController()
+    this.opponentController = controller
     const epoch = (this.turnEpoch += 1)
     const streamId = randomUUID()
     this.ai = { thinking: true, startedAt: this.deps.now(), reasoning: '', retries: 0, streamId }
@@ -505,9 +543,17 @@ export class GameSession {
 
     try {
       const move = await playOpponentTurn(
-        { codex: this.deps.codex, engine: this.deps.engine, now: this.deps.now },
+        {
+          codex: this.deps.codex,
+          engine: this.deps.opponentEngine ?? this.deps.engine,
+          now: this.deps.now
+        },
         {
           threadId: this.threadId,
+          difficulty: game.opponent.difficulty,
+          openingBook: this.openings(),
+          allowResign: game.kind === 'match',
+          signal: controller.signal,
           model: game.opponent.model,
           effort: game.opponent.effort,
           language: game.language,
@@ -532,6 +578,10 @@ export class GameSession {
       // A takeback, a resign or a new game happened while the model was answering.
       if (epoch !== this.turnEpoch) return
 
+      if (move.resign) {
+        await this.finish({ outcome: game.userColor === 'w' ? '1-0' : '0-1', reason: 'resign' })
+        return
+      }
       const applied = applyMove(fen, move.uci)
       if (!applied) {
         this.fail(`the opponent answered with ${move.uci}, which is not legal in ${fen}`)
@@ -549,6 +599,8 @@ export class GameSession {
         thinkingOverheadMs: move.overheadMs,
         ...(move.effectiveModel ? { effectiveModel: move.effectiveModel } : {}),
         ...(move.fallback ? { fallback: move.fallback } : {}),
+        engineAssisted: move.engineAssisted,
+        engineVerified: move.engineVerified,
         ...(move.shortComment ? { aiShortComment: move.shortComment } : {})
       })
       this.ai = idleAi()
@@ -581,6 +633,7 @@ export class GameSession {
   }
 
   private pushMove(game: Game, move: Omit<Move, 'ply' | 'epdAfter'>): void {
+    const beforeFen = this.fen()
     const ply = game.moves.length + 1
     // The increment belongs to the move that has just been validated, final move included.
     const clockAfter = this.commitClock(
@@ -594,6 +647,8 @@ export class GameSession {
       ...(clockAfter ? { clockAfter } : {})
     })
     this.positionRevision += 1
+    this.liveEvalValue = null
+    this.gradeMove(game, beforeFen, game.moves[game.moves.length - 1]!)
     // Reactivating the comments never comments backwards (spec §4.2): only what is pushed while
     // they are visible is ever queued.
     if (this.commentsVisible) this.pendingComments.push(ply)
@@ -626,6 +681,7 @@ export class GameSession {
     if (game.status === 'finished' || !game.moves.some((move) => move.by === 'user'))
       return this.state()
 
+    this.opponentController?.abort()
     if (this.ai.thinking) {
       this.turnEpoch += 1
       this.ai = idleAi()
@@ -641,6 +697,8 @@ export class GameSession {
       game.moves.pop()
       removed += 1
     }
+    this.feedback.reset()
+    this.evalRequest += 1
     game.takebacks += 1
     this.positionRevision += 1
     // The clocks go back with the moves: `clockAfter` of what is left, or the initial time.
@@ -658,6 +716,7 @@ export class GameSession {
   }
 
   async resign(): Promise<SessionState> {
+    this.opponentController?.abort()
     const game = this.requireGame()
     if (this.ai.thinking) {
       this.turnEpoch += 1
@@ -671,11 +730,15 @@ export class GameSession {
   /** One structured turn on the opponent thread; a failed turn is simply a refusal. */
   async offerDraw(): Promise<{ accepted: boolean; reason: string }> {
     const game = this.requireGame()
+    if (this.status !== 'playing' || game.status !== 'in_progress')
+      throw new GameError('GAME_NOT_PLAYING', `the game is ${this.status}`)
     if (this.ai.thinking) throw new GameError('AI_THINKING', 'the opponent is still thinking')
     if (!this.threadId) throw new GameError('NO_THREAD', 'the opponent thread is not open')
 
+    const threadId = this.threadId
+    const revision = this.positionRevision
     const result = await this.deps.codex.runTurn({
-      threadId: this.threadId,
+      threadId,
       text: drawOfferText({
         fen: this.fen(),
         pgn: pgnOf(game.moves, game.startFen ? { startFen: game.startFen } : undefined),
@@ -688,6 +751,14 @@ export class GameSession {
       timeoutMs: this.deps.settings.get().turnTimeoutSec * 1000,
       streamId: randomUUID()
     })
+    if (
+      this.game !== game ||
+      this.status !== 'playing' ||
+      game.status !== 'in_progress' ||
+      this.threadId !== threadId ||
+      this.positionRevision !== revision
+    )
+      return { accepted: false, reason: '' }
     if (!result.ok) return { accepted: false, reason: result.message }
 
     let accepted = false
@@ -1088,6 +1159,8 @@ export class GameSession {
     // `checkEnd()` just recorded, must not overwrite the result nor apply the adaptive step twice.
     if (game.status === 'finished') return
     game.status = 'finished'
+    this.status = 'finished'
+    this.opponentController?.abort()
     game.result = result
     this.coachHint = null
     this.turnEpoch += 1
@@ -1097,15 +1170,19 @@ export class GameSession {
       this.clock.stop()
       game.clock.remainingMs = { ...this.clock.remaining() }
     }
-    await this.autosave(game)
-
+    // Detach this thread before yielding: a concurrent new game must keep its own thread.
     const threadId = this.threadId
     this.threadId = null
+    // Settle grades before the deeper review reads and saves this game.
+    await this.settleFeedback()
+    await this.autosave(game)
     if (threadId) await this.deps.codex.closeThread(threadId).catch(() => undefined)
 
     await this.updateAdaptive(game, result)
-    this.status = 'finished'
-    this.emitState()
+    if (this.game === game) {
+      this.status = 'finished'
+      this.emitState()
+    }
     this.deps.emit('game:finished', { gameId: game.id, result })
     // The game on disk is already saved above: the pipeline reads it back by id.
     try {
@@ -1120,7 +1197,12 @@ export class GameSession {
    * draw, doubled while fewer than three adaptive games have been played, clamped to 500–2400.
    */
   private async updateAdaptive(game: Game, result: GameResult): Promise<void> {
-    if (game.kind !== 'match' || game.opponent.difficulty.mode !== 'adaptive') return
+    if (
+      game.kind !== 'match' ||
+      game.opponent.difficulty.mode !== 'adaptive' ||
+      this.deps.profile.get().retiredGameIds.includes(game.id)
+    )
+      return
     const adaptive = this.deps.profile.get().adaptive
     const elo = adaptive?.elo ?? ADAPTIVE_START_ELO
     const games = adaptive?.games ?? 0
@@ -1147,14 +1229,76 @@ export class GameSession {
 
   // ------------------------------------------------------------------ engine
 
-  /** Live eval converted to White's perspective; an unavailable engine simply hides the bar. */
+  private async settleFeedback(): Promise<void> {
+    const game = this.game
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const settled = await Promise.race([
+      Promise.allSettled([...this.feedbackTasks]).then(() => true),
+      new Promise<boolean>((resolve) => {
+        timer = setTimeout(() => resolve(false), 2000)
+      })
+    ])
+    if (timer) clearTimeout(timer)
+    if (!settled) this.feedback.reset()
+    // A cancelled, disabled or timed-out request must not be stored as pending forever.
+    for (const move of game?.moves ?? []) {
+      if (move.liveEvalStatus === 'pending') move.liveEvalStatus = 'unavailable'
+    }
+  }
+
+  private gradeMove(game: Game, beforeFen: string, move: Move): void {
+    if (!this.deps.settings.get().liveMoveFeedback) return
+    if (!(this.deps.feedbackEngine ?? this.deps.engine).state().available) {
+      move.liveEvalStatus = 'unavailable'
+      return
+    }
+    move.liveEvalStatus = 'pending'
+    const history = [game.startFen ?? START_FEN, ...game.moves.map((entry) => entry.fenAfter)]
+    const task = this.feedback
+      .evaluate(beforeFen, move, history, this.deps.now)
+      .then(async (evaluation) => {
+        if (
+          this.game !== game ||
+          game.moves[move.ply - 1] !== move ||
+          move.liveEvalStatus !== 'pending' ||
+          !this.deps.settings.get().liveMoveFeedback
+        )
+          return
+        if (!evaluation) {
+          move.liveEvalStatus = 'unavailable'
+          this.emitState()
+          return
+        }
+        delete move.liveEvalStatus
+        move.liveEval = evaluation
+        this.emitState()
+        // A terminal game is saved by finish(), before the post-game review starts.
+        if (game.status === 'in_progress') await this.autosave(game)
+      })
+      .catch((error) => {
+        if ((error as Error)?.name !== 'AbortError') {
+          console.error('[game] move feedback failed:', error)
+          if (this.game === game && game.moves[move.ply - 1] === move) {
+            move.liveEvalStatus = 'unavailable'
+            this.emitState()
+          }
+        }
+      })
+      .finally(() => this.feedbackTasks.delete(task))
+    this.feedbackTasks.add(task)
+  }
+
+  /** Request identity also protects the bar while browsing and undoing a move. */
   private async runEval(fen: string): Promise<void> {
-    if (!this.deps.engine.state().available) {
+    const request = ++this.evalRequest
+    const game = this.game
+    if (!(this.deps.feedbackEngine ?? this.deps.engine).state().available) {
       this.liveEvalValue = null
       return
     }
     try {
-      const analysis = await this.deps.engine.analyze(fen, 'live')
+      const analysis = await this.feedback.analyze(fen)
+      if (request !== this.evalRequest || game !== this.game) return
       const line = analysis.lines[0]
       if (!line) return
       const flip = this.sideToMove(fen) === 'b' ? -1 : 1
@@ -1165,7 +1309,6 @@ export class GameSession {
       }
       this.emitState()
     } catch (error) {
-      // A live request pre-empted by the next one is normal; anything else is only a missing bar.
       if ((error as Error)?.name !== 'AbortError')
         console.error('[game] the live eval failed:', error)
     }

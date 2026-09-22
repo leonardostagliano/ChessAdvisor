@@ -1,3 +1,4 @@
+import { Chess } from 'chess.js'
 import type { Game, Move } from '@shared/types/game'
 import {
   CLASSIFICATION_NAME,
@@ -53,6 +54,9 @@ export function commentMoveText(p: ReviewMoveContext): string {
     moveHeader(p.move, p.language),
     ...positionBlock(p.fenBefore, p.pgn, p.language),
     ...engineBlock(p.engine, p.language, { withAfter: true }),
+    it
+      ? 'Mantieni il giudizio della classificazione mostrata nel badge. Spiega con le varianti fornite la conseguenza concreta e una abitudine pratica da allenare, senza inventare continuazioni.'
+      : 'Keep the judgement of the classification shown in the badge. Use the supplied lines to explain a concrete consequence and a practical habit to train; do not invent continuations.',
     it
       ? 'Scrivi da due a quattro frasi di testo semplice: che cosa fa questa mossa, che cosa sarebbe stato meglio e perché, e che cosa portarsi via da questa posizione. Niente elenchi e niente JSON.'
       : 'Write two to four sentences of plain text: what the move does, what would have been better and why, and what to take away from this position. No lists and no JSON.'
@@ -165,10 +169,45 @@ export function lessonText(p: { game: Game; language: 'it' | 'en'; pgn: string }
         const best = evaluation?.bestMove
           ? ` — ${it ? 'migliore' : 'best'}: ${evaluation.bestMove}`
           : ''
+        const fenBefore =
+          move.ply > 1 ? game.moves[move.ply - 2]?.fenAfter : (game.startFen ?? new Chess().fen())
+        const mover: 'w' | 'b' = move.fenAfter.split(/\s+/)[1] === 'w' ? 'b' : 'w'
+        const flip = mover === 'w' ? 1 : -1
+        const whiteAfter =
+          evaluation?.after.mate !== undefined
+            ? {
+                mate: flip * evaluation.after.mate,
+                ...(evaluation.after.mate === 0 ? { mateWinner: mover } : {})
+              }
+            : evaluation?.after.cp !== undefined
+              ? { cp: flip * evaluation.after.cp }
+              : null
         const after = evaluation
-          ? ` (${it ? 'dopo' : 'after'} ${formatEval(evaluation.after, p.language)})`
+          ? ' (' +
+            (it ? 'dopo, punto di vista del Bianco' : 'after, White perspective') +
+            ' ' +
+            formatEval(whiteAfter, p.language) +
+            ')'
           : ''
-        lines.push(`- ${move.ply}. ${move.san} · ${label}${after}${best}`)
+        const line: string[] = []
+        if (fenBefore && evaluation?.bestLine.length) {
+          try {
+            const chess = new Chess(fenBefore)
+            for (const uci of evaluation.bestLine.slice(0, 12)) {
+              line.push(
+                chess.move({ from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci[4] }).san
+              )
+            }
+          } catch {
+            /* Keep only the legal prefix of an older stored variation. */
+          }
+        }
+        lines.push('- ' + move.ply + '. ' + move.san + ' · ' + label + after + best)
+        if (fenBefore) lines.push('FEN: ' + fenBefore)
+        if (line.length)
+          lines.push(
+            (it ? 'Variante calcolata' : 'Calculated continuation') + ': ' + line.join(' ')
+          )
       }
     }
   } else {
@@ -181,8 +220,8 @@ export function lessonText(p: { game: Game; language: 'it' | 'en'; pgn: string }
 
   lines.push(
     it
-      ? 'Rispondi soltanto con il JSON richiesto: "takeaways" sono esattamente tre insegnamenti brevi e concreti, "summary" è un riepilogo di due o tre frasi della partita. Parla alla persona che alleni, senza compiacenza e senza gergo inutile.'
-      : 'Answer with the requested JSON only: "takeaways" are exactly three short, concrete lessons, "summary" is a two or three sentence recap of the game. Speak to the person you coach, with no flattery and no needless jargon.'
+      ? 'Rispondi soltanto con il JSON richiesto: "takeaways" sono esattamente tre insegnamenti brevi e concreti, "summary" è un riepilogo di due o tre frasi della partita. Parla alla persona che alleni, senza compiacenza e senza gergo inutile. Collega ogni insegnamento a una posizione o variante fornita e a un esercizio pratico; non dedurre debolezze croniche da una sola partita.'
+      : 'Answer with the requested JSON only: "takeaways" are exactly three short, concrete lessons, "summary" is a two or three sentence recap of the game. Speak to the person you coach, with no flattery and no needless jargon. Tie each lesson to a supplied position or variation and a practical drill; do not infer chronic weaknesses from one game.'
   )
   return lines.join('\n')
 }

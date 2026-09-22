@@ -174,6 +174,13 @@ export function SettingsScreen(): React.JSX.Element {
             label={t('settings.language')}
           />
         </div>
+
+        <Switch
+          checked={settings?.liveMoveFeedback ?? true}
+          onChange={(liveMoveFeedback) => void save({ liveMoveFeedback })}
+          label={t('settings.liveMoveFeedback')}
+          hint={t('settings.liveMoveFeedbackHint')}
+        />
       </section>
 
       <section className={screen.card}>
