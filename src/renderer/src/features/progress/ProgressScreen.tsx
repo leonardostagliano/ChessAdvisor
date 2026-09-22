@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { EmptyState } from '../../components/EmptyState'
 import { initProfileStore, useProfileStore } from '../../stores/profileStore'
-import { useTrainingStore } from '../../stores/trainingStore'
+import { initStudyPlanStore } from '../../stores/trainingStore'
 import { useUiStore } from '../../stores/uiStore'
 import { StudyPlanSummary } from '../training/StudyPlanTab'
 import { AccuracyTrend } from './AccuracyTrend'
@@ -39,13 +39,11 @@ export function ProgressScreen(): React.JSX.Element {
   // The screen owns the subscription: nothing else in the renderer reads the profile yet.
   useEffect(() => initProfileStore(), [])
   // The plan is read on its own: the rest of the training material has no place on this screen.
-  useEffect(() => {
-    void useTrainingStore.getState().refreshPlan()
-  }, [])
+  useEffect(() => initStudyPlanStore(), [])
 
   const analysed = (profile?.history.length ?? 0) > 0
 
-  if (!analysed) {
+  if (!analysed && !profile?.results?.games) {
     return (
       <div className={styles.screen}>
         <header className={styles.header}>
@@ -86,6 +84,23 @@ export function ProgressScreen(): React.JSX.Element {
       ) : null}
 
       <div className={styles.grid}>
+        {profile?.results ? (
+          <section
+            className={styles.card + ' ' + styles.wide}
+            aria-label={t('progress.results.title')}
+          >
+            <h3 className={styles.cardTitle}>{t('progress.results.title')}</h3>
+            <dl className={styles.results}>
+              {(['games', 'wins', 'draws', 'losses'] as const).map((key) => (
+                <div key={key}>
+                  <dt>{t('progress.results.' + key)}</dt>
+                  <dd>{profile.results![key]}</dd>
+                </div>
+              ))}
+            </dl>
+            {!analysed ? <p className={styles.note}>{t('progress.results.pending')}</p> : null}
+          </section>
+        ) : null}
         <LevelCard
           className={styles.wide}
           level={level}

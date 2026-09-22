@@ -551,6 +551,7 @@ export class GameSession {
         {
           threadId: this.threadId,
           difficulty: game.opponent.difficulty,
+          difficultySeed: `${game.id}:${game.moves.length}:${fen}`,
           openingBook: this.openings(),
           allowResign: game.kind === 'match',
           signal: controller.signal,

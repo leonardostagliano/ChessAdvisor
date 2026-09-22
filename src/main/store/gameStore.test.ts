@@ -201,6 +201,18 @@ describe('GameStore', () => {
     await expect(store.delete(game.id)).resolves.toBeUndefined()
   })
 
+  it('does not let a stale async owner recreate a deleted game', async () => {
+    const game = await store.create(init())
+    const staleSnapshot = structuredClone(game)
+
+    await store.delete(game.id)
+
+    await expect(store.save(staleSnapshot)).resolves.toBe(false)
+    expect(store.list()).toEqual([])
+    expect(await store.get(game.id)).toBeNull()
+    expect(await readdir(dir)).toEqual([])
+  })
+
   it('rebuilds the index from disk on load and skips unusable files with a warning', async () => {
     const good = await store.create(init())
     await mkdir(dir, { recursive: true })

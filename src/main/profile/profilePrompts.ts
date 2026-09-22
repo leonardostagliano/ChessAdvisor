@@ -8,7 +8,7 @@ import { THEMES } from './themes'
  * Prompts of the profile (spec §6.1 and §6.3).
  *
  * Two calls, both structured: the labelling of the key moments of a game that has just been
- * analysed, and the qualitative assessment written from the aggregated numbers every three games.
+ * analysed, and the qualitative assessment written from the aggregated numbers after each game.
  * Neither of them is about a position to play: they run in their own short-lived `training`
  * thread, opened with {@link profileBaseInstructions}.
  *
@@ -174,6 +174,14 @@ export function qualitativeText(p: { profile: Profile; language: Language }): st
     } ${profile.level.confidence.toFixed(2)}`
   ]
 
+  if (profile.results) {
+    lines.push(
+      it
+        ? `Risultati effettivi nell'archivio (partite · vittorie/patte/sconfitte): ${profile.results.games} · ${profile.results.wins}/${profile.results.draws}/${profile.results.losses}`
+        : `Actual archive results (games · wins/draws/losses): ${profile.results.games} · ${profile.results.wins}/${profile.results.draws}/${profile.results.losses}`
+    )
+  }
+
   const recent = profile.history.slice(-RECENT_GAMES)
   if (recent.length > 0) {
     lines.push(
@@ -219,8 +227,8 @@ export function qualitativeText(p: { profile: Profile; language: Language }): st
 
   lines.push(
     it
-      ? 'Rispondi soltanto con il JSON richiesto: "strengths" sono da due a quattro punti di forza, "weaknesses" da due a quattro punti deboli, ciascuno una frase breve e concreta, riferita ai dati qui sopra. Parla alla persona che alleni, senza compiacenza.'
-      : 'Answer with the requested JSON only: "strengths" are two to four strengths, "weaknesses" two to four weaknesses, each one short, concrete sentence grounded in the data above. Speak to the person you coach, with no flattery.'
+      ? 'Rispondi soltanto con il JSON richiesto: "strengths" sono da due a quattro punti di forza, "weaknesses" da due a quattro punti deboli, ciascuno una frase breve e concreta, riferita ai dati qui sopra. Se citi vittorie, patte o sconfitte, usa esclusivamente i risultati effettivi riportati sopra: non dedurli da accuratezza, temi o aperture. Parla alla persona che alleni, senza compiacenza.'
+      : 'Answer with the requested JSON only: "strengths" are two to four strengths, "weaknesses" two to four weaknesses, each one short, concrete sentence grounded in the data above. If you mention wins, draws, or losses, use only the actual results reported above; never infer them from accuracy, themes, or openings. Speak to the person you coach, with no flattery.'
   )
   return lines.join('\n')
 }

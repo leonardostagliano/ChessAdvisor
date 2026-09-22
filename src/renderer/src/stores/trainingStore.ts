@@ -120,6 +120,17 @@ function activityKey(kind: string, ref: string | null): string {
 }
 
 export const useTrainingStore = create<TrainingStoreState>((set, get) => {
+  let loadToken = 0
+  let exercisesToken = 0
+  let planToken = 0
+  let openingsToken = 0
+
+  function applyExercises(exercises: Exercise[], endgames: EndgameListEntry[]): void {
+    const ids = new Set(exercises.map((exercise) => exercise.id))
+    const selected = get().selectedExercise
+    set({ exercises, endgames, selectedExercise: selected && ids.has(selected) ? selected : null })
+  }
+
   /**
    * One request that can fail. Like the coach's turns, it is deliberately outside any global busy
    * flag: writing a lesson can take half a minute and must grey out its own button only.
@@ -191,50 +202,48 @@ export const useTrainingStore = create<TrainingStoreState>((set, get) => {
     async load() {
       const api = bridge()
       if (!api) return
+      const mine = ++loadToken
       set({ loading: true, error: null })
-      try {
-        const [exercises, endgames, plan] = await Promise.all([
-          api.training.exercises.list(),
-          api.training.endgames.list(),
-          api.training.plan.get()
-        ])
-        set({ exercises, endgames, plan, loading: false })
-      } catch (error) {
-        set({ loading: false, error: failure(error) })
-      }
+      await Promise.all([get().refreshExercises(), get().refreshPlan(), get().loadOpenings()])
+      if (mine === loadToken) set({ loading: false })
     },
 
     async refreshExercises() {
       const api = bridge()
       if (!api) return
+      const mine = ++exercisesToken
       try {
         const [exercises, endgames] = await Promise.all([
           api.training.exercises.list(),
           api.training.endgames.list()
         ])
-        set({ exercises, endgames })
+        if (mine === exercisesToken) applyExercises(exercises, endgames)
       } catch {
-        // A refresh that fails leaves the list as it was: the event will come again.
+        // Preserve the last successful snapshot if a background refresh fails.
       }
     },
 
     async refreshPlan() {
       const api = bridge()
       if (!api) return
+      const mine = ++planToken
       try {
-        set({ plan: await api.training.plan.get() })
+        const plan = await api.training.plan.get()
+        if (mine === planToken) set({ plan })
       } catch {
-        /* same as above: the plan on screen stays */
+        // Preserve the last successful snapshot if a background refresh fails.
       }
     },
 
     async loadOpenings() {
       const api = bridge()
       if (!api) return
+      const mine = ++openingsToken
       try {
-        set({ openings: await api.training.openings.overview() })
+        const openings = await api.training.openings.overview()
+        if (mine === openingsToken) set({ openings })
       } catch (error) {
-        set({ error: failure(error) })
+        if (mine === openingsToken) set({ error: failure(error) })
       }
     },
 
@@ -300,7 +309,10 @@ export const useTrainingStore = create<TrainingStoreState>((set, get) => {
 
     async generatePlan() {
       await ask({ kind: 'plan', ref: null }, async (api) => {
-        set({ plan: await api.training.plan.generate() })
+        const mine = ++planToken
+        const plan = await api.training.plan.generate()
+        if (mine === planToken) set({ plan })
+        else await get().refreshPlan()
       })
     },
 
@@ -308,7 +320,10 @@ export const useTrainingStore = create<TrainingStoreState>((set, get) => {
       const api = bridge()
       if (!api) return
       try {
-        set({ plan: await api.training.plan.markDone(itemId, done) })
+        const mine = ++planToken
+        const plan = await api.training.plan.markDone(itemId, done)
+        if (mine === planToken) set({ plan })
+        else await get().refreshPlan()
       } catch (error) {
         set({ error: failure(error) })
       }
@@ -380,9 +395,31 @@ export function initTrainingStore(): () => void {
   if (!api) return () => {}
   const unsubscribe = [
     api.on('training:changed', (event) => useTrainingStore.getState().applyChanged(event)),
+    api.on('profile:changed', () => {
+      void useTrainingStore.getState().loadOpenings()
+      void useTrainingStore.getState().refreshPlan()
+    }),
     api.on('stream', (envelope) => useTrainingStore.getState().applyStream(envelope))
   ]
   void useTrainingStore.getState().load()
+  return () => {
+    for (const stop of unsubscribe) stop()
+  }
+}
+
+/** Keep the dashboard's plan live while the training screen is unmounted. */
+export function initStudyPlanStore(): () => void {
+  const api = bridge()
+  if (!api) return () => {}
+  const refresh = (): void => {
+    void useTrainingStore.getState().refreshPlan()
+  }
+  const unsubscribe = [
+    api.on('training:changed', (event) => {
+      if (event.kind === 'plan') refresh()
+    })
+  ]
+  refresh()
   return () => {
     for (const stop of unsubscribe) stop()
   }

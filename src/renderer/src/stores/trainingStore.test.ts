@@ -217,3 +217,32 @@ describe('trainingStore concurrent requests', () => {
     })
   })
 })
+
+describe('training refresh ordering', () => {
+  it('keeps the latest plan when a previous read completes late', async () => {
+    const pending = deferred<StudyPlanView>()
+    vi.mocked(window.api.training.plan.get)
+      .mockReturnValueOnce(pending.promise)
+      .mockResolvedValueOnce({ ...emptyPlan, gamesSincePlan: 2 })
+    const first = useTrainingStore.getState().refreshPlan()
+    await useTrainingStore.getState().refreshPlan()
+    pending.resolve(emptyPlan)
+    await first
+    expect(useTrainingStore.getState().plan?.gamesSincePlan).toBe(2)
+  })
+
+  it('does not restore an exercise deleted while an older list was loading', async () => {
+    const pending = deferred<Awaited<ReturnType<Window['api']['training']['exercises']['list']>>>()
+    vi.mocked(window.api.training.exercises.list)
+      .mockReturnValueOnce(pending.promise)
+      .mockResolvedValueOnce([])
+    vi.mocked(window.api.training.endgames.list).mockResolvedValue([])
+    useTrainingStore.setState({ selectedExercise: 'deleted' })
+    const first = useTrainingStore.getState().refreshExercises()
+    await useTrainingStore.getState().refreshExercises()
+    pending.resolve([{ id: 'deleted' } as never])
+    await first
+    expect(useTrainingStore.getState().exercises).toEqual([])
+    expect(useTrainingStore.getState().selectedExercise).toBeNull()
+  })
+})

@@ -11,8 +11,13 @@ import { readJson, writeJsonAtomic } from './atomicWrite'
  */
 export class StudyPlanStore {
   private current: StudyPlan | null = null
+  /** An older async save must never land on disk after a newer plan or ticked item. */
+  private writeQueue: Promise<void> = Promise.resolve()
 
-  constructor(private readonly file: string) {}
+  constructor(
+    private readonly file: string,
+    private readonly write: typeof writeJsonAtomic = writeJsonAtomic
+  ) {}
 
   async load(): Promise<void> {
     this.current = sanitizePlan(await readJson<unknown>(this.file, null))
@@ -24,8 +29,8 @@ export class StudyPlanStore {
 
   async save(plan: StudyPlan): Promise<StudyPlan> {
     const stored = clone(plan)
-    await writeJsonAtomic(this.file, stored)
     this.current = stored
+    await this.flush(stored)
     return clone(stored)
   }
 
@@ -37,6 +42,13 @@ export class StudyPlanStore {
     if (!item || item.done === done) return clone(plan)
     item.done = done
     return this.save(plan)
+  }
+
+  private flush(plan: StudyPlan): Promise<void> {
+    const snapshot = clone(plan)
+    const write = this.writeQueue.then(() => this.write(this.file, snapshot))
+    this.writeQueue = write.catch(() => undefined)
+    return write
   }
 }
 

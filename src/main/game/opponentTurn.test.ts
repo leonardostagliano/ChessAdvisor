@@ -2,6 +2,7 @@ import { legalMoves } from '@shared/chess/notation'
 import type { TurnRequest, TurnResult } from '@shared/types/codex'
 import type { Analysis, EngineState } from '@shared/types/engine'
 import { describe, expect, it, vi } from 'vitest'
+import { difficultyPolicy, sampledCandidate, shouldAdjustModelMove } from './difficultyPolicy'
 import {
   MAX_ATTEMPTS,
   OpponentTurnError,
@@ -154,6 +155,112 @@ describe('playOpponentTurn', () => {
     expect(onRetry).toHaveBeenCalledTimes(MAX_ATTEMPTS)
   })
 
+  it('uses the same sampled tier candidate in the fallback instead of the strongest PV', async () => {
+    const prepared: Analysis = {
+      bestMove: 'e7e5',
+      lines: [
+        { move: 'e7e5', pv: ['e7e5'], scoreCp: 900, depth: 12 },
+        { move: 'c7c5', pv: ['c7c5'], scoreCp: 300, depth: 12 },
+        { move: 'g8f6', pv: ['g8f6'], scoreCp: 0, depth: 12 }
+      ],
+      depth: 12,
+      fen: AFTER_E4
+    }
+    const difficulty = { mode: 'fixed', level: 1, targetElo: 600 } as const
+    const policy = difficultyPolicy(difficulty)
+    const seed = Array.from({ length: 40 }, (_, index) => `fallback-${index}`).find(
+      (value) => sampledCandidate(prepared.lines, policy, value)?.move !== prepared.bestMove
+    )!
+    const expected = sampledCandidate(prepared.lines, policy, seed)!
+    const d = deps([ok('nope'), ok('nope'), ok('nope')], { available: true, analyses: [prepared] })
+
+    const move = await playOpponentTurn(d, params({ difficulty, difficultySeed: seed }))
+
+    expect(move).toMatchObject({ uci: expected.move, fallback: 'engine', engineVerified: true })
+    expect(move.uci).not.toBe(prepared.bestMove)
+  })
+
+  it('can soften an otherwise perfect model move through the deterministic low-tier policy', async () => {
+    const prepared: Analysis = {
+      bestMove: 'e7e5',
+      lines: [
+        { move: 'e7e5', pv: ['e7e5'], scoreCp: 900, depth: 12 },
+        { move: 'c7c5', pv: ['c7c5'], scoreCp: 300, depth: 12 },
+        { move: 'g8f6', pv: ['g8f6'], scoreCp: 0, depth: 12 }
+      ],
+      depth: 12,
+      fen: AFTER_E4
+    }
+    const difficulty = { mode: 'fixed', level: 1, targetElo: 600 } as const
+    const policy = difficultyPolicy(difficulty)
+    const seed = Array.from({ length: 80 }, (_, index) => `adjust-${index}`).find((value) => {
+      const sampled = sampledCandidate(prepared.lines, policy, value)
+      return sampled?.move !== prepared.bestMove && shouldAdjustModelMove(policy, value)
+    })!
+    const expected = sampledCandidate(prepared.lines, policy, seed)!
+    const perfectReply: Analysis = {
+      bestMove: 'g1f3',
+      lines: [{ move: 'g1f3', pv: ['g1f3'], scoreCp: -900, depth: 20 }],
+      depth: 20,
+      fen: AFTER_E4
+    }
+    const softerReply: Analysis = {
+      bestMove: 'g1f3',
+      lines: [{ move: 'g1f3', pv: ['g1f3'], scoreCp: -300, depth: 20 }],
+      depth: 20,
+      fen: AFTER_E4
+    }
+    const d = deps([answer('e5', 'Commento per e5')], {
+      available: true,
+      analyses: [prepared, perfectReply, softerReply]
+    })
+
+    const move = await playOpponentTurn(d, params({ difficulty, difficultySeed: seed }))
+
+    expect(move).toMatchObject({ uci: expected.move, attempts: 1, shortComment: null })
+    expect(move.uci).not.toBe('e7e5')
+    expect(move.fallback).toBeUndefined()
+  })
+
+  it('keeps an allowed imperfect model move when the sampled candidate would improve it', async () => {
+    const prepared: Analysis = {
+      bestMove: 'e7e5',
+      lines: [
+        { move: 'e7e5', pv: ['e7e5'], scoreCp: 900, depth: 12 },
+        { move: 'c7c5', pv: ['c7c5'], scoreCp: 300, depth: 12 },
+        { move: 'g8f6', pv: ['g8f6'], scoreCp: 0, depth: 12 }
+      ],
+      depth: 12,
+      fen: AFTER_E4
+    }
+    const difficulty = { mode: 'fixed', level: 1, targetElo: 600 } as const
+    const policy = difficultyPolicy(difficulty)
+    const seed = Array.from({ length: 80 }, (_, index) => `retain-${index}`).find((value) => {
+      const sampled = sampledCandidate(prepared.lines, policy, value)
+      return sampled?.move !== 'c7c5' && shouldAdjustModelMove(policy, value)
+    })!
+    const imperfectReply: Analysis = {
+      bestMove: 'g1f3',
+      lines: [{ move: 'g1f3', pv: ['g1f3'], scoreCp: -500, depth: 20 }],
+      depth: 20,
+      fen: AFTER_E4
+    }
+    const improvedReply: Analysis = {
+      bestMove: 'g1f3',
+      lines: [{ move: 'g1f3', pv: ['g1f3'], scoreCp: -900, depth: 20 }],
+      depth: 20,
+      fen: AFTER_E4
+    }
+    const d = deps([answer('c5', 'Commento per c5')], {
+      available: true,
+      analyses: [prepared, imperfectReply, improvedReply]
+    })
+
+    const move = await playOpponentTurn(d, params({ difficulty, difficultySeed: seed }))
+
+    expect(move).toMatchObject({ uci: 'c7c5', shortComment: 'Commento per c5' })
+  })
+
   it('accepts JSON wrapped in a code fence', async () => {
     const d = deps([ok('```json\n{"move":"e5","shortComment":null}\n```')])
     await expect(playOpponentTurn(d, params())).resolves.toMatchObject({ san: 'e5', attempts: 1 })
@@ -164,6 +271,15 @@ describe('playOpponentTurn', () => {
     const move = await playOpponentTurn(d, params())
     expect(move.fallback).toBe('random')
     expect(legalMoves(AFTER_E4).map((legal) => legal.uci)).toContain(move.uci)
+  })
+
+  it('keeps the only legal move available even when no engine is available', async () => {
+    const forced = '7k/8/8/8/8/8/6r1/7K w - - 0 1'
+    const only = legalMoves(forced)
+    expect(only).toHaveLength(1)
+    const d = deps([ok('nope'), ok('nope'), ok('nope')], { available: false })
+    const move = await playOpponentTurn(d, params({ fen: forced, pgn: '' }))
+    expect(move).toMatchObject({ uci: only[0]!.uci, fallback: 'random' })
   })
 
   it('falls back to a random move when the engine has no answer either', async () => {

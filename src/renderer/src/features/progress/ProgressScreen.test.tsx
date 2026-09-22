@@ -173,6 +173,23 @@ afterEach(() => {
 })
 
 describe('ProgressScreen', () => {
+  it('shows exact losses before any analysis has completed', async () => {
+    get.mockResolvedValueOnce(
+      profile({
+        history: [],
+        qualitative: undefined,
+        results: { games: 2, wins: 0, draws: 0, losses: 2 }
+      })
+    )
+    render(<ProgressScreen />)
+    const card = await screen.findByRole('region', { name: 'Risultati delle partite' })
+    expect(within(card).getByText('Perse').nextElementSibling).toHaveTextContent('2')
+    expect(within(card).getByText('Patte').nextElementSibling).toHaveTextContent('0')
+    expect(
+      within(card).getByText('Le statistiche di precisione si aggiornano al termine dell’analisi.')
+    ).toBeInTheDocument()
+  })
+
   it('guides the user to the board while no match has been analysed', async () => {
     get.mockResolvedValueOnce(profile({ history: [], qualitative: undefined }))
     render(<ProgressScreen />)

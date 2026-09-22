@@ -1,6 +1,8 @@
 import { parseIpcError } from '@shared/ipcError'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { GameError } from '../game/gameSession'
+import type { AnalysisManager } from '../analysis/register'
+import type { GameStore } from '../store/gameStore'
 
 type Handler = (event: unknown, ...args: unknown[]) => Promise<unknown>
 
@@ -21,7 +23,7 @@ vi.mock('electron', () => ({
   }
 }))
 
-const { handle, IpcError, serializeError } = await import('./register')
+const { handle, IpcError, registerGamesIpc, serializeError } = await import('./register')
 
 /**
  * Electron keeps only name/message/stack of a rejection: this is what actually reaches the
@@ -35,6 +37,10 @@ async function invoke(channel: string): Promise<Error> {
     const thrown = error as Error
     return new Error(`Error invoking remote method '${channel}': ${thrown.name}: ${thrown.message}`)
   }
+}
+
+async function invokeOk(channel: string, ...args: unknown[]): Promise<unknown> {
+  return bus.handlers.get(channel)!(null, ...args)
 }
 
 describe('the IPC error contract', () => {
@@ -80,5 +86,31 @@ describe('the IPC error contract', () => {
   it('serializes a plain error without inventing a payload', () => {
     expect(serializeError(new Error('boom'))).toEqual({ code: 'E_UNEXPECTED', message: 'boom' })
     expect(serializeError('boom')).toEqual({ code: 'E_UNEXPECTED', message: 'boom' })
+  })
+})
+
+describe('games:delete lifecycle', () => {
+  beforeEach(() => bus.handlers.clear())
+
+  it('cancels stale analysis before deletion and reconciles derived data afterwards', async () => {
+    const order: string[] = []
+    const games = {
+      delete: vi.fn(async (id: string) => {
+        order.push(`delete:${id}`)
+      })
+    } as unknown as GameStore
+    const analysis = {
+      cancel: vi.fn((id: string) => order.push(`cancel:${id}`))
+    } as unknown as AnalysisManager
+    registerGamesIpc({
+      games,
+      analysis,
+      onGameDeleting: (id) => order.push(`deleting:${id}`),
+      onGameDeleted: async (id) => order.push(`deleted:${id}`)
+    } as never)
+
+    await invokeOk('games:delete', 'game-1')
+
+    expect(order).toEqual(['cancel:game-1', 'deleting:game-1', 'delete:game-1', 'deleted:game-1'])
   })
 })

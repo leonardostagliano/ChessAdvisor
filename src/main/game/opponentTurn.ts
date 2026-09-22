@@ -11,6 +11,13 @@ import type { OpeningBook } from '../analysis/openings'
 import { nearestLevel, type DifficultyLevel, type OpponentDifficulty } from '@shared/types/session'
 import type { CodexService } from '../codex/codexService'
 import type { EngineService } from '../engine/engineService'
+import {
+  contextLines,
+  difficultyPolicy,
+  lineUtility,
+  sampledCandidate,
+  shouldAdjustModelMove
+} from './difficultyPolicy'
 import { opponentBookContext } from './opponentBook'
 import { OPPONENT_MOVE_SCHEMA, opponentTurnText } from './prompts'
 
@@ -69,6 +76,8 @@ export interface OpponentTurnParams {
   previousHopeless?: boolean
   /** Cancels preparatory/verification searches when this turn becomes stale. */
   signal?: AbortSignal
+  /** Stable per-game entropy for controlled candidate sampling. */
+  difficultySeed?: string
   onDelta(kind: 'text' | 'reasoning', delta: string): void
   onRetry(attempt: number, why: string): void
 }
@@ -146,12 +155,7 @@ function abortIfRequested(signal?: AbortSignal): void {
 }
 
 function lineScore(line: EngineLine | undefined): number | null {
-  if (!line) return null
-  if (typeof line.scoreMate === 'number') {
-    if (line.scoreMate === 0) return -MATE_SCORE
-    return Math.sign(line.scoreMate) * (MATE_SCORE - Math.min(999, Math.abs(line.scoreMate)))
-  }
-  return typeof line.scoreCp === 'number' ? line.scoreCp : null
+  return lineUtility(line)
 }
 
 function bestLine(analysis: Analysis): EngineLine | undefined {
@@ -264,16 +268,21 @@ function describeFailure(result: Extract<TurnResult, { ok: false }>): string {
   return `${result.reason}: ${result.message}`
 }
 
-/** Picks the calculated best move, or nothing when analysis is unavailable or unhelpful. */
+/** Picks the same policy-controlled candidate used for a model fallback. */
 async function engineMove(
   deps: OpponentDeps,
   fen: string,
   profile: AnalysisProfile,
   prepared: Analysis | null,
+  policy: ReturnType<typeof difficultyPolicy>,
+  seed: string,
   signal?: AbortSignal
 ): Promise<LegalMove | null> {
   const analysis = prepared ?? (await analyze(deps, fen, profile, signal))
   abortIfRequested(signal)
+  const sampled = analysis ? sampledCandidate(analysis.lines, policy, seed) : null
+  const sampledMove = sampled ? normalizeMove(fen, sampled.move) : null
+  if (sampledMove) return sampledMove
   const best = analysis?.bestMove ?? (analysis ? bestLine(analysis)?.move : null) ?? null
   return best ? normalizeMove(fen, best) : null
 }
@@ -327,8 +336,13 @@ export async function playOpponentTurn(
 
   const level = resolvedLevel(p.difficulty)
   const profile = OPPONENT_PROFILE[level]
+  const policy = difficultyPolicy(p.difficulty)
+  const seed = p.difficultySeed ?? `${p.fen}\u0000${p.pgn}`
   const opening = p.openingBook ? opponentBookContext(p.fen, legal, p.openingBook) : null
   const prepared = await analyze(deps, p.fen, profile, p.signal)
+  // The engine may inspect several candidates internally, but weak tiers are not handed the
+  // strongest PV as a ready-made answer. The complete legal list below remains unrestricted.
+  const promptLines = contextLines(prepared?.lines ?? [], policy)
   if (
     p.allowResign &&
     prepared &&
@@ -353,7 +367,7 @@ export async function playOpponentTurn(
     fen: p.fen,
     pgn: p.pgn,
     legal,
-    analysisLines: prepared?.lines,
+    analysisLines: promptLines,
     opening,
     takebackNotice: p.takebackNotice,
     language: p.language
@@ -384,19 +398,40 @@ export async function playOpponentTurn(
       const move = answer ? normalizeMove(p.fen, answer.move) : null
       if (answer && move) {
         const lossCp = await selectedMoveLoss(deps, p.fen, move, prepared, p.signal)
-        if (lossCp !== null && lossCp > MAX_MOVE_LOSS_CP[level]) {
+        const maximumLoss = policy.maximumLossCp
+        if (lossCp !== null && lossCp > maximumLoss) {
           overheadMs += elapsed
           const why = `unsafe move "${move.san}" loses ${Math.round(lossCp)} cp`
           p.onRetry(attempt, why)
-          text = unsafeMoveRetryText(
-            text,
-            move,
-            lossCp,
-            MAX_MOVE_LOSS_CP[level],
-            prepared ? bestLine(prepared) : undefined,
-            p.language
-          )
+          text = unsafeMoveRetryText(text, move, lossCp, maximumLoss, promptLines[0], p.language)
           continue
+        }
+        const sampled = prepared ? sampledCandidate(prepared.lines, policy, seed) : null
+        const adjusted =
+          sampled && shouldAdjustModelMove(policy, seed) ? normalizeMove(p.fen, sampled.move) : null
+        if (adjusted && adjusted.uci !== move.uci) {
+          const adjustedLoss = await selectedMoveLoss(deps, p.fen, adjusted, prepared, p.signal)
+          // The policy may only soften a too-accurate answer. It must never replace a natural
+          // human inaccuracy with a stronger engine candidate.
+          if (
+            lossCp !== null &&
+            adjustedLoss !== null &&
+            adjustedLoss > lossCp + 10 &&
+            adjustedLoss <= maximumLoss
+          ) {
+            return {
+              san: adjusted.san,
+              uci: adjusted.uci,
+              // The model wrote its comment for a different move; do not attach misleading prose.
+              shortComment: null,
+              effectiveModel: result.effectiveModel,
+              thinkingMs: elapsed,
+              overheadMs,
+              attempts: attempt,
+              engineAssisted: true,
+              engineVerified: adjustedLoss !== null
+            }
+          }
         }
         return {
           san: move.san,
@@ -428,9 +463,9 @@ export async function playOpponentTurn(
     text = retryText(text, result.message, p.language)
   }
 
-  // Three unusable or unsafe answers spent: play on with the strongest prepared continuation.
+  // Three unusable or unsafe answers spent: play on with the exact same tier policy.
   abortIfRequested(p.signal)
-  const best = await engineMove(deps, p.fen, profile, prepared, p.signal)
+  const best = await engineMove(deps, p.fen, profile, prepared, policy, seed, p.signal)
   abortIfRequested(p.signal)
   const chosen = best ?? legal[Math.floor(Math.random() * legal.length)]!
   return {

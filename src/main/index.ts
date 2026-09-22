@@ -78,6 +78,8 @@ shutdown.register(() => codex.shutdown())
 // One session for the whole process: it owns the board, the opponent thread and the autosave.
 const games = new GameStore(join(dataDir(), 'games'))
 const profile = new ProfileStore(join(dataDir(), 'profile.json'))
+let learningReady = false
+let learningProfileKey = ''
 // --- Task 17: the player profile ---
 // Level, themes, openings and history; it is fed by the analysis and read by Progressi (spec §6).
 const profileService = new ProfileService({
@@ -85,7 +87,22 @@ const profileService = new ProfileService({
   settings,
   profile,
   games,
-  emit: (channel, payload) => emit(channel, payload)
+  emit: (channel, payload) => {
+    emit(channel, payload)
+    const key = JSON.stringify({
+      results: payload.results,
+      history: payload.history,
+      themes: payload.themeStats,
+      openings: payload.openingStats,
+      level: [payload.level.band, payload.level.estimate, payload.level.confidence]
+    })
+    if (key === learningProfileKey) return
+    learningProfileKey = key
+    if (learningReady)
+      void training
+        .onProfileChanged()
+        .catch((error) => console.error('[main] learning material refresh failed:', error))
+  }
 })
 // --- Task 15: post-game analysis and review ---
 // Owns the pipeline and the review threads; a finished match hands itself to it (spec §3.1).
@@ -119,10 +136,11 @@ const game = new GameManager({
   emit,
   onFinished: (finished) => {
     analysis.onGameFinished(finished)
-    // Task 20: an endgame drill writes its own result (spec §6.7); a match is analysed instead.
-    void training
+    // Exact results become visible before engine analysis or coach enrichment completes.
+    void profileService
       .onGameFinished(finished)
-      .catch((error) => console.error('[main] the endgame result could not be saved:', error))
+      .then(() => training.onGameFinished(finished))
+      .catch((error) => console.error('[main] the finished game could not update learning:', error))
   }
 })
 // --- Task 20: the training section ---
@@ -253,6 +271,13 @@ if (!gotLock) {
     await library
       .load()
       .catch((error) => console.error('[main] the training datasets could not be read:', error))
+    // Repair obsolete aggregates and orphaned exercises from older versions before serving IPC.
+    await profileService
+      .reconcileArchive()
+      .catch((error) => console.error('[main] profile reconciliation failed:', error))
+    await training
+      .reconcile()
+      .catch((error) => console.error('[main] training reconciliation failed:', error))
     registerIpc({
       settings,
       showWindow: showMainWindow,
@@ -262,7 +287,13 @@ if (!gotLock) {
       game,
       analysis,
       profile: profileService,
-      training
+      training,
+      onGameDeleting: (id) => training.invalidateGame(id),
+      onGameDeleted: (id) => {
+        void Promise.all([profileService.reconcileArchive(), training.onGameDeleted(id)]).catch(
+          (error) => console.error('[main] deleted game cleanup failed:', error)
+        )
+      }
     })
     // In-app updater: never installs while a game turn is in flight.
     registerUpdates({
@@ -278,7 +309,7 @@ if (!gotLock) {
 
     createWindow()
     // The engine probe spawns a child process: never let it delay the first paint.
-    void engine
+    const engineReady = engine
       .start()
       .catch((error) => console.error('[main] the chess engine could not start:', error))
     void feedbackEngine
@@ -306,9 +337,35 @@ if (!gotLock) {
     powerMonitor.on('resume', () => void game.checkClock())
 
     // The renderer follows `codex:state`; a boot failure is a screen, never a crash.
-    void codex
+    const codexReady = codex
       .start()
       .catch((error) => console.error('[main] Codex service failed to start:', error))
+    // A shutdown can interrupt either analysis or exercise extraction. Resume saved matches.
+    void Promise.all([engineReady, codexReady])
+      .then(async () => {
+        learningReady = true
+        void training
+          .onProfileChanged()
+          .catch((error) => console.error('[main] initial plan refresh failed:', error))
+        if (!engine.state().available) return
+        const retired = new Set(profile.get().retiredGameIds)
+        for (const row of games.list({ kind: 'match', status: 'finished' }).reverse()) {
+          if (retired.has(row.id)) continue
+          const saved = await games.get(row.id)
+          if (!saved) continue
+          if (!saved.analysis) {
+            await analysis
+              .run(saved.id)
+              .catch((error) => console.error('[main] pending analysis recovery failed:', error))
+          } else {
+            await profileService.onGameAnalyzed(saved)
+            await training
+              .onGameAnalyzed(saved)
+              .catch((error) => console.error('[main] exercise recovery failed:', error))
+          }
+        }
+      })
+      .catch((error) => console.error('[main] learning recovery failed:', error))
   })
 
   // On Windows the app lives in the tray after the last window is closed.

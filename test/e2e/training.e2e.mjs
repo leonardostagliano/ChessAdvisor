@@ -1,5 +1,6 @@
 // Focused training regression pass; --real uses three small turns from the user's Codex quota.
 import { _electron as electron } from 'playwright-core'
+import { Chess } from 'chess.js'
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve, relative, isAbsolute } from 'node:path'
@@ -12,6 +13,7 @@ const repo = resolve(import.meta.dirname, '../..')
 const appData = mkdtempSync(join(tmpdir(), 'chessadvisor-training-'))
 const shots = join(repo, 'test/e2e/shots', real ? 'training-real' : 'training-fake')
 mkdirSync(join(appData, 'data'), { recursive: true })
+mkdirSync(join(appData, 'data', 'games'), { recursive: true })
 mkdirSync(shots, { recursive: true })
 const save = (name, value) => writeFileSync(join(appData, 'data', name), JSON.stringify(value))
 save('settings.json', {
@@ -34,6 +36,50 @@ save('exercises.json', [
     createdAt: '2026-09-19T00:00:00.000Z'
   }
 ])
+// Keep C20 backed by real saved analysed matches for startup reconciliation.
+const savedC20Game = (id, outcome) => {
+  const board = new Chess()
+  const moves = ['e4', 'e5'].map((san, i) => {
+    const move = board.move(san)
+    return {
+      ply: i + 1,
+      san: move.san,
+      uci: move.from + move.to,
+      fenAfter: board.fen(),
+      epdAfter: board.fen().split(' ').slice(0, 4).join(' '),
+      by: i % 2 === 0 ? 'user' : 'ai'
+    }
+  })
+  return {
+    id,
+    kind: 'match',
+    status: 'finished',
+    userColor: 'w',
+    createdAt: '2026-09-20T00:00:00.000Z',
+    updatedAt: '2026-09-20T01:00:00.000Z',
+    opponent: {
+      model: 'gpt-6-astra',
+      effort: 'high',
+      difficulty: { mode: 'fixed', level: 6, targetElo: 1400 }
+    },
+    coach: { model: 'gpt-6-astra', effort: 'high' },
+    language: 'it',
+    clock: null,
+    takebacks: 0,
+    coachLog: [],
+    moves,
+    opening: { eco: 'C20', name: "King's Pawn Game", lastBookPly: 2 },
+    result: { outcome, reason: 'resignation' },
+    analysis: {
+      accuracy: { w: 70, b: 70 },
+      acpl: { w: 30, b: 30 },
+      keyMoments: [],
+      analyzedAt: '2026-09-20T02:00:00.000Z'
+    }
+  }
+}
+save('games/c20-win.json', savedC20Game('c20-win', '1-0'))
+save('games/c20-loss.json', savedC20Game('c20-loss', '0-1'))
 save('profile.json', {
   openingStats: {
     C20: {
@@ -133,7 +179,16 @@ try {
 
   await page.getByRole('tab', { name: 'Piano di studio', exact: true }).click()
   started = Date.now()
-  await page.getByRole('button', { name: 'Genera il piano', exact: true }).click()
+  const previousPlan = await page.evaluate(
+    async () => (await window.api.training.plan.get()).plan?.generatedAt
+  )
+  await page.getByRole('button', { name: /^(Genera il piano|Rigenera)$/ }).click()
+  await poll(() =>
+    page.evaluate(
+      async (previous) => (await window.api.training.plan.get()).plan?.generatedAt !== previous,
+      previousPlan
+    )
+  )
   await page.getByTestId('study-plan').locator('[data-item]').first().waitFor({ timeout: 420000 })
   const items = await page.getByTestId('study-plan').locator('[data-item]').count()
   check(

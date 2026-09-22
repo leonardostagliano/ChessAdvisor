@@ -1,6 +1,6 @@
 {
   "name": "chessadvisor",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Learn chess by playing OpenAI models through your Codex session",
   "license": "GPL-3.0-only",
   "main": "./out/main/index.js",

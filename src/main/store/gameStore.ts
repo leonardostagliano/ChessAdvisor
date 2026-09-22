@@ -107,6 +107,12 @@ function mergeFinishedGame(current: Game, incoming: Game): Game {
 export class GameStore {
   private readonly index = new Map<string, GameSummary>()
   private readonly writes = new Map<string, Promise<void>>()
+  /**
+   * Deletion is terminal for an id for the lifetime of this process. Async owners can retain a
+   * snapshot for minutes (analysis, review comments), so deleting the file alone would let a late
+   * `save` recreate it after the archive removed it.
+   */
+  private readonly deleted = new Set<string>()
 
   /** `now` is injectable so tests can pin createdAt/updatedAt; production uses the wall clock. */
   constructor(
@@ -151,6 +157,7 @@ export class GameStore {
   list(filter?: GameFilter): GameSummary[] {
     const rows = [...this.index.values()].filter(
       (summary) =>
+        !this.deleted.has(summary.id) &&
         (!filter?.status || summary.status === filter.status) &&
         (!filter?.kind || summary.kind === filter.kind)
     )
@@ -158,6 +165,7 @@ export class GameStore {
   }
 
   async get(id: string): Promise<Game | null> {
+    if (this.deleted.has(id)) return null
     let parsed: unknown
     try {
       parsed = JSON.parse(await fsp.readFile(this.file(id), 'utf8'))
@@ -189,32 +197,57 @@ export class GameStore {
     return game
   }
 
-  /** Stamps `updatedAt` on the caller's object (the session keeps using it) and writes it. */
-  async save(game: Game): Promise<void> {
+  /**
+   * Stamps `updatedAt` on the caller's object (the session keeps using it) and writes it.
+   *
+   * `false` means a concurrent deletion won. Callers that trigger follow-up side effects (such
+   * as profile updates) must only do so after a `true` result.
+   */
+  async save(game: Game): Promise<boolean> {
+    if (this.deleted.has(game.id)) return false
     game.updatedAt = this.stamp()
     let snapshot = structuredClone(game)
     const previous = this.writes.get(game.id) ?? Promise.resolve()
+    let saved = false
     const writing = previous
       .catch(() => undefined)
       .then(async () => {
+        if (this.deleted.has(snapshot.id)) return
         if (snapshot.status === 'finished') {
           const current = await this.get(snapshot.id)
           if (current?.status === 'finished') snapshot = mergeFinishedGame(current, snapshot)
         }
         await writeJsonAtomic(this.file(snapshot.id), snapshot)
+        // A delete can arrive while the atomic write is in flight. Its queued removal still owns
+        // the file; do not briefly repopulate the archive index in the meantime.
+        if (this.deleted.has(snapshot.id)) return
         this.index.set(snapshot.id, summaryOf(snapshot))
+        saved = true
       })
     this.writes.set(game.id, writing)
     try {
       await writing
+      return saved
     } finally {
       if (this.writes.get(game.id) === writing) this.writes.delete(game.id)
     }
   }
 
   async delete(id: string): Promise<void> {
-    await this.writes.get(id)?.catch(() => undefined)
-    await fsp.rm(this.file(id), { force: true }).catch(() => undefined)
-    this.index.delete(id)
+    // Mark first, before waiting: every save already queued or queued later observes the marker.
+    this.deleted.add(id)
+    const previous = this.writes.get(id) ?? Promise.resolve()
+    const deleting = previous
+      .catch(() => undefined)
+      .then(async () => {
+        await fsp.rm(this.file(id), { force: true })
+        this.index.delete(id)
+      })
+    this.writes.set(id, deleting)
+    try {
+      await deleting
+    } finally {
+      if (this.writes.get(id) === deleting) this.writes.delete(id)
+    }
   }
 }

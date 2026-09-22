@@ -53,7 +53,8 @@ export function buildCatalogue(p: {
   return {
     themes: [...THEMES],
     exercises: p.exercises
-      .filter((exercise) => exercise.status === 'new' && exercise.kind === 'own_game')
+      // A failed exercise is still material to revisit. Only a solved one has left the catalogue.
+      .filter((exercise) => exercise.status !== 'solved' && exercise.kind === 'own_game')
       .map((exercise) => exercise.id),
     openings: [...new Set(p.openings)],
     endgames: p.endgames.map((endgame) => endgame.id)

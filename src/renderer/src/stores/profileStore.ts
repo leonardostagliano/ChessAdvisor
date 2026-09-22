@@ -119,14 +119,15 @@ function failure(error: unknown): string {
 export const useProfileStore = create<ProfileStoreState>((set, get) => {
   /** Guards against an older read landing after a newer one. */
   let token = 0
+  let profileToken = 0
 
-  /** Reads the games of the trend window once; an unchanged window is never read twice. */
+  /** Re-read grades on each profile update: re-analysis can retain the same game ids. */
   async function loadDistribution(profile: Profile): Promise<void> {
     const api = bridge()
     const ids = recentGameIds(profile)
     const key = ids.join(',')
-    if (!api || key === get().distributionFor) return
     const mine = (token += 1)
+    if (!api) return
     if (ids.length === 0) {
       set({ distribution: emptyDistribution(), distributionFor: key })
       return
@@ -152,12 +153,15 @@ export const useProfileStore = create<ProfileStoreState>((set, get) => {
     async load() {
       const api = bridge()
       if (!api) return
+      const mine = ++profileToken
       set({ loading: true, error: null })
       try {
         const profile = await api.profile.get()
+        if (mine !== profileToken) return
         set({ profile, loading: false })
         await loadDistribution(profile)
       } catch (error) {
+        if (mine !== profileToken) return
         set({ loading: false, error: failure(error) })
       }
     },
@@ -165,13 +169,15 @@ export const useProfileStore = create<ProfileStoreState>((set, get) => {
     async refreshQualitative() {
       const api = bridge()
       if (!api || get().refreshing) return
+      const mine = ++profileToken
       set({ refreshing: true, error: null })
       try {
         const profile = await api.profile.refreshQualitative()
+        if (mine !== profileToken) return
         set({ profile })
         await loadDistribution(profile)
       } catch (error) {
-        set({ error: failure(error) })
+        if (mine === profileToken) set({ error: failure(error) })
       } finally {
         set({ refreshing: false })
       }
@@ -179,7 +185,9 @@ export const useProfileStore = create<ProfileStoreState>((set, get) => {
 
     apply(profile) {
       if (!profile) return
-      set({ profile })
+      ++profileToken
+      set({ profile, loading: false })
+      // A re-analysis can change move grades without changing any game id.
       void loadDistribution(profile)
     },
 

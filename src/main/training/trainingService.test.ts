@@ -21,6 +21,14 @@ import { thematicExerciseId } from './thematic'
 
 const MIDDLEGAME = 'r1bqkb1r/pppp1ppp/2n2n2/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 4 4'
 
+function deferred<T = void>(): { promise: Promise<T>; resolve(value: T): void } {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((done) => {
+    resolve = done
+  })
+  return { promise, resolve }
+}
+
 /** Answers by the shape of the schema, exactly as the fake app-server does. */
 class FakeCodex implements SessionCodex {
   readonly started: { role: string; model: string }[] = []
@@ -305,6 +313,7 @@ describe('TrainingService', () => {
       emit: (channel, payload) => {
         if (channel === 'training:changed') events.push(payload as TrainingChanged)
       },
+      autoPlan: false,
       now: () => Date.parse('2026-03-03T12:00:00.000Z')
     })
   })
@@ -369,6 +378,52 @@ describe('TrainingService', () => {
     expect(engine.analysed).toHaveLength(0)
   })
 
+  it('does not restore an exercise when its source game is deleted during engine work', async () => {
+    const game = await storeGame(
+      analysedGame({
+        sans: ['e4', 'e5', 'Nf3'],
+        classifications: [undefined, undefined, 'blunder']
+      })
+    )
+    const entered = deferred<void>()
+    const release = deferred<void>()
+    const originalAnalyze = engine.analyze.bind(engine)
+    engine.analyze = async (fen) => {
+      entered.resolve()
+      await release.promise
+      return originalAnalyze(fen)
+    }
+
+    const building = service.onGameAnalyzed(game)
+    await entered.promise
+    service.invalidateGame(game.id)
+    await games.delete(game.id)
+    const cleanup = service.onGameDeleted(game.id)
+    release.resolve()
+    await Promise.all([building, cleanup])
+
+    expect(service.list('own_game')).toEqual([])
+  })
+
+  it('reconciles own-game exercises whose source game no longer exists', async () => {
+    await exercises.put({
+      id: 'og-missing-3',
+      kind: 'own_game',
+      fen: MIDDLEGAME,
+      sideToMove: 'w',
+      solution: solutionOf(MIDDLEGAME, 2),
+      theme: 'blunder',
+      sourceGameId: 'missing',
+      sourcePly: 3,
+      status: 'new',
+      attempts: 0,
+      createdAt: '2026-03-01T10:00:00.000Z'
+    })
+
+    expect(await service.reconcile()).toBe(1)
+    expect(service.list('own_game')).toEqual([])
+  })
+
   it('builds nothing without an engine, and nothing for a drill', async () => {
     engine.available = false
     const game = await storeGame(
@@ -383,6 +438,41 @@ describe('TrainingService', () => {
     engine.available = true
     await service.onGameAnalyzed({ ...game, kind: 'endgame_drill' })
     expect(service.list('own_game')).toEqual([])
+  })
+
+  it('rebuilds an existing study plan automatically after a finished match', async () => {
+    const automatic = new TrainingService({
+      codex,
+      engine,
+      settings,
+      profile,
+      games,
+      exercises,
+      plans,
+      library,
+      startGame: async () => ({}) as SessionState,
+      emit: () => undefined,
+      now: () => Date.parse('2026-03-03T12:00:00.000Z'),
+      autoPlan: true
+    })
+    codex.planAnswers = [
+      [
+        { title: 'Tema', why: '', activity: { type: 'thematic', ref: 'fork' } },
+        { title: 'Altro tema', why: '', activity: { type: 'thematic', ref: 'pin' } },
+        { title: 'Finale', why: '', activity: { type: 'endgame', ref: 'queen_mate' } },
+        { title: 'Gioca', why: '', activity: { type: 'play', ref: null } }
+      ]
+    ]
+    const game = await storeGame(analysedGame({ sans: [], classifications: [] }))
+
+    await automatic.onGameFinished(game)
+
+    expect(plans.get()?.items.map((item) => item.title)).toEqual([
+      'Tema',
+      'Altro tema',
+      'Finale',
+      'Gioca'
+    ])
   })
 
   // ─────────────────────────────────────────────────────────────── attempts
@@ -750,6 +840,10 @@ describe('TrainingService', () => {
       ]
     ]
     await service.generatePlan()
+    expect(service.plan().invalidRefs).toBe(0)
+
+    // A failed exercise remains material to revisit; only a solved one leaves the catalogue.
+    await exercises.update(exerciseId, { status: 'failed' })
     expect(service.plan().invalidRefs).toBe(0)
 
     // The exercise is solved, so it leaves the catalogue: the item that pointed at it goes stale.

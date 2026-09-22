@@ -13,7 +13,7 @@ import styles from './Progress.module.css'
  * the figure, so the arc never carries the value on its own (spec §7).
  *
  * "Aggiorna" asks the coach for a new assessment right away; without it the profile rewrites one
- * every three analysed matches by itself.
+ * after every analysed match by itself.
  */
 
 /** Geometry of the ring, in user units. */

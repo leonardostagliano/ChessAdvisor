@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { Chess } from 'chess.js'
 import { normalizeMove } from '@shared/chess/notation'
 import type { Game, Move } from '@shared/types/game'
-import type { OpeningStat, Profile, ProfileHistoryEntry } from '@shared/types/profile'
+import type { OpeningStat, Profile, ProfileHistoryEntry, ResultStat } from '@shared/types/profile'
 import type { Language } from '@shared/types/settings'
 import { moveAccuracy } from '../analysis/accuracy'
 import { START_FEN } from '../analysis/pipeline'
@@ -24,11 +24,10 @@ import { normalizeTheme, type Theme } from './themes'
 /**
  * Owner of `profile.json` beyond the adaptive rating (spec §5, §6.1, §6.3).
  *
- * One entry point: a match that has just been analysed. From it the service asks the coach to
- * label the key moments with the fixed taxonomy, counts those themes, aggregates the opening, adds
- * the game to the history, re-estimates the level over the last ten matches and — every third
- * analysed match — has the coach rewrite the qualitative assessment. Everything else in the app
- * only reads the result: `profile.get()` and the `profile:changed` event.
+ * Reconciles results and learning aggregates from the current archive. Finished matches publish
+ * exact results immediately; analysed matches add themes, openings, history and the level estimate.
+ * The coach labels key moments and updates qualitative prose in the background after each match.
+ * The rest of the app reads snapshots through profile.get() and the profile:changed event.
  *
  * Nothing here may break the analysis that called it: a labelling turn that fails costs the game
  * its themes and nothing else, and the statistics are written all the same.
@@ -37,7 +36,7 @@ import { normalizeTheme, type Theme } from './themes'
 /** Key moments labelled in one call (spec §6.3, same ceiling as the review's comments). */
 export const MAX_LABELLED_MOMENTS = 8
 /** Analysed matches between two qualitative assessments (spec §6.1). */
-export const QUALITATIVE_EVERY = 3
+export const QUALITATIVE_EVERY = 1
 /** Matches kept in `Profile.history`; the dashboard shows the last twenty (spec §6.9). */
 export const HISTORY_LIMIT = 50
 /** Strengths and weaknesses kept from one assessment, whatever the model answered. */
@@ -120,9 +119,14 @@ function trimStrings(raw: unknown, limit: number): string[] {
     .slice(0, limit)
 }
 
+const sameJson = (left: unknown, right: unknown): boolean =>
+  JSON.stringify(left) === JSON.stringify(right)
+
 export class ProfileService {
   /** Every write is read-modify-write on one file: they run one after the other, never together. */
   private queue: Promise<unknown> = Promise.resolve()
+  /** Model-only work deliberately runs after the factual profile update. */
+  private readonly background = new Set<Promise<void>>()
 
   constructor(private readonly deps: ProfileServiceDeps) {}
 
@@ -147,6 +151,118 @@ export class ProfileService {
     const run = this.queue.then(work, work)
     this.queue = run.catch(() => undefined)
     return run
+  }
+
+  /** Waits for deferred coach labelling; useful to drain the service before shutdown or in tests. */
+  async waitForIdle(): Promise<void> {
+    await Promise.all([...this.background])
+    await this.queue
+  }
+
+  private defer(work: () => Promise<void>): void {
+    const task = work()
+      .catch((error) => console.error('[profile] the deferred update failed:', error))
+      .finally(() => this.background.delete(task))
+    this.background.add(task)
+  }
+
+  /**
+   * Rebuilds derived profile data from the games that still exist. It is deliberately archive-led:
+   * deleting a game or finishing one while analysis is pending cannot leave an invented result in
+   * Progressi. The raw games are never touched here.
+   */
+  reconcileArchive(): Promise<Profile> {
+    return this.enqueue(() => this.reconcileArchiveNow())
+  }
+
+  /** Records a finished match immediately; analysis-dependent data follows when it is ready. */
+  onGameFinished(_game: Game): Promise<Profile> {
+    return this.reconcileArchive()
+  }
+
+  private async reconcileArchiveNow(incrementGamesSincePlanFor?: string): Promise<Profile> {
+    const before = this.deps.profile.get()
+    const rows = this.deps.games.list({ kind: 'match', status: 'finished' })
+    const archive = (await Promise.all(rows.map((row) => this.deps.games.get(row.id)))).filter(
+      (game): game is Game => game !== null && game.kind === 'match' && game.status === 'finished'
+    )
+
+    const results: ResultStat = { games: 0, wins: 0, draws: 0, losses: 0 }
+    for (const game of archive) {
+      const result = game.result
+      if (!result) continue
+      results.games += 1
+      if (result.outcome === '1/2-1/2') results.draws += 1
+      else if ((result.outcome === '1-0' ? 'w' : 'b') === game.userColor) results.wins += 1
+      else results.losses += 1
+    }
+
+    const retired = new Set(before.retiredGameIds)
+    const analysed = archive
+      .filter((game) => !retired.has(game.id) && Boolean(game.analysis))
+      .sort(
+        (left, right) =>
+          left.createdAt.localeCompare(right.createdAt) || left.id.localeCompare(right.id)
+      )
+    const themeStats: Profile['themeStats'] = {}
+    const openingStats: Record<string, OpeningStat> = {}
+    let history: ProfileHistoryEntry[] = []
+    for (const game of analysed) {
+      for (const move of game.moves) {
+        if (!move.theme) continue
+        const current = themeStats[move.theme]
+        const seen = game.analysis?.analyzedAt || game.createdAt
+        themeStats[move.theme] = {
+          occurrences: (current?.occurrences ?? 0) + 1,
+          lastSeen: current && current.lastSeen > seen ? current.lastSeen : seen
+        }
+      }
+      this.mergeOpening(openingStats, game)
+      history = this.mergeHistory(history, game)
+    }
+
+    const samples = archive
+      .filter((game) => !retired.has(game.id))
+      .sort(
+        (left, right) =>
+          right.createdAt.localeCompare(left.createdAt) || right.id.localeCompare(left.id)
+      )
+      .slice(0, LEVEL_SCAN)
+      .map((game) => levelSample(game))
+      .filter((sample): sample is LevelSample => sample !== null)
+      .slice(0, LEVEL_WINDOW)
+      .reverse()
+    const level = estimateLevel(samples)
+    const baseGamesSincePlan = Math.min(before.gamesSincePlan, history.length)
+    const increment =
+      incrementGamesSincePlanFor &&
+      history.some((entry) => entry.gameId === incrementGamesSincePlanFor)
+        ? 1
+        : 0
+    const gamesSincePlan = baseGamesSincePlan + increment
+    const changed =
+      !sameJson(before.results, results) ||
+      !sameJson(before.themeStats, themeStats) ||
+      !sameJson(before.openingStats, openingStats) ||
+      !sameJson(before.history, history) ||
+      before.level.band !== level.band ||
+      before.level.estimate !== level.estimate ||
+      before.level.confidence !== level.confidence ||
+      before.gamesSincePlan !== gamesSincePlan
+    if (!changed) return before
+
+    const updated = await this.deps.profile.update({
+      results,
+      themeStats,
+      openingStats,
+      history,
+      level: { ...level, updatedAt: this.stamp() },
+      gamesSincePlan,
+      // Coach prose is derived from the old aggregate and can no longer be trusted after it moves.
+      qualitative: undefined
+    })
+    this.deps.emit('profile:changed', updated)
+    return updated
   }
 
   /**
@@ -323,24 +439,6 @@ export class ProfileService {
     stats[key] = merged
   }
 
-  /** The last {@link LEVEL_WINDOW} analysed matches from the archive, oldest first (spec §6.1). */
-  private async levelSamples(): Promise<LevelSample[]> {
-    const retired = new Set(this.deps.profile.get().retiredGameIds)
-    const rows = this.deps.games
-      .list({ kind: 'match', status: 'finished' })
-      .filter((row) => !retired.has(row.id) && Boolean(row.accuracy))
-      .slice(0, LEVEL_SCAN)
-    const samples: LevelSample[] = []
-    for (const row of rows) {
-      if (samples.length >= LEVEL_WINDOW) break
-      const game = await this.deps.games.get(row.id)
-      if (!game) continue
-      const sample = levelSample(game)
-      if (sample) samples.push(sample)
-    }
-    return samples.reverse()
-  }
-
   private mergeHistory(history: ProfileHistoryEntry[], game: Game): ProfileHistoryEntry[] {
     const analysis = game.analysis
     if (!analysis) return history
@@ -363,81 +461,86 @@ export class ProfileService {
    *
    * A game already in the history is a re-analysis: its history row is refreshed and the level is
    * re-estimated, but nothing is counted twice — not the themes, not the opening, not the games
-   * since the last study plan.
+   * since the last study plan. Coach prose is refreshed after each newly analysed match.
    */
-  onGameAnalyzed(game: Game): Promise<void> {
-    return this.enqueue(async () => {
-      if (game.kind !== 'match' || !game.analysis) return
+  async onGameAnalyzed(game: Game): Promise<void> {
+    if (game.kind !== 'match' || !game.analysis) return
+    if (this.deps.profile.get().retiredGameIds.includes(game.id)) return
+    const { needsQualitative, needsLabels } = await this.enqueue(async () => {
       const before = this.deps.profile.get()
-      if (before.retiredGameIds.includes(game.id)) return
-      const known = before.history.some((row) => row.gameId === game.id)
-
-      let labels = new Map<number, Theme>()
-      if (!known) {
-        try {
-          labels = await this.labelKeyMoments(game)
-        } catch (error) {
-          // The themes are a bonus on top of the analysis: the statistics are written anyway.
-          console.error('[profile] the labelling of the key moments failed:', error)
-        }
-        if (labels.size > 0) {
-          for (const [ply, theme] of labels) {
-            const move = game.moves[ply - 1]
-            if (move) move.theme = theme
-          }
-          await this.deps.games
-            .save(game)
-            .catch((error) =>
-              console.error('[profile] the labelled game could not be saved:', error)
-            )
-        }
-      }
-
-      const themeStats = { ...before.themeStats }
-      const stamp = this.stamp()
-      for (const theme of labels.values()) {
-        const current = themeStats[theme]
-        themeStats[theme] = { occurrences: (current?.occurrences ?? 0) + 1, lastSeen: stamp }
-      }
-
-      const openingStats = { ...before.openingStats }
-      if (!known) this.mergeOpening(openingStats, game)
-
-      const history = this.mergeHistory(before.history, game)
-      const level = estimateLevel(await this.levelSamples())
-
-      const updated = await this.deps.profile.update({
-        themeStats,
-        openingStats,
-        history,
-        level: { ...level, updatedAt: stamp },
-        gamesSincePlan: known ? before.gamesSincePlan : before.gamesSincePlan + 1
-      })
-      this.deps.emit('profile:changed', updated)
-
-      // Spec §6.1: the qualitative assessment is rewritten every third analysed match.
-      const analysed = this.analysedMatches()
-      if (!known && analysed > 0 && analysed % QUALITATIVE_EVERY === 0) {
-        await this.writeQualitative().catch((error) =>
-          console.error('[profile] the qualitative assessment failed:', error)
+      if (before.retiredGameIds.includes(game.id))
+        return { known: true, needsQualitative: false, needsLabels: false }
+      const alreadyKnown = before.history.some((row) => row.gameId === game.id)
+      await this.reconcileArchiveNow(alreadyKnown ? undefined : game.id)
+      const persisted = await this.deps.games.get(game.id)
+      return {
+        known: alreadyKnown,
+        needsQualitative: !alreadyKnown || !this.get().qualitative,
+        needsLabels: Boolean(
+          persisted?.analysis?.keyMoments.some((ply) => !persisted.moves[ply - 1]?.theme)
         )
       }
     })
+    if (!needsLabels && !needsQualitative) return
+
+    // A model label must never hold the factual dashboard update or the exercise pipeline hostage.
+    // It is applied only if the game still exists when the answer arrives, so a deleted game cannot
+    // be written back by a late analysis task.
+    this.defer(() => this.labelAndReconcile(game, needsLabels, needsQualitative))
   }
 
-  /** Analysed matches known to the archive: what spec §6.1 counts to every third game. */
-  private analysedMatches(): number {
-    const retired = new Set(this.deps.profile.get().retiredGameIds)
-    return this.deps.games
-      .list({ kind: 'match', status: 'finished' })
-      .filter((row) => !retired.has(row.id) && Boolean(row.accuracy)).length
+  private async labelAndReconcile(
+    game: Game,
+    needsLabels: boolean,
+    needsQualitative: boolean
+  ): Promise<void> {
+    let labels = new Map<number, Theme>()
+    if (needsLabels) {
+      try {
+        labels = await this.labelKeyMoments(game)
+      } catch (error) {
+        console.error('[profile] the labelling of the key moments failed:', error)
+      }
+    }
+
+    const stillExists = await this.enqueue(async () => {
+      const persisted = await this.deps.games.get(game.id)
+      if (!persisted || persisted.kind !== 'match' || !persisted.analysis) return false
+      if (this.deps.profile.get().retiredGameIds.includes(persisted.id)) return false
+      if (labels.size > 0) {
+        for (const [ply, theme] of labels) {
+          const move = persisted.moves[ply - 1]
+          if (move) move.theme = theme
+        }
+        await this.deps.games.save(persisted)
+        await this.reconcileArchiveNow()
+      }
+      return true
+    })
+    if (stillExists && needsQualitative)
+      await this.writeQualitative().catch((error) =>
+        console.error('[profile] the qualitative assessment failed:', error)
+      )
   }
 
-  /** The call itself; it assumes the queue is already held by the caller. */
+  /** The aggregate fields the coach prose is allowed to describe. */
+  private qualitativeFingerprint(profile: Profile): string {
+    return JSON.stringify({
+      results: profile.results,
+      level: profile.level,
+      themeStats: profile.themeStats,
+      openingStats: profile.openingStats,
+      history: profile.history
+    })
+  }
+
+  /** The model turn runs outside the write queue; its answer commits only if its source is current. */
   private async writeQualitative(): Promise<Profile> {
     const language = this.language()
+    const source = this.deps.profile.get()
+    const fingerprint = this.qualitativeFingerprint(source)
     const parsed = await this.runTurn({
-      text: qualitativeText({ profile: this.deps.profile.get(), language }),
+      text: qualitativeText({ profile: source, language }),
       outputSchema: QUALITATIVE_SCHEMA,
       language
     })
@@ -449,16 +552,19 @@ export class ProfileService {
         'the qualitative assessment came back empty'
       )
     }
-    const updated = await this.deps.profile.update({
-      qualitative: { strengths, weaknesses, updatedAt: this.stamp() }
+    return this.enqueue(async () => {
+      if (fingerprint !== this.qualitativeFingerprint(this.deps.profile.get())) return this.get()
+      const updated = await this.deps.profile.update({
+        qualitative: { strengths, weaknesses, updatedAt: this.stamp() }
+      })
+      this.deps.emit('profile:changed', updated)
+      return updated
     })
-    this.deps.emit('profile:changed', updated)
-    return updated
   }
 
   /** "Aggiorna" of the Progressi dashboard (spec §6.9): the assessment on demand. */
   refreshQualitative(): Promise<Profile> {
-    return this.enqueue(() => this.writeQualitative())
+    return this.writeQualitative()
   }
 }
 

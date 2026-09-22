@@ -4,7 +4,7 @@ import { epdOf } from '@shared/chess/notation'
 import type { ModelInfo, TurnRequest, TurnResult } from '@shared/types/codex'
 import type { Game, Move } from '@shared/types/game'
 import type { Profile } from '@shared/types/profile'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { makeTmpDir, removeTmpDir } from '../../../test/helpers/tmpDir'
 import type { SessionCodex } from '../game/gameSession'
 import { GameStore } from '../store/gameStore'
@@ -24,6 +24,9 @@ class FakeCodex implements SessionCodex {
   /** Plies dropped from the answer, to exercise the fallback of a forgotten moment. */
   skipPlies: number[] = []
   failNext = false
+  holdQualitative = false
+  qualitativePending = false
+  private releaseQualitative: ((result: TurnResult) => void) | null = null
   private threads = 0
 
   async startThread(
@@ -61,7 +64,7 @@ class FakeCodex implements SessionCodex {
       }
     }
     if ('strengths' in properties) {
-      return {
+      const answer: TurnResult = {
         ok: true,
         text: JSON.stringify({
           strengths: ['forte uno', 'forte due'],
@@ -71,8 +74,26 @@ class FakeCodex implements SessionCodex {
         effectiveModel: null,
         durationMs: 1
       }
+      if (!this.holdQualitative) return answer
+      this.qualitativePending = true
+      return new Promise<TurnResult>((resolve) => {
+        this.releaseQualitative = resolve
+      })
     }
     return { ok: true, text: '{}', turnId: 't', effectiveModel: null, durationMs: 1 }
+  }
+
+  releaseHeldQualitative(): void {
+    this.qualitativePending = false
+    const release = this.releaseQualitative
+    this.releaseQualitative = null
+    release?.({
+      ok: true,
+      text: JSON.stringify({ strengths: ['forte uno'], weaknesses: ['debole uno'] }),
+      turnId: 't',
+      effectiveModel: null,
+      durationMs: 1
+    })
   }
 
   readonly interrupted: string[] = []
@@ -151,6 +172,7 @@ describe('ProfileService', () => {
   let codex: FakeCodex
   let events: Profile[]
   let service: ProfileService
+  let clock: number
 
   beforeEach(async () => {
     root = await makeTmpDir()
@@ -163,17 +185,19 @@ describe('ProfileService', () => {
     await settings.save({ defaultModel: 'gpt-6-astra', defaultEffort: 'low' })
     codex = new FakeCodex()
     events = []
+    clock = Date.parse('2026-03-03T13:00:00.000Z')
     service = new ProfileService({
       codex,
       settings,
       profile,
       games,
       emit: (_channel, payload) => events.push(payload),
-      now: () => Date.parse('2026-03-03T13:00:00.000Z')
+      now: () => clock
     })
   })
 
   afterEach(async () => {
+    await service.waitForIdle()
     await removeTmpDir(root)
   })
 
@@ -198,6 +222,7 @@ describe('ProfileService', () => {
     const game = await saved(['e4', 'e5', 'Nf3', 'Nc6'])
 
     await service.onGameAnalyzed(game)
+    await service.waitForIdle()
 
     expect(codex.started[0]?.role).toBe('training')
     const labelling = codex.requests[0]!
@@ -207,10 +232,10 @@ describe('ProfileService', () => {
     expect(onDisk?.moves[0]?.theme).toBe('fork')
     expect(onDisk?.moves[2]?.theme).toBe('pin')
     const stats = service.get().themeStats
-    expect(stats.fork).toEqual({ occurrences: 1, lastSeen: '2026-03-03T13:00:00.000Z' })
+    expect(stats.fork).toEqual({ occurrences: 1, lastSeen: '2026-03-03T12:00:00.000Z' })
     expect(stats.pin?.occurrences).toBe(1)
     // The thread of a one-shot call never stays open.
-    expect(codex.closed).toEqual(['thread-1'])
+    expect(codex.closed).toEqual(['thread-1', 'thread-2'])
   })
 
   it('remaps a theme outside the taxonomy and fills in a moment the model forgot', async () => {
@@ -219,6 +244,7 @@ describe('ProfileService', () => {
     const game = await saved(['e4', 'e5', 'Nf3', 'Nc6'])
 
     await service.onGameAnalyzed(game)
+    await service.waitForIdle()
 
     const onDisk = await games.get(game.id)
     expect(onDisk?.moves[0]?.theme).toBe('missed_tactic')
@@ -250,10 +276,12 @@ describe('ProfileService', () => {
   it('aggregates the openings with a running accuracy over the first ten plies', async () => {
     const first = await saved(['e4', 'e5', 'Nf3'])
     await service.onGameAnalyzed(first)
+    await service.waitForIdle()
     const second = await saved(['e4', 'e5', 'Nf3'], {
       result: { outcome: '0-1', reason: 'checkmate' }
     })
     await service.onGameAnalyzed(second)
+    await service.waitForIdle()
 
     const stats = service.get().openingStats.C40!
     expect(stats).toMatchObject({
@@ -271,9 +299,11 @@ describe('ProfileService', () => {
   it('never counts the same game twice when it is analysed again', async () => {
     const game = await saved(['e4', 'e5', 'Nf3'])
     await service.onGameAnalyzed(game)
+    await service.waitForIdle()
     const calls = codex.requests.length
 
     await service.onGameAnalyzed(game)
+    await service.waitForIdle()
 
     const updated = service.get()
     expect(updated.history).toHaveLength(1)
@@ -304,18 +334,59 @@ describe('ProfileService', () => {
     expect(codex.requests).toHaveLength(0)
   })
 
-  it('rewrites the qualitative assessment every third analysed match only', async () => {
-    for (let i = 0; i < QUALITATIVE_EVERY - 1; i += 1) {
-      await service.onGameAnalyzed(await saved(['e4', 'e5']))
-      expect(service.get().qualitative).toBeUndefined()
-    }
-
+  it('rewrites the qualitative assessment after every newly analysed match', async () => {
+    expect(QUALITATIVE_EVERY).toBe(1)
     await service.onGameAnalyzed(await saved(['e4', 'e5']))
+    await service.waitForIdle()
+    await service.onGameAnalyzed(await saved(['e4', 'e5']))
+    await service.waitForIdle()
 
-    const qualitative = service.get().qualitative!
-    expect(qualitative.strengths).toEqual(['forte uno', 'forte due'])
-    expect(qualitative.weaknesses).toEqual(['debole uno', 'debole due'])
-    expect(qualitative.updatedAt).toBe('2026-03-03T13:00:00.000Z')
+    expect(
+      codex.requests.filter((request) =>
+        Object.hasOwn(
+          (request.outputSchema as { properties?: Record<string, unknown> }).properties ?? {},
+          'strengths'
+        )
+      )
+    ).toHaveLength(2)
+    expect(service.get().qualitative?.strengths).toEqual(['forte uno', 'forte due'])
+  })
+
+  it('keeps qualitative prose and theme timestamps on a no-op reconciliation', async () => {
+    const game = await saved(['e4', 'e5'])
+    game.moves[0]!.theme = 'fork'
+    await games.save(game)
+    await service.reconcileArchive()
+    await profile.update({
+      qualitative: {
+        strengths: ['solido'],
+        weaknesses: ['da verificare'],
+        updatedAt: '2026-03-03T13:00:00.000Z'
+      }
+    })
+    const snapshot = service.get()
+    const emitted = events.length
+    clock += 86_400_000
+
+    await service.reconcileArchive()
+
+    expect(service.get()).toEqual(snapshot)
+    expect(events).toHaveLength(emitted)
+  })
+
+  it('does not save a qualitative answer made stale by deletion and reconciliation', async () => {
+    const game = await saved(['e4', 'e5'])
+    await service.reconcileArchive()
+    codex.holdQualitative = true
+    const refresh = service.refreshQualitative()
+    await vi.waitFor(() => expect(codex.qualitativePending).toBe(true))
+
+    await games.delete(game.id)
+    await service.reconcileArchive()
+    codex.releaseHeldQualitative()
+    await refresh
+
+    expect(service.get().qualitative).toBeUndefined()
   })
 
   it('refreshes the assessment on demand and announces it', async () => {

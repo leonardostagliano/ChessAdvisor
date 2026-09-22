@@ -74,6 +74,7 @@ interface RunningAnalysis {
   promise: Promise<Game>
   ply: number
   total: number
+  controller: AbortController
 }
 
 const sideToMove = (fen: string): 'w' | 'b' => (fen.split(/\s+/)[1] === 'b' ? 'b' : 'w')
@@ -135,6 +136,8 @@ function toWhite(value: Eval | undefined, mover: 'w' | 'b'): Eval | null {
 export class AnalysisManager {
   private book: OpeningBook | null = null
   private readonly running = new Map<string, RunningAnalysis>()
+  /** Game ids removed while an engine worker or review turn still owns a stale snapshot. */
+  private readonly cancelled = new Set<string>()
   /** The `training` thread of the open review, and the game it belongs to. */
   private review: { gameId: string; threadId: string } | null = null
   private inFlight = 0
@@ -179,11 +182,30 @@ export class AnalysisManager {
   onGameFinished(game: Game): void {
     if (game.kind !== 'match') return
     void this.run(game.id).catch((error) =>
-      console.error('[analysis] the automatic analysis failed:', error)
+      error instanceof AnalysisError && error.code === 'GAME_DELETED'
+        ? undefined
+        : console.error('[analysis] the automatic analysis failed:', error)
     )
   }
 
+  /**
+   * Prevents a worker that retained this game's snapshot from publishing it after archive
+   * deletion. The engine receives an abort signal and its result and follow-up profile hook are
+   * suppressed; a review thread for the same game is closed too.
+   */
+  cancel(gameId: string): void {
+    this.cancelled.add(gameId)
+    this.running.get(gameId)?.controller.abort()
+    if (this.review?.gameId === gameId) void this.close()
+  }
+
+  private ensureNotCancelled(gameId: string): void {
+    if (this.cancelled.has(gameId))
+      throw new AnalysisError('GAME_DELETED', `game ${gameId} was deleted during analysis`)
+  }
+
   async status(gameId: string): Promise<AnalysisStatus> {
+    if (this.cancelled.has(gameId)) return { state: 'idle' }
     const current = this.running.get(gameId)
     if (current) return { state: 'running', ply: current.ply, total: current.total }
     if (!this.deps.engine.state().available) return { state: 'unavailable' }
@@ -199,6 +221,8 @@ export class AnalysisManager {
    * twice with the same numbers.
    */
   run(gameId: string): Promise<Game> {
+    if (this.cancelled.has(gameId))
+      return Promise.reject(new AnalysisError('GAME_DELETED', `game ${gameId} was deleted`))
     const current = this.running.get(gameId)
     if (current) return current.promise
     if (!this.deps.engine.state().available) {
@@ -213,25 +237,39 @@ export class AnalysisManager {
     const entry: RunningAnalysis = {
       promise: Promise.resolve(null as unknown as Game),
       ply: 0,
-      total: 0
+      total: 0,
+      controller: new AbortController()
     }
     const work = (async () => {
+      this.ensureNotCancelled(gameId)
       const game = await this.deps.store.get(gameId)
       if (!game) throw new AnalysisError('GAME_NOT_FOUND', `no game ${gameId}`)
+      this.ensureNotCancelled(gameId)
       entry.total = game.moves.length
       this.deps.emit('analysis:progress', { gameId, ply: 0, total: entry.total })
 
-      const analysed = await analyzeGame(
-        game,
-        this.deps.engine,
-        this.openings(),
-        (progress) => {
-          entry.ply = progress.ply
-          this.deps.emit('analysis:progress', progress)
-        },
-        { now: () => this.now() }
-      )
-      await this.deps.store.save(analysed)
+      let analysed: Game
+      try {
+        analysed = await analyzeGame(
+          game,
+          this.deps.engine,
+          this.openings(),
+          (progress) => {
+            if (this.cancelled.has(gameId)) return
+            entry.ply = progress.ply
+            this.deps.emit('analysis:progress', progress)
+          },
+          { signal: entry.controller.signal, now: () => this.now() }
+        )
+      } catch (error) {
+        if (this.cancelled.has(gameId))
+          throw new AnalysisError('GAME_DELETED', `game ${gameId} was deleted during analysis`)
+        throw error
+      }
+      this.ensureNotCancelled(gameId)
+      const saved = await this.deps.store.save(analysed)
+      if (!saved || this.cancelled.has(gameId))
+        throw new AnalysisError('GAME_DELETED', `game ${gameId} was deleted during analysis`)
       try {
         this.deps.onAnalyzed?.(analysed)
       } catch (error) {

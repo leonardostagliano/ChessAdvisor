@@ -15,11 +15,13 @@ export const PROFILES: Record<
 > = {
   live: { depth: 14, movetimeMs: 300, multipv: 1 },
   feedback: { depth: 16, movetimeMs: 300, multipv: 1 },
-  'opponent-beginner': { depth: 10, movetimeMs: 300, multipv: 3 },
-  'opponent-easy': { depth: 12, movetimeMs: 500, multipv: 4 },
-  'opponent-medium': { depth: 15, movetimeMs: 800, multipv: 5 },
-  'opponent-challenging': { depth: 18, movetimeMs: 1500, multipv: 6 },
-  'opponent-strong': { depth: 20, movetimeMs: 2500, multipv: 8 },
+  // Weak tiers need a broad shallow pool so their policy can select a plausible imperfection;
+  // three near-equivalent top PVs still play far too accurately.
+  'opponent-beginner': { depth: 8, movetimeMs: 300, multipv: 24 },
+  'opponent-easy': { depth: 10, movetimeMs: 500, multipv: 18 },
+  'opponent-medium': { depth: 12, movetimeMs: 750, multipv: 12 },
+  'opponent-challenging': { depth: 15, movetimeMs: 1000, multipv: 8 },
+  'opponent-strong': { depth: 18, movetimeMs: 1800, multipv: 8 },
   opponent: { depth: 22, movetimeMs: 4000, multipv: 12 },
   'opponent-check': { depth: 20, movetimeMs: 700, multipv: 1 },
   // Automatic move comments need several candidate lines, but must reach the model promptly.

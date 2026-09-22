@@ -97,6 +97,18 @@ export class ExerciseStore {
     await this.flush()
   }
 
+  /** Removes all material derived from one game in a single durable rewrite. */
+  async deleteBySourceGameId(gameId: string, kind?: ExerciseKind): Promise<number> {
+    let removed = 0
+    for (const [id, exercise] of this.byId) {
+      if (exercise.sourceGameId !== gameId || (kind && exercise.kind !== kind)) continue
+      this.byId.delete(id)
+      removed += 1
+    }
+    if (removed > 0) await this.flush()
+    return removed
+  }
+
   private flush(): Promise<void> {
     // Mutations update memory synchronously, but disk snapshots must commit in order. Build the
     // snapshot only when this write reaches the head of the queue, so it includes every mutation

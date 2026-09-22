@@ -29,12 +29,16 @@ from the measured position rather than an unrelated impression.
 
 ## How the opponent thinks
 
-The opponent is not choosing from a fixed database menu. Every legal move remains available. The
-selected tier controls search breadth, time, and Stockfish depth; the model chooses with principal
-variation context, then ChessAdvisor performs a tactical check. Dubious answers get an
-evidence-backed retry, and an engine fallback is clearly flagged if the model still cannot supply
-a sound legal move. The opponent resigns conservatively only when the position and recent engine
-evidence support it.
+Every legal move remains available to the model. The selected tier controls Stockfish search
+depth, time, candidate moves, and tolerated inaccuracies. Lower tiers receive fewer hints and
+can choose plausible weaker moves from a broad, shallow engine search; higher tiers search more
+deeply and apply tighter tactical checks. The same tier policy governs fallback moves if the
+model cannot supply a valid answer. Adaptive mode interpolates this policy from its current
+target rating.
+
+These are relative difficulty settings, not measured Elo ratings. Model choice, reasoning effort,
+and the position still affect strength. The opponent resigns conservatively only when the
+position and recent engine evidence support it.
 
 In known opening positions, a contextual opening book adds the recognized line and candidate
 continuations to that evidence. It informs the model without reducing the position to a fixed
@@ -54,8 +58,10 @@ opening script: every legal move remains available.
 - **Personal training** from your own mistakes, thematic puzzle sets whose theme and rating band
   follow measured game and exercise results, Stockfish-grounded explanations and opening
   mini-lessons, canonical endgame drills, and an evidence-based study plan.
-- **Progress tracking** for accuracy trends, move classifications, recurring themes, openings,
-  and an evolving level estimate.
+- **Progress tracking** with exact archive-based win/draw/loss totals at game end, followed by
+  accuracy trends, move classifications, themes, openings, and an evolving level estimate.
+  Progress, the study plan, and game-derived exercises update automatically; interrupted analyses
+  resume at startup. Deleting a game cancels its analysis and removes its learning contributions.
 - **Desktop polish** with Night and Editorial themes, Italian and English, keyboard navigation,
   a tray icon, and in-app updates.
 

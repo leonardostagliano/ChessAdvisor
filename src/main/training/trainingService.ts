@@ -107,6 +107,8 @@ export interface TrainingServiceDeps {
     payload: TrainingChanged | Profile | StreamEnvelope
   ): void
   now?: () => number
+  /** Tests can keep model-driven automatic plan rebuilding off; production defaults to on. */
+  autoPlan?: boolean
 }
 
 /** Models like to wrap JSON in ``` fences even when the schema forbids prose. */
@@ -175,6 +177,12 @@ export class TrainingService {
   private queue: Promise<unknown> = Promise.resolve()
   /** How far each exercise has been played; it lives as long as the process, not the file. */
   private readonly progress = new Map<string, ExerciseProgress>()
+  /** Set synchronously at deletion time, before queued engine work can commit its result. */
+  private readonly deletedGameIds = new Set<string>()
+  /** The newest plan-changing intent wins over slow coach generations. */
+  private planGeneration = 0
+  private autoPlanPending = false
+  private autoPlanTask: Promise<void> | null = null
 
   constructor(private readonly deps: TrainingServiceDeps) {}
 
@@ -354,6 +362,68 @@ export class TrainingService {
     this.deps.emit('training:changed', payload)
   }
 
+  /** An exercise mutation can change the validity and labels of the current plan too. */
+  private materialChanged(): void {
+    this.changed({ kind: 'exercises' })
+    // Do not merely invalidate a coach answer: start (or join) the coalesced replacement so new
+    // own-game exercises actually become part of the stored plan.
+    void this.refreshAfterGame()
+  }
+
+  /** Rebuilds the plan from the profile's newly persisted history, openings and counters. */
+  onProfileChanged(): Promise<void> {
+    const plan = this.refreshAfterGame()
+    const themes = this.refreshOwnGameThemes()
+    return Promise.all([plan, themes]).then(() => undefined)
+  }
+
+  /**
+   * Profile labels may arrive after the engine exercise was made. Keep the deterministic exercise
+   * and its attempts, but replace only its fallback theme with the newly saved move label.
+   */
+  private async refreshOwnGameThemes(): Promise<void> {
+    let changed = false
+    for (const exercise of this.deps.exercises.list('own_game')) {
+      if (!exercise.sourceGameId || !exercise.sourcePly) continue
+      if (this.deletedGameIds.has(exercise.sourceGameId)) continue
+      const game = await this.deps.games.get(exercise.sourceGameId).catch(() => null)
+      const theme = game?.moves[exercise.sourcePly - 1]?.theme
+      if (!theme || theme === exercise.theme) continue
+      if (await this.deps.exercises.update(exercise.id, { theme })) changed = true
+    }
+    if (changed) this.materialChanged()
+  }
+
+  /**
+   * Coalesces automatic rebuilds instead of spending one coach turn per overlapping analysis
+   * event.  A missing coach leaves the current computed view intact and never blocks a game.
+   */
+  refreshAfterGame(): Promise<void> {
+    this.requestPlanRefresh()
+    this.changed({ kind: 'plan' })
+    if (this.deps.autoPlan === false || !this.resolveModel().model) return Promise.resolve()
+    this.autoPlanPending = true
+    if (!this.autoPlanTask) {
+      this.autoPlanTask = (async () => {
+        while (this.autoPlanPending) {
+          this.autoPlanPending = false
+          await this.generatePlanFor(this.planGeneration).catch((error) =>
+            console.error('[training] the automatic study plan could not be refreshed:', error)
+          )
+        }
+      })().finally(() => {
+        this.autoPlanTask = null
+        // A refresh can arrive between the last loop check and this finalizer.
+        if (this.autoPlanPending) void this.refreshAfterGame()
+      })
+    }
+    return this.autoPlanTask
+  }
+
+  private requestPlanRefresh(): void {
+    this.planGeneration += 1
+  }
+
   /**
    * Coach model and effort (global constraint of the plan): the separate coach when the user
    * asked for one, then the default model of Settings.
@@ -441,15 +511,22 @@ export class TrainingService {
    */
   onGameAnalyzed(game: Game): Promise<void> {
     return this.enqueue(async () => {
+      // The caller may hand us a drill-shaped stale snapshot while an archived match with the
+      // same id still exists. The hook is only for the analysed match it was given.
       if (game.kind !== 'match' || !game.analysis) return
-      if (this.deps.profile.get().retiredGameIds.includes(game.id)) return
-      if (!this.deps.engine.state().available) return
+      const current = await this.activeAnalyzedGame(game.id)
+      if (!current) return
+      if (!this.deps.engine.state().available) {
+        this.changed({ kind: 'plan' })
+        return
+      }
       const built: Exercise[] = []
       try {
-        const candidates = extractCandidates(game)
+        const candidates = extractCandidates(current)
           .sort((a, b) => b.lossCp - a.lossCp)
           .slice(0, MAX_EXERCISES_PER_GAME)
         for (const candidate of candidates) {
+          if (this.deletedGameIds.has(current.id)) return
           // An exercise already built for this ply is never rebuilt: it may already be solved.
           if (this.deps.exercises.has(ownGameExerciseId(candidate.gameId, candidate.ply))) continue
           const exercise = await buildExercise(candidate, this.deps.engine, {
@@ -460,14 +537,74 @@ export class TrainingService {
       } catch (error) {
         console.error('[training] the exercises of the game could not be built:', error)
       }
-      if (built.length === 0) return
-      await this.deps.exercises.putMany(built)
-      this.changed({ kind: 'exercises' })
+      // The game may have been deleted while Stockfish was thinking. Re-read it immediately
+      // before the write; the deletion hook also closes the tiny gap with a synchronous tombstone.
+      if (!(await this.activeAnalyzedGame(current.id))) return
+      if (built.length > 0) {
+        await this.deps.exercises.putMany(built)
+        this.materialChanged()
+      } else {
+        // The analysis can enrich openings/profile even without a usable tactical candidate.
+        this.changed({ kind: 'plan' })
+      }
     })
+  }
+
+  /**
+   * Removes derived exercises for an archive deletion and prevents an in-flight extraction from
+   * restoring them. Call this before removing the game file.
+   */
+  invalidateGame(gameId: string): void {
+    this.deletedGameIds.add(gameId)
+    this.planGeneration += 1
+  }
+
+  /** Removes the derived records after a successful archive deletion. */
+  onGameDeleted(gameId: string): Promise<void> {
+    this.invalidateGame(gameId)
+    return this.enqueue(async () => {
+      const removed = await this.deps.exercises.deleteBySourceGameId(gameId, 'own_game')
+      if (removed > 0) this.materialChanged()
+      else void this.refreshAfterGame()
+    })
+  }
+
+  /** Startup repair for older data and an interrupted game deletion. */
+  reconcile(): Promise<number> {
+    return this.enqueue(async () => {
+      const gameIds = new Set(
+        this.deps.exercises
+          .list('own_game')
+          .map((exercise) => exercise.sourceGameId)
+          .filter((id): id is string => Boolean(id))
+      )
+      let removed = 0
+      for (const gameId of gameIds) {
+        if (await this.activeAnalyzedGame(gameId)) continue
+        this.deletedGameIds.add(gameId)
+        removed += await this.deps.exercises.deleteBySourceGameId(gameId, 'own_game')
+      }
+      if (removed > 0) this.materialChanged()
+      return removed
+    })
+  }
+
+  /** A persisted, non-retired analysed match is the only valid source of own-game material. */
+  private async activeAnalyzedGame(gameId: string): Promise<Game | null> {
+    if (this.deletedGameIds.has(gameId)) return null
+    if (this.deps.profile.get().retiredGameIds.includes(gameId)) return null
+    const current = await this.deps.games.get(gameId).catch(() => null)
+    if (!current || current.kind !== 'match' || !current.analysis) return null
+    return current
   }
 
   /** Hook of `game:finished`: an endgame drill writes its result on its own record (spec §6.7). */
   onGameFinished(game: Game): Promise<void> {
+    // A match affects the plan context before analysis completes. The profile hook announces a
+    // second refresh after its counters and opening data are durable.
+    if (game.kind === 'match') {
+      return this.refreshAfterGame()
+    }
     return this.enqueue(async () => {
       if (game.kind !== 'endgame_drill' || !game.result) return
       const record = this.deps.exercises
@@ -486,7 +623,7 @@ export class TrainingService {
         status: solved ? 'solved' : 'failed',
         ...(solved ? { solvedAt: this.stamp() } : {})
       })
-      this.changed({ kind: 'exercises' })
+      this.materialChanged()
     })
   }
 
@@ -533,7 +670,7 @@ export class TrainingService {
       patch.status = 'failed'
     }
     await this.deps.exercises.update(id, patch)
-    this.changed({ kind: 'exercises' })
+    this.materialChanged()
     return result
   }
 
@@ -546,7 +683,7 @@ export class TrainingService {
       attempts: 0,
       solvedAt: undefined
     })
-    this.changed({ kind: 'exercises' })
+    this.materialChanged()
     return updated ?? this.require(id)
   }
 
@@ -568,7 +705,7 @@ export class TrainingService {
     if (text.length === 0)
       throw new TrainingError('TRAINING_EMPTY_ANSWER', 'the explanation came back empty')
     await this.deps.exercises.update(id, { explanation: text })
-    this.changed({ kind: 'exercises' })
+    this.materialChanged()
     return text
   }
 
@@ -661,7 +798,7 @@ export class TrainingService {
     }
     if (fresh.length > 0) {
       await this.deps.exercises.putMany(fresh)
-      this.changed({ kind: 'exercises' })
+      this.materialChanged()
     }
     // A set always starts from the beginning: the ones played before are played again.
     for (const exercise of exercises) this.progress.delete(exercise.id)
@@ -797,7 +934,7 @@ export class TrainingService {
       ...(state.game ? { sourceGameId: state.game.id } : {}),
       createdAt: previous?.createdAt ?? this.stamp()
     })
-    this.changed({ kind: 'exercises' })
+    this.materialChanged()
     return state
   }
 
@@ -806,7 +943,13 @@ export class TrainingService {
   private catalogue(): StudyCatalogue {
     const profile = this.deps.profile.get()
     return buildCatalogue({
-      exercises: this.deps.exercises.list(),
+      // A deletion is marked synchronously, while the physical cleanup waits behind a deep engine
+      // search. Do not let that small interval leak a dead exercise into a new plan.
+      exercises: this.deps.exercises
+        .list()
+        .filter(
+          (exercise) => !exercise.sourceGameId || !this.deletedGameIds.has(exercise.sourceGameId)
+        ),
       openings: Object.keys(profile.openingStats),
       endgames: this.endgamePositions()
     })
@@ -823,6 +966,11 @@ export class TrainingService {
    * usable items is asked for once more before the app settles for what it has.
    */
   async generatePlan(): Promise<StudyPlanView> {
+    this.requestPlanRefresh()
+    return this.generatePlanFor(this.planGeneration)
+  }
+
+  private async generatePlanFor(generation: number): Promise<StudyPlanView> {
     const catalogue = this.catalogue()
     let items = await this.requestPlan(catalogue)
     if (items.length < PLAN_MIN_ITEMS) {
@@ -834,7 +982,26 @@ export class TrainingService {
     if (items.length === 0)
       throw new TrainingError('PLAN_EMPTY', 'the study plan came back without a single usable item')
 
+    // A deletion or a newer manual/automatic request won while the coach was answering.  Do not
+    // let this stale response overwrite it; revalidate once more against the live catalogue too.
+    if (generation !== this.planGeneration) return this.plan()
+    items = validatePlanItems({ items }, this.catalogue())
+    if (items.length === 0) {
+      if (generation !== this.planGeneration) return this.plan()
+      throw new TrainingError('PLAN_EMPTY', 'the study plan no longer has usable activities')
+    }
+    const done = new Set(
+      (this.deps.plans.get()?.items ?? [])
+        .filter((item) => item.done)
+        .map((item) => `${item.activity.type}:${item.activity.ref ?? ''}`)
+    )
+    items = items.map((item) => ({
+      ...item,
+      done: done.has(`${item.activity.type}:${item.activity.ref ?? ''}`)
+    }))
+    if (generation !== this.planGeneration) return this.plan()
     const plan = await this.deps.plans.save({ generatedAt: this.stamp(), items })
+    if (generation !== this.planGeneration) return this.plan()
     // Spec §6.8: the counter that proposes a new plan starts again from here.
     const profile = await this.deps.profile.update({ gamesSincePlan: 0 })
     this.deps.emit('profile:changed', profile)
@@ -886,6 +1053,8 @@ export class TrainingService {
 
   /** Ticks one item of the plan off, or back on (spec §6.8). */
   async markDone(itemId: string, done = true): Promise<StudyPlanView> {
+    // A deliberate tick is newer than any slow automatic coach response.
+    this.requestPlanRefresh()
     const plan = await this.deps.plans.markDone(itemId, done)
     if (!plan) throw new TrainingError('PLAN_NOT_FOUND', 'there is no study plan yet')
     this.changed({ kind: 'plan' })

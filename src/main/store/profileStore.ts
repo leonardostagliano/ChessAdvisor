@@ -69,6 +69,7 @@ function clone(profile: Profile): Profile {
     openingStats: Object.fromEntries(
       Object.entries(profile.openingStats).map(([key, stat]) => [key, { ...stat }])
     ),
+    ...(profile.results ? { results: { ...profile.results } } : {}),
     history: profile.history.map((entry) => ({ ...entry }))
   }
 }
@@ -163,6 +164,16 @@ export function sanitizeProfile(raw: unknown): Profile {
       }
       if (stat.games === 0) continue
       profile.openingStats[key] = stat
+    }
+  }
+
+  const results = raw.results
+  if (isRecord(results)) {
+    profile.results = {
+      games: Math.round(Math.max(0, finiteNumber(results.games, 0))),
+      wins: Math.round(Math.max(0, finiteNumber(results.wins, 0))),
+      draws: Math.round(Math.max(0, finiteNumber(results.draws, 0))),
+      losses: Math.round(Math.max(0, finiteNumber(results.losses, 0)))
     }
   }
 

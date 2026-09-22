@@ -159,6 +159,10 @@ export function registerIpc(ctx: IpcContext): void {
 export interface IpcContext {
   /** Provided by the game layer (Task 9); missing means "open the archive on demand". */
   games?: GameStore
+  /** Lets derived data stop using the game while the archive deletion is in progress. */
+  onGameDeleting?(id: string): void
+  /** Reconciles profile and training data after the game file has actually been removed. */
+  onGameDeleted?(id: string): void | Promise<void>
 }
 
 let lazyGames: Promise<GameStore> | null = null
@@ -182,7 +186,13 @@ export function registerGamesIpc(ctx: IpcContext): void {
   )
   handle('games:get', async (id: string) => (await resolveGames(ctx)).get(String(id)))
   handle('games:delete', async (id: string) => {
-    await (await resolveGames(ctx)).delete(String(id))
+    const gameId = String(id)
+    // A worker can retain a snapshot while this handler is waiting on the store write queue.
+    // Mark it first so neither its result nor its profile hook can publish after deletion.
+    ctx.analysis?.cancel(gameId)
+    ctx.onGameDeleting?.(gameId)
+    await (await resolveGames(ctx)).delete(gameId)
+    await ctx.onGameDeleted?.(gameId)
   })
 }
 

@@ -3,7 +3,7 @@
  *
  * It is the only file of the app that describes the *player* instead of a game: the adaptive
  * rating of the opponent (M1), the estimated level and its confidence (spec §6.1), the qualitative
- * assessment written by the coach every three analysed games, the counters of the taxonomy themes
+ * assessment written by the coach after each analysed game, the counters of the taxonomy themes
  * (spec §6.2/§6.3), the statistics per opening (spec §6.6), the history that feeds the accuracy
  * trend of the dashboard (spec §6.9) and the counter the study plan watches (spec §6.8).
  *
@@ -48,6 +48,14 @@ export interface OpeningStat {
   avgAccuracyFirst10: number
 }
 
+/** Exact results from every finished match still present in the archive. */
+export interface ResultStat {
+  games: number
+  wins: number
+  draws: number
+  losses: number
+}
+
 /** One analysed match, from the user's point of view; drills never enter it (spec §6.7). */
 export interface ProfileHistoryEntry {
   gameId: string
@@ -67,6 +75,11 @@ export interface Profile {
   qualitative?: ProfileQualitative
   themeStats: Record<string, ThemeStat>
   openingStats: Record<string, OpeningStat>
+  /**
+   * Archive-level results, updated as soon as a match finishes. Unlike the opening figures,
+   * these do not wait for the post-game analysis and include games without an opening label.
+   */
+  results?: ResultStat
   history: ProfileHistoryEntry[]
   /** Matches analysed since the study plan was generated (spec §6.8). */
   gamesSincePlan: number
@@ -79,6 +92,7 @@ export const EMPTY_PROFILE: Profile = {
   level: { band: 'beginner', estimate: 0, confidence: 0, updatedAt: new Date(0).toISOString() },
   themeStats: {},
   openingStats: {},
+  results: { games: 0, wins: 0, draws: 0, losses: 0 },
   history: [],
   gamesSincePlan: 0
 }

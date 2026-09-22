@@ -4,7 +4,7 @@ import { epdOf, legalMoves } from '@shared/chess/notation'
 import type { ModelInfo, TurnRequest, TurnResult } from '@shared/types/codex'
 import type { Analysis, AnalysisProfile, EngineState } from '@shared/types/engine'
 import type { Game, Move } from '@shared/types/game'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { makeTmpDir, removeTmpDir } from '../../../test/helpers/tmpDir'
 import type { SessionCodex, SessionEngine } from '../game/gameSession'
 import { GameStore } from '../store/gameStore'
@@ -136,7 +136,10 @@ describe('AnalysisManager', () => {
   let events: { channel: string; payload: unknown }[]
   let manager: AnalysisManager
 
-  const build = (over?: { engine?: SessionEngine }): AnalysisManager => {
+  const build = (over?: {
+    engine?: SessionEngine
+    onAnalyzed?: (game: Game) => void
+  }): AnalysisManager => {
     manager = new AnalysisManager({
       codex,
       engine: over?.engine ?? engine,
@@ -144,6 +147,7 @@ describe('AnalysisManager', () => {
       settings,
       emit: (channel, payload) => events.push({ channel, payload }),
       openingsPath: () => DATASET,
+      onAnalyzed: over?.onAnalyzed,
       now: () => Date.parse('2026-03-03T12:00:00.000Z')
     })
     return manager
@@ -202,6 +206,48 @@ describe('AnalysisManager', () => {
     await first
     // Three positions, one search each: a second run would have doubled them.
     expect(engine.calls).toHaveLength(3)
+  })
+
+  it('does not save or notify the profile when its game is deleted mid-analysis', async () => {
+    const game = await saved(['e4'])
+    const slowEngine = fakeEngine()
+    let aborted = false
+    let engineStarted: () => void = () => undefined
+    const started = new Promise<void>((resolve) => {
+      engineStarted = resolve
+    })
+    slowEngine.analyze = async (_fen, _profile, opts) => {
+      engineStarted()
+      await new Promise<void>((_resolve, reject) => {
+        if (opts?.signal?.aborted) {
+          aborted = true
+          reject(new Error('analysis aborted'))
+          return
+        }
+        opts?.signal?.addEventListener(
+          'abort',
+          () => {
+            aborted = true
+            reject(new Error('analysis aborted'))
+          },
+          { once: true }
+        )
+      })
+      return engine.analyze(_fen, _profile)
+    }
+    const onAnalyzed = vi.fn()
+    build({ engine: slowEngine, onAnalyzed })
+
+    const running = manager.run(game.id)
+    const outcome = running.catch((error) => error)
+    await started
+    manager.cancel(game.id)
+    await store.delete(game.id)
+
+    await expect(outcome).resolves.toMatchObject({ code: 'GAME_DELETED' })
+    expect(aborted).toBe(true)
+    expect(await store.get(game.id)).toBeNull()
+    expect(onAnalyzed).not.toHaveBeenCalled()
   })
 
   it('reports an unavailable engine instead of pretending to analyse', async () => {

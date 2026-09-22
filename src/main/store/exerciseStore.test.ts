@@ -90,6 +90,23 @@ describe('ExerciseStore', () => {
     ).toEqual(['tac-1', 'tac-2'])
   })
 
+  it('removes every own-game exercise for a deleted source game together', async () => {
+    await store.putMany([
+      exercise('og-gone-3', { kind: 'own_game', sourceGameId: 'gone' }),
+      exercise('og-gone-7', { kind: 'own_game', sourceGameId: 'gone' }),
+      exercise('og-keep-3', { kind: 'own_game', sourceGameId: 'keep' }),
+      exercise('tac-1', { sourceGameId: 'gone' })
+    ])
+
+    expect(await store.deleteBySourceGameId('gone', 'own_game')).toBe(2)
+    expect(
+      store
+        .list()
+        .map((entry) => entry.id)
+        .sort()
+    ).toEqual(['og-keep-3', 'tac-1'])
+  })
+
   it('lists the newest first and filters by kind', async () => {
     await store.putMany([
       exercise('tac-1', { createdAt: '2026-03-01T10:00:00.000Z' }),
