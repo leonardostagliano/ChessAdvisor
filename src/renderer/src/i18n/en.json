@@ -224,7 +224,7 @@
       "xhigh": "Very high",
       "ultra": "Extreme"
     },
-    "difficultyHint": "Levels control precision and the frequency of inaccuracies. Elo values are indicative, not measured: actual strength also depends on the selected model and effort.",
+    "difficultyHint": "Levels use indicative Chess.com Rapid references. Actual strength also depends on the selected model and effort; Elo values are not measured.",
     "hintLowEffort": "At levels 1-3 a low or medium effort answers faster, but can reduce tactical accuracy.",
     "hintHighEffort": "Maximum is best paired with a high effort.",
     "commentsVisible": "Comments visible",

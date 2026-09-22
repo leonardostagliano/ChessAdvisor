@@ -11,15 +11,10 @@ import type { OpeningBook } from '../analysis/openings'
 import { nearestLevel, type DifficultyLevel, type OpponentDifficulty } from '@shared/types/session'
 import type { CodexService } from '../codex/codexService'
 import type { EngineService } from '../engine/engineService'
-import {
-  contextLines,
-  difficultyPolicy,
-  lineUtility,
-  sampledCandidate,
-  shouldAdjustModelMove
-} from './difficultyPolicy'
+import { contextLines, difficultyPolicy, lineUtility, sampledCandidate } from './difficultyPolicy'
 import { opponentBookContext } from './opponentBook'
 import { OPPONENT_MOVE_SCHEMA, opponentTurnText } from './prompts'
+import { rapidContextText } from './rapidCalibration'
 
 /**
  * One opponent move, retries and fallback included (spec §4.1).
@@ -140,6 +135,8 @@ const MIN_CONFIDENT_DEPTH: Record<DifficultyLevel, number> = {
 }
 
 const MATE_SCORE = 100_000
+const ABANDONED_MATE_SCORE = MATE_SCORE
+const ALLOWED_MATE_SCORE = MATE_SCORE + 1
 
 function resolvedLevel(difficulty: OpponentDifficulty): DifficultyLevel {
   return difficulty.mode === 'adaptive'
@@ -268,7 +265,12 @@ function describeFailure(result: Extract<TurnResult, { ok: false }>): string {
   return `${result.reason}: ${result.message}`
 }
 
-/** Picks the same policy-controlled candidate used for a model fallback. */
+interface EngineFallback {
+  move: LegalMove
+  verified: boolean
+}
+
+/** Tries a sampled human-like fallback, then a bounded set of the strongest prepared lines. */
 async function engineMove(
   deps: OpponentDeps,
   fen: string,
@@ -277,14 +279,37 @@ async function engineMove(
   policy: ReturnType<typeof difficultyPolicy>,
   seed: string,
   signal?: AbortSignal
-): Promise<LegalMove | null> {
+): Promise<EngineFallback | null> {
   const analysis = prepared ?? (await analyze(deps, fen, profile, signal))
   abortIfRequested(signal)
-  const sampled = analysis ? sampledCandidate(analysis.lines, policy, seed) : null
-  const sampledMove = sampled ? normalizeMove(fen, sampled.move) : null
-  if (sampledMove) return sampledMove
-  const best = analysis?.bestMove ?? (analysis ? bestLine(analysis)?.move : null) ?? null
-  return best ? normalizeMove(fen, best) : null
+  if (!analysis) return null
+
+  const sampled = sampledCandidate(analysis.lines, policy, seed)
+  const best = bestLine(analysis)
+  const ranked = analysis.lines
+    .slice()
+    .sort((left, right) => (lineScore(right) ?? -Infinity) - (lineScore(left) ?? -Infinity))
+  const candidates = [sampled, best, ...ranked].filter(
+    (line, index, lines): line is EngineLine =>
+      Boolean(line) && lines.findIndex((candidate) => candidate?.move === line?.move) === index
+  )
+  const checked = new Set<string>()
+
+  // A malformed or unusually broad MultiPV result must not turn fallback into an unbounded search.
+  for (const line of candidates.slice(0, 4)) {
+    abortIfRequested(signal)
+    const move = normalizeMove(fen, line.move)
+    if (!move || checked.has(move.uci)) continue
+    checked.add(move.uci)
+    const loss = await selectedMoveLoss(deps, fen, move, analysis, signal)
+    abortIfRequested(signal)
+    if (loss !== null && loss <= policy.maximumLossCp) return { move, verified: true }
+  }
+
+  // If the reference score or child search is unavailable, prefer the engine's best legal line;
+  // report that its loss could not be independently verified.
+  const preferred = normalizeMove(fen, best?.move ?? analysis.bestMove ?? '')
+  return preferred ? { move: preferred, verified: false } : null
 }
 
 function unsafeMoveRetryText(
@@ -296,11 +321,21 @@ function unsafeMoveRetryText(
   language: 'it' | 'en'
 ): string {
   const pv = reference?.pv.join(' ') || reference?.move || 'n/a'
+  const abandonedMate = lossCp === ABANDONED_MATE_SCORE
+  const allowsMate = lossCp >= ALLOWED_MATE_SCORE
   const rounded = Math.round(lossCp)
   const notice =
     language === 'it'
-      ? `CONTROLLO TATTICO: ${move.san} perde circa ${rounded} centipawn rispetto alla variante migliore, oltre il limite di ${maximumCp} per questo livello. Variante di riferimento: ${pv}. Ricalcola autonomamente almeno fino a una posizione stabile, considera anche mosse legali fuori dalle varianti fornite e scegli una mossa più solida.`
-      : `TACTICAL CHECK: ${move.san} loses about ${rounded} centipawns versus the best continuation, beyond this level's ${maximumCp} limit. Reference line: ${pv}. Recalculate independently until the position is stable, also consider legal moves outside the supplied lines, and choose a sounder move.`
+      ? abandonedMate
+        ? `CONTROLLO TATTICO: ${move.san} rinuncia a una linea vincente di matto forzato. Variante di riferimento: ${pv}. Ricalcola autonomamente la posizione e scegli una mossa che mantenga la vittoria.`
+        : allowsMate
+          ? `CONTROLLO TATTICO: ${move.san} consente all’avversario una linea di matto forzato oltre il limite di ${maximumCp} per questo livello. Variante di riferimento: ${pv}. Ricalcola autonomamente la posizione e scegli una mossa più solida.`
+          : `CONTROLLO TATTICO: ${move.san} perde circa ${rounded} centipawn rispetto alla variante migliore, oltre il limite di ${maximumCp} per questo livello. Variante di riferimento: ${pv}. Ricalcola autonomamente almeno fino a una posizione stabile, considera anche mosse legali fuori dalle varianti fornite e scegli una mossa più solida.`
+      : abandonedMate
+        ? `TACTICAL CHECK: ${move.san} gives up a forced mating win. Reference line: ${pv}. Recalculate the position and choose a move that keeps the win.`
+        : allowsMate
+          ? `TACTICAL CHECK: ${move.san} allows the opponent a forced mating line beyond this level's ${maximumCp} limit. Reference line: ${pv}. Recalculate the position independently and choose a sounder move.`
+          : `TACTICAL CHECK: ${move.san} loses about ${rounded} centipawns versus the best continuation, beyond this level's ${maximumCp} limit. Reference line: ${pv}. Recalculate independently until the position is stable, also consider legal moves outside the supplied lines, and choose a sounder move.`
   return `${previous}\n\n${notice}`
 }
 
@@ -312,17 +347,30 @@ async function selectedMoveLoss(
   signal?: AbortSignal
 ): Promise<number | null> {
   if (!prepared) return null
-  const bestScore = lineScore(bestLine(prepared))
+  const best = bestLine(prepared)
+  const bestScore = lineScore(best)
   const applied = applyMove(fen, move.uci)
   if (bestScore === null || !applied) return null
   const terminal = gameStatus(applied.fen)
   if (terminal.over) {
-    const resultScore = terminal.reason === 'checkmate' ? MATE_SCORE : 0
-    return Math.max(0, bestScore - resultScore)
+    if (terminal.reason === 'checkmate') return 0
+    if (typeof best?.scoreMate === 'number' && best.scoreMate > 0) return ABANDONED_MATE_SCORE
+    return Math.max(0, bestScore)
   }
+
+  // Mate scores are categorical, not centipawn distances. Never mix their sentinel utility with
+  // the empirical CP-loss distribution.
+  if (typeof best?.scoreMate === 'number' && best.scoreMate < 0) return null
   const replyAnalysis = await analyze(deps, applied.fen, 'opponent-check', signal)
-  const replyScore = replyAnalysis ? lineScore(bestLine(replyAnalysis)) : null
+  const reply = replyAnalysis ? bestLine(replyAnalysis) : undefined
+  if (!reply) return null
+  if (typeof reply?.scoreMate === 'number') {
+    if (reply.scoreMate <= 0) return 0
+    return ALLOWED_MATE_SCORE
+  }
+  const replyScore = lineScore(reply)
   if (replyScore === null) return null
+  if (typeof best?.scoreMate === 'number' && best.scoreMate > 0) return ABANDONED_MATE_SCORE
   // The child position belongs to the other side, so its score is negated back to the AI's view.
   return Math.max(0, bestScore + replyScore)
 }
@@ -336,12 +384,11 @@ export async function playOpponentTurn(
 
   const level = resolvedLevel(p.difficulty)
   const profile = OPPONENT_PROFILE[level]
-  const policy = difficultyPolicy(p.difficulty)
+  const policy = difficultyPolicy(p.difficulty, p.fen)
   const seed = p.difficultySeed ?? `${p.fen}\u0000${p.pgn}`
   const opening = p.openingBook ? opponentBookContext(p.fen, legal, p.openingBook) : null
   const prepared = await analyze(deps, p.fen, profile, p.signal)
-  // The engine may inspect several candidates internally, but weak tiers are not handed the
-  // strongest PV as a ready-made answer. The complete legal list below remains unrestricted.
+  // Calculated lines are references; the full legal list stays available to the model.
   const promptLines = contextLines(prepared?.lines ?? [], policy)
   if (
     p.allowResign &&
@@ -369,6 +416,7 @@ export async function playOpponentTurn(
     legal,
     analysisLines: promptLines,
     opening,
+    humanContext: rapidContextText(p.difficulty, p.fen, p.language),
     takebackNotice: p.takebackNotice,
     language: p.language
   })
@@ -406,33 +454,6 @@ export async function playOpponentTurn(
           text = unsafeMoveRetryText(text, move, lossCp, maximumLoss, promptLines[0], p.language)
           continue
         }
-        const sampled = prepared ? sampledCandidate(prepared.lines, policy, seed) : null
-        const adjusted =
-          sampled && shouldAdjustModelMove(policy, seed) ? normalizeMove(p.fen, sampled.move) : null
-        if (adjusted && adjusted.uci !== move.uci) {
-          const adjustedLoss = await selectedMoveLoss(deps, p.fen, adjusted, prepared, p.signal)
-          // The policy may only soften a too-accurate answer. It must never replace a natural
-          // human inaccuracy with a stronger engine candidate.
-          if (
-            lossCp !== null &&
-            adjustedLoss !== null &&
-            adjustedLoss > lossCp + 10 &&
-            adjustedLoss <= maximumLoss
-          ) {
-            return {
-              san: adjusted.san,
-              uci: adjusted.uci,
-              // The model wrote its comment for a different move; do not attach misleading prose.
-              shortComment: null,
-              effectiveModel: result.effectiveModel,
-              thinkingMs: elapsed,
-              overheadMs,
-              attempts: attempt,
-              engineAssisted: true,
-              engineVerified: adjustedLoss !== null
-            }
-          }
-        }
         return {
           san: move.san,
           uci: move.uci,
@@ -465,19 +486,19 @@ export async function playOpponentTurn(
 
   // Three unusable or unsafe answers spent: play on with the exact same tier policy.
   abortIfRequested(p.signal)
-  const best = await engineMove(deps, p.fen, profile, prepared, policy, seed, p.signal)
+  const fallback = await engineMove(deps, p.fen, profile, prepared, policy, seed, p.signal)
   abortIfRequested(p.signal)
-  const chosen = best ?? legal[Math.floor(Math.random() * legal.length)]!
+  const chosen = fallback?.move ?? legal[Math.floor(Math.random() * legal.length)]!
   return {
     san: chosen.san,
     uci: chosen.uci,
     shortComment: null,
-    fallback: best ? 'engine' : 'random',
+    fallback: fallback ? 'engine' : 'random',
     effectiveModel: null,
     thinkingMs: 0,
     overheadMs,
     attempts: MAX_ATTEMPTS,
     engineAssisted: prepared !== null,
-    engineVerified: best !== null
+    engineVerified: fallback?.verified ?? false
   }
 }

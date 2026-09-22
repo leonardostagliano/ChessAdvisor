@@ -29,7 +29,7 @@ const PERSONAS: Record<'it' | 'en', Record<DifficultyLevel, Persona>> = {
     1: {
       name: 'Principiante',
       description:
-        'conosci le regole e giochi mosse naturali, senza piani; lasci spesso pezzi in presa'
+        'conosci le regole e giochi in modo semplice e naturale, con piani ancora limitati'
     },
     2: {
       name: 'Facile',
@@ -58,8 +58,7 @@ const PERSONAS: Record<'it' | 'en', Record<DifficultyLevel, Persona>> = {
   en: {
     1: {
       name: 'Beginner',
-      description:
-        'you know the rules and play natural moves without plans; you often leave pieces hanging'
+      description: 'you know the rules and play simply and naturally, with limited planning'
     },
     2: {
       name: 'Easy',
@@ -97,14 +96,14 @@ const COLOR_NAME: Record<'it' | 'en', { w: string; b: string }> = {
  * A numeric search-depth limit is a poor proxy for human strength: at level 3 it used to tell the
  * model to stop after only three plies, which can suppress even the check of the opponent's most
  * immediate reply. These rules instead say which tactical duties the tier must reliably perform.
- * From Medium upwards the duties only grow; weaker play comes from narrower planning and
- * evaluation, never from knowingly hanging material or ignoring an immediate tactic.
+ * Higher tiers are encouraged to calculate more deeply, but no human tier is promised immunity
+ * from tactical mistakes. The empirical Rapid profile provides the measured guidance for each turn.
  */
 const PLAYING_RULES: Record<'it' | 'en', Record<DifficultyLevel, string[]>> = {
   it: {
     1: [
-      'Gioca in modo semplice e diretto; puoi non accorgerti di pezzi in presa o minacce immediate.',
-      'Non scegliere a caso: anche un errore deve sembrare una mossa umana plausibile.'
+      'Gioca in modo semplice, diretto e naturale; valuta i piani con una profondità coerente con questo livello.',
+      'Scegli la mossa che ritieni migliore: non peggiorarla intenzionalmente per simulare un errore.'
     ],
     2: [
       'Prima di muovere osserva gli scacchi e le catture immediate più evidenti per entrambi i colori.',
@@ -112,29 +111,28 @@ const PLAYING_RULES: Record<'it' | 'en', Record<DifficultyLevel, string[]>> = {
     ],
     3: [
       'Prima di scegliere esamina scacchi, catture e minacce immediate per entrambi i colori.',
-      'Controlla la risposta immediata più forte dell’avversario: non lasciare pezzi in presa e non ignorare matti in una o tattiche semplici.',
-      'Non commettere volontariamente un errore tattico che hai già riconosciuto; le tue imprecisioni devono essere posizionali o dipendere da combinazioni più profonde.'
+      'Considera la risposta immediata più forte dell’avversario e le tattiche semplici, senza presumere di trovare sempre la scelta migliore.'
     ],
     4: [
-      'Rispetta sempre i controlli tattici del livello Medio: scacchi, catture, minacce e risposta immediata più forte dell’avversario.',
+      'Dai priorità ai controlli tattici del livello Medio: scacchi, catture, minacce e risposta immediata più forte dell’avversario.',
       'Confronta più mosse candidate e calcola le varianti forzanti finché la posizione non è tatticamente stabile.',
       'Valuta anche sicurezza del re, attività dei pezzi e struttura pedonale prima di decidere.'
     ],
     5: [
-      'Rispetta sempre i controlli tattici dei livelli precedenti: scacchi, catture, minacce e risposta immediata più forte dell’avversario.',
+      'Dai priorità ai controlli tattici dei livelli precedenti: scacchi, catture, minacce e risposta immediata più forte dell’avversario.',
       'Confronta più mosse candidate, cerca risorse difensive per entrambi i colori e calcola ogni variante forzante finché la posizione non è tatticamente stabile.',
       'Scegli la mossa più solida dopo aver valutato tattica, piano, sicurezza del re e finale risultante.'
     ],
     6: [
-      'Rispetta sempre i controlli tattici dei livelli precedenti: scacchi, catture, minacce e risposta immediata più forte dell’avversario.',
+      'Dai priorità ai controlli tattici dei livelli precedenti: scacchi, catture, minacce e risposta immediata più forte dell’avversario.',
       'Confronta tutte le mosse candidate serie, cerca ogni risorsa difensiva e calcola ogni variante forzante finché la posizione non è tatticamente stabile.',
       'Valuta tattica, piano, sicurezza del re, attività dei pezzi, struttura pedonale e finale risultante prima di decidere.'
     ]
   },
   en: {
     1: [
-      'Play simply and directly; you may overlook hanging pieces or immediate threats.',
-      'Do not choose at random: even a mistake must look like a plausible human move.'
+      'Play simply, directly and naturally; keep your plans in line with this level.',
+      'Choose the move you judge best; do not deliberately worsen it to imitate a mistake.'
     ],
     2: [
       'Before moving, notice the most obvious immediate checks and captures for both sides.',
@@ -142,21 +140,20 @@ const PLAYING_RULES: Record<'it' | 'en', Record<DifficultyLevel, string[]>> = {
     ],
     3: [
       'Before choosing, examine immediate checks, captures and threats for both sides.',
-      "Check the opponent's strongest immediate reply: do not leave pieces hanging or ignore mate in one or simple tactics.",
-      'Do not deliberately make a tactical error you have already recognised; your inaccuracies should be positional or depend on deeper combinations.'
+      "Consider the opponent's strongest immediate reply and simple tactics, without assuming you will always find the best move."
     ],
     4: [
-      "Always perform the Medium tier's tactical checks: checks, captures, threats and the opponent's strongest immediate reply.",
+      "Prioritize the Medium tier's tactical checks: checks, captures, threats and the opponent's strongest immediate reply.",
       'Compare several candidate moves and calculate forcing lines until the position is tactically stable.',
       'Also evaluate king safety, piece activity and pawn structure before deciding.'
     ],
     5: [
-      "Always perform the previous tiers' tactical checks: checks, captures, threats and the opponent's strongest immediate reply.",
+      "Prioritize the previous tiers' tactical checks: checks, captures, threats and the opponent's strongest immediate reply.",
       'Compare several candidate moves, look for defensive resources for both sides and calculate every forcing line until the position is tactically stable.',
       'Choose the soundest move after evaluating tactics, plans, king safety and the resulting endgame.'
     ],
     6: [
-      "Always perform the previous tiers' tactical checks: checks, captures, threats and the opponent's strongest immediate reply.",
+      "Prioritize the previous tiers' tactical checks: checks, captures, threats and the opponent's strongest immediate reply.",
       'Compare every serious candidate move, find every defensive resource and calculate every forcing line until the position is tactically stable.',
       'Evaluate tactics, plans, king safety, piece activity, pawn structure and the resulting endgame before deciding.'
     ]
@@ -185,7 +182,7 @@ export function opponentBaseInstructions(p: {
     lines.push(
       `Sei l’avversario di una partita a scacchi contro una persona. Giochi con ${COLOR_NAME.it[p.color]}.`,
       'A ogni turno ricevi la posizione in FEN, il PGN della partita e l’elenco completo delle mosse legali (SAN e UCI affiancate).',
-      'Non hai alcun aiuto esterno e non usi strumenti: scegli la mossa ragionando soltanto sulla posizione che ti viene data.',
+      'Non usi strumenti: scegli la mossa ragionando sulla posizione e sugli eventuali riferimenti forniti nel turno.',
       'Rispondi sempre e soltanto con l’oggetto JSON richiesto: "move" è una delle mosse legali elencate, copiata esattamente in SAN; "shortComment" è una frase molto breve rivolta alla persona con cui giochi, oppure null.',
       '',
       `Livello di gioco: ${persona.name} — ${persona.description}.`,
@@ -197,8 +194,8 @@ export function opponentBaseInstructions(p: {
       )
     } else {
       lines.push(
-        `Elo obiettivo: circa ${targetElo}.`,
-        `Scegli la mossa che un giocatore di circa ${targetElo} Elo giocherebbe plausibilmente.`,
+        `Riferimento Chess.com Rapid: circa ${targetElo} Elo; è un obiettivo orientativo, non una forza garantita.`,
+        `Scegli una mossa plausibile per quel livello, tenendo conto del profilo empirico e della posizione.`,
         'Quando più mosse sono ragionevoli, preferisci la mossa naturale che giocherebbe una persona a quella teoricamente perfetta.'
       )
     }
@@ -206,7 +203,7 @@ export function opponentBaseInstructions(p: {
     lines.push(
       `You are the opponent in a chess game against a person. You play ${COLOR_NAME.en[p.color]}.`,
       'Every turn you receive the position in FEN, the PGN of the game and the complete list of legal moves (SAN and UCI side by side).',
-      'You have no external help and you use no tools: choose the move by reasoning on the given position alone.',
+      'Use no tools: choose your move by reasoning about the position and any references provided with the turn.',
       'Always answer with the requested JSON object and nothing else: "move" is one of the listed legal moves copied exactly in SAN; "shortComment" is a very short line addressed to the person you are playing, or null.',
       '',
       `Playing level: ${persona.name} — ${persona.description}.`,
@@ -216,8 +213,8 @@ export function opponentBaseInstructions(p: {
       lines.push('Play the best move you can find: do not hold back on purpose.')
     } else {
       lines.push(
-        `Target rating: about ${targetElo} Elo.`,
-        `Choose the move a player rated about ${targetElo} would plausibly play.`,
+        `Chess.com Rapid reference: about ${targetElo} Elo; this is an indicative target, not a guaranteed playing strength.`,
+        'Choose a move plausible for that level, considering the empirical profile and the position.',
         'When several moves are reasonable, prefer the natural human move over the theoretically perfect one.'
       )
     }
@@ -324,6 +321,8 @@ export function opponentTurnText(p: {
   analysisLines?: EngineLine[]
   /** Exact opening-position matches for the current position and its legal continuations. */
   opening?: OpponentBookContext | null
+  /** Measured human Rapid behaviour, supplied as non-binding context. */
+  humanContext?: string[]
   /** Number of plies just taken back, or `null` when nothing was taken back. */
   takebackNotice: number | null
   language: 'it' | 'en'
@@ -356,6 +355,7 @@ export function opponentTurnText(p: {
     `${it ? 'Mosse legali (SAN = UCI)' : 'Legal moves (SAN = UCI)'}: ${legalList(p.legal)}`
   )
   lines.push(...opponentBookText(p.opening, p.language))
+  lines.push(...(p.humanContext ?? []))
   lines.push(...opponentAnalysisText(p.analysisLines ?? [], p.language))
   lines.push(
     it

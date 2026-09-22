@@ -1,6 +1,6 @@
 {
   "name": "chessadvisor",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Learn chess by playing OpenAI models through your Codex session",
   "license": "GPL-3.0-only",
   "main": "./out/main/index.js",
@@ -18,6 +18,9 @@
     "codex:types": "codex app-server generate-ts -o src/main/codex/protocol",
     "fetch:stockfish": "node scripts/fetch-stockfish.mjs",
     "build:datasets": "node scripts/build-datasets.mjs",
+    "rapid:collect": "node scripts/collect-rapid-games.mjs",
+    "rapid:analyze": "node --experimental-strip-types scripts/analyze-rapid-games.mjs",
+    "rapid:benchmark": "node scripts/benchmark-rapid-policy.mjs",
     "gen-icon": "node scripts/gen-icon.mjs",
     "build:win": "electron-vite build && electron-builder --win nsis portable --x64 --publish never --config electron-builder.yml",
     "smoke:win": "node scripts/smoke-windows.cjs",

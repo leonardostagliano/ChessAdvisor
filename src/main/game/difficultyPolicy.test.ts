@@ -4,8 +4,9 @@ import { describe, expect, it } from 'vitest'
 import {
   contextLines,
   difficultyPolicy,
+  lineUtility,
   sampledCandidate,
-  shouldAdjustModelMove
+  seededUnit
 } from './difficultyPolicy'
 
 const fixed = (level: 1 | 2 | 3 | 4 | 5 | 6): OpponentDifficulty => ({
@@ -13,64 +14,79 @@ const fixed = (level: 1 | 2 | 3 | 4 | 5 | 6): OpponentDifficulty => ({
   level,
   targetElo: level === 6 ? null : [600, 900, 1200, 1500, 1800][level - 1]!
 })
-
-const lines: EngineLine[] = [
-  { move: 'best', pv: ['best'], scoreCp: 1000, depth: 18 },
-  { move: 'good', pv: ['good'], scoreCp: 700, depth: 18 },
-  { move: 'usable', pv: ['usable'], scoreCp: 350, depth: 18 },
-  { move: 'risky', pv: ['risky'], scoreCp: 0, depth: 18 },
-  { move: 'bad', pv: ['bad'], scoreCp: -500, depth: 18 }
-]
+const lines: EngineLine[] = [0, 20, 60, 150, 300, 600, 1200].map((loss) => ({
+  move: `loss-${loss}`,
+  pv: [`loss-${loss}`],
+  scoreCp: -loss,
+  depth: 18
+}))
 
 describe('difficultyPolicy', () => {
-  it('samples monotonically more accurate candidates as the fixed tier rises', () => {
-    const losses = ([1, 2, 3, 4, 5, 6] as const).map((level) => {
-      const chosen = sampledCandidate(lines, difficultyPolicy(fixed(level)), 'fixture')!
-      return 1000 - (chosen.scoreCp ?? 0)
-    })
-    for (let index = 1; index < losses.length; index += 1)
-      expect(losses[index - 1]).toBeGreaterThanOrEqual(losses[index]!)
-    expect(losses[0]).toBeGreaterThan(0)
-    expect(losses[5]).toBe(0)
+  it('preserves good calculated moves in the context of every fixed tier', () => {
+    for (const level of [1, 2, 3, 4, 5, 6] as const) {
+      const policy = difficultyPolicy(fixed(level))
+      expect(contextLines(lines, policy)[0]?.move).toBe('loss-0')
+      expect(policy.hideBestContext).toBe(false)
+    }
   })
-
-  it('interpolates adaptive tiers instead of snapping policy behaviour to the nearest level', () => {
-    const low = difficultyPolicy({ mode: 'adaptive', level: 1, targetElo: 750 })
-    const high = difficultyPolicy({ mode: 'adaptive', level: 5, targetElo: 1650 })
-    expect(low.targetLossCp).toBeGreaterThan(high.targetLossCp)
-    expect(low.adjustmentRate).toBeGreaterThan(high.adjustmentRate)
-    expect(low.contextCandidates).toBeLessThan(high.contextCandidates)
-    expect(difficultyPolicy({ mode: 'adaptive', level: 5, targetElo: 1800 }).strength).toBeCloseTo(
-      difficultyPolicy(fixed(5)).strength
+  it('interpolates adaptive safety limits across persona boundaries', () => {
+    for (const boundary of [750, 1050, 1350, 1650]) {
+      const policy = (targetElo: number) =>
+        difficultyPolicy({ mode: 'adaptive', level: 1, targetElo })
+      expect(
+        Math.abs(policy(boundary - 1).maximumLossCp - policy(boundary + 1).maximumLossCp)
+      ).toBeLessThan(5)
+    }
+    expect(difficultyPolicy({ mode: 'adaptive', level: 1, targetElo: 500 }).strength).toBe(0)
+    expect(difficultyPolicy({ mode: 'adaptive', level: 5, targetElo: 2400 }).strength).toBe(1)
+  })
+  it('samples many sound moves and occasional errors instead of a constant loss', () => {
+    // Synthetic distribution fixture, independent of the real corpus.
+    const policy = {
+      ...difficultyPolicy(fixed(1)),
+      lossQuantilesCp: [0, 0, 20, 60, 150, 600, 1200]
+    }
+    const losses = Array.from(
+      { length: 2000 },
+      (_, i) => -sampledCandidate(lines, policy, `game-${i}`)!.scoreCp!
     )
+    expect(losses.filter((loss) => loss <= 20).length / losses.length).toBeGreaterThan(0.7)
+    expect(losses.filter((loss) => loss >= 300).length / losses.length).toBeLessThan(0.05)
+    expect(losses.some((loss) => loss >= 300)).toBe(true)
+    expect(new Set(losses).size).toBeGreaterThan(3)
   })
-
-  it('keeps the best PV out of lower-tier prompts while preserving it at strong tiers', () => {
-    expect(contextLines(lines, difficultyPolicy(fixed(1))).map((line) => line.move)).toEqual([
-      'good'
-    ])
-    expect(contextLines(lines, difficultyPolicy(fixed(5))).map((line) => line.move)).toContain(
-      'best'
-    )
+  it('uses the best line with no supported sample or at Maximum', () => {
+    const missing = { ...difficultyPolicy(fixed(1)), lossQuantilesCp: null }
+    for (const policy of [missing, difficultyPolicy(fixed(6))])
+      for (let i = 0; i < 50; i++)
+        expect(sampledCandidate(lines, policy, String(i))?.move).toBe('loss-0')
   })
-
-  it('keeps a forced mate inside the mating candidates at every tier', () => {
+  it('never samples outside the tactical ceiling', () => {
+    const policy = {
+      ...difficultyPolicy(fixed(5)),
+      maximumLossCp: 100,
+      lossQuantilesCp: [0, 900, 1200, 1500, 2000, 2500, 3000]
+    }
+    for (let i = 0; i < 100; i++)
+      expect(-sampledCandidate(lines, policy, `tail-${i}`)!.scoreCp!).toBeLessThanOrEqual(100)
+  })
+  it('keeps winning mating lines separate from centipawn losses', () => {
     const mating: EngineLine[] = [
-      { move: 'mate-now', pv: ['mate-now'], scoreMate: 1, depth: 20 },
-      { move: 'mate-later', pv: ['mate-later'], scoreMate: 3, depth: 20 },
-      { move: 'draw', pv: ['draw'], scoreCp: 0, depth: 20 }
+      { move: 'mate-now', pv: [], scoreMate: 1, depth: 20 },
+      { move: 'mate-later', pv: [], scoreMate: 3, depth: 20 },
+      { move: 'draw', pv: [], scoreCp: 0, depth: 20 }
     ]
     for (const level of [1, 2, 3, 4, 5, 6] as const)
       expect(sampledCandidate(mating, difficultyPolicy(fixed(level)), 'mate')?.move).toMatch(
         /^mate/
       )
   })
-
-  it('has deterministic adjustment decisions and leaves Maximum untouched', () => {
-    const policy = difficultyPolicy(fixed(1))
-    expect(shouldAdjustModelMove(policy, 'same-seed')).toBe(
-      shouldAdjustModelMove(policy, 'same-seed')
-    )
-    expect(shouldAdjustModelMove(difficultyPolicy(fixed(6)), 'any')).toBe(false)
+  it('ignores invalid scores and produces stable seeds', () => {
+    expect(lineUtility({ move: 'bad', pv: [], depth: 1, scoreCp: NaN })).toBeNull()
+    expect(
+      sampledCandidate([{ move: 'none', pv: [], depth: 1 }], difficultyPolicy(fixed(1)), '')
+    ).toBeNull()
+    expect(seededUnit('game-1')).toBe(seededUnit('game-1'))
+    expect(seededUnit('game-1')).not.toBe(seededUnit('game-2'))
   })
 })

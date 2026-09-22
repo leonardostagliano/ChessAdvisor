@@ -5,6 +5,7 @@
     "vitest.config.*",
     "src/shared/**/*",
     "src/main/**/*",
+    "resources/data/rapid-calibration.json",
     "src/preload/**/*",
     "test/**/*",
     "scripts/**/*"

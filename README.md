@@ -30,15 +30,19 @@ from the measured position rather than an unrelated impression.
 ## How the opponent thinks
 
 Every legal move remains available to the model. The selected tier controls Stockfish search
-depth, time, candidate moves, and tolerated inaccuracies. Lower tiers receive fewer hints and
-can choose plausible weaker moves from a broad, shallow engine search; higher tiers search more
-deeply and apply tighter tactical checks. The same tier policy governs fallback moves if the
-model cannot supply a valid answer. Adaptive mode interpolates this policy from its current
-target rating.
+depth, time, candidate moves, and a tactical loss ceiling. Lower tiers search broadly and
+shallowly; higher tiers search more deeply and apply tighter tactical checks. A local pilot of
+Chess.com Rapid games supplies phase- and rating-aware human move-loss distributions and opening
+frequencies as context. If the model cannot supply a valid answer, the engine fallback samples a
+candidate near that distribution within the tactical ceiling. The model's accepted legal moves
+are not deliberately weakened to meet an error quota. Adaptive mode interpolates its policy from
+its current target rating; Maximum has no assigned Elo target.
 
 These are relative difficulty settings, not measured Elo ratings. Model choice, reasoning effort,
-and the position still affect strength. The opponent resigns conservatively only when the
-position and recent engine evidence support it.
+and the position still affect strength. The Rapid sample is observational and does not establish
+the opponent's playing Elo. See [Rapid calibration pilot](docs/rapid-calibration-results.md) for
+the method, coverage, and limits. The opponent resigns conservatively only when the position and
+recent engine evidence support it.
 
 In known opening positions, a contextual opening book adds the recognized line and candidate
 continuations to that evidence. It informs the model without reducing the position to a fixed
@@ -134,6 +138,9 @@ npm run dev                 # set CHESSADVISOR_FAKE_CODEX=1 to use the fake app-
 | `npm run e2e:real`                | Run the same flow against Codex; this uses quota                     |
 | `npm run codex:types`             | Regenerate protocol bindings from the installed Codex CLI            |
 | `npm run gen-icon`                | Rebuild icons from the ChessAdvisor logo                             |
+| `npm run rapid:collect -- ...`    | Collect a bounded, cached Chess.com Rapid sample                     |
+| `npm run rapid:analyze -- ...`    | Analyze sampled positions with local Stockfish                       |
+| `npm run rapid:benchmark -- ...`  | Compare fallback policies on held-out positions                      |
 | `node scripts/check-contrast.mjs` | Check both palettes against WCAG contrast minimums                   |
 
 The Stockfish binaries are not stored in git. Run `npm run fetch:stockfish` before packaging.

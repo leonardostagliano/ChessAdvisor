@@ -58,6 +58,7 @@ describe('opponentBaseInstructions', () => {
       })
       expect(text).toMatch(personas[level])
       expect(text).toContain(String(DIFFICULTY_LEVELS[level].elo))
+      expect(text).toContain('Riferimento Chess.com Rapid')
       expect(text).toContain('preferisci la mossa naturale')
       expect(text).not.toMatch(/calcolare oltre \d+ semimosse/i)
     }
@@ -70,9 +71,11 @@ describe('opponentBaseInstructions', () => {
         if (language === 'it') {
           expect(text).toMatch(/scacchi, catture(?:,| e) minacce/)
           expect(text).toContain('risposta immediata più forte dell’avversario')
+          expect(text).not.toContain('Rispetta sempre i controlli tattici')
         } else {
           expect(text).toMatch(/checks, captures(?:,| and) threats/)
           expect(text).toContain("opponent's strongest immediate reply")
+          expect(text).not.toContain('Always perform the')
         }
       }
     }
@@ -99,7 +102,7 @@ describe('opponentBaseInstructions', () => {
     const text = opponentBaseInstructions({ color: 'w', difficulty: fixed(6), language: 'it' })
     expect(text).toContain('Massimo')
     expect(text).toContain('la mossa migliore che riesci a trovare')
-    expect(text).not.toMatch(/Elo obiettivo/)
+    expect(text).not.toMatch(/Riferimento Chess\.com Rapid/)
     expect(text).not.toMatch(/Non calcolare oltre/)
   })
 
@@ -203,6 +206,23 @@ describe('opponentTurnText', () => {
     expect(text).toContain('not restricted to the listed continuations')
     expect(text).toContain('prioritize the current position and your own calculation')
     expect(text).toContain('Nf3 = g1f3')
+  })
+
+  it('includes empirical context as soft guidance without removing legal moves', () => {
+    const text = opponentTurnText({
+      lastUserMove: null,
+      fen: START_FEN,
+      pgn: '',
+      legal,
+      humanContext: ['Rapid sample: 35% of comparable positions chose a developing move.'],
+      takebackNotice: null,
+      language: 'en'
+    })
+
+    expect(text).toContain('Rapid sample: 35% of comparable positions chose a developing move.')
+    expect(text).toContain('e4 = e2e4')
+    expect(text).toContain('Nf3 = g1f3')
+    expect(text).toContain('Choose a move taken exactly from this list')
   })
 })
 

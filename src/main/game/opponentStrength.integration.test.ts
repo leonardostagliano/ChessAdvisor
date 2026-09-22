@@ -5,22 +5,24 @@ import type { Analysis } from '@shared/types/engine'
 import { EngineService } from '../engine/engineService'
 import { SettingsStore } from '../store/settingsStore'
 import { makeTmpDir, removeTmpDir } from '../../../test/helpers/tmpDir'
-import { applyMove, legalMoves } from '@shared/chess/notation'
+import { legalMoves } from '@shared/chess/notation'
+import { DIFFICULTY_LEVELS } from '@shared/types/session'
 import { difficultyPolicy, lineUtility, sampledCandidate } from './difficultyPolicy'
-import { playOpponentTurn } from './opponentTurn'
+import { OPPONENT_PROFILE, playOpponentTurn } from './opponentTurn'
 
 // A position from the reported 1800-level game: 7...Qxd5 hangs the queen to Nxd5.
 const POSITION = 'r1bqkb1r/ppp2ppp/5n2/3P4/3Q4/2N5/PPP2PPP/R1B1KB1R b KQkq - 0 7'
+const MATE_IN_ONE = 'k7/8/1QK5/8/8/8/8/8 w - - 0 1'
 const BENCHMARK_POSITIONS = [
   'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1',
   POSITION,
-  'r1bqkbnr/pppp1ppp/2n5/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 2 3'
+  MATE_IN_ONE
 ]
 const bundled =
   process.platform === 'win32' && existsSync(resolve('resources/engine/stockfish-popcnt.exe'))
 
 describe.skipIf(!bundled)('bundled Stockfish opponent regression', () => {
-  it('samples measurably weaker but still legal candidates at low tiers across fixtures', async () => {
+  it('samples legal candidates within the empirical root-loss ceiling across all six levels', async () => {
     const dir = await makeTmpDir('chessadvisor-strength-benchmark-')
     const settings = new SettingsStore(join(dir, 'settings.json'))
     const engine = new EngineService({
@@ -32,35 +34,41 @@ describe.skipIf(!bundled)('bundled Stockfish opponent regression', () => {
     })
     try {
       expect((await engine.start()).available).toBe(true)
-      const lowPolicy = difficultyPolicy({ mode: 'fixed', level: 1, targetElo: 600 })
-      const highPolicy = difficultyPolicy({ mode: 'fixed', level: 5, targetElo: 1800 })
-      const gaps: number[] = []
-      for (const [index, fen] of BENCHMARK_POSITIONS.entries()) {
-        // These are the actual tier search pools. A separate moderate reference searches the two
-        // selected child positions, avoiding brittle exact-PV assertions under machine load.
-        const lowAnalysis = await engine.analyze(fen, 'opponent-beginner')
-        const highAnalysis = await engine.analyze(fen, 'opponent-strong')
-        const reference = await engine.analyze(fen, 'opponent-challenging')
-        const low = sampledCandidate(lowAnalysis.lines, lowPolicy, `benchmark-low-${index}`)
-        const high = sampledCandidate(highAnalysis.lines, highPolicy, `benchmark-high-${index}`)
-        const best = Math.max(...reference.lines.map((line) => lineUtility(line) ?? -Infinity))
-        expect(low).not.toBeNull()
-        expect(high).not.toBeNull()
-        expect(legalMoves(fen).map((move) => move.uci)).toContain(low!.move)
-        expect(legalMoves(fen).map((move) => move.uci)).toContain(high!.move)
-        const lowReply = await engine.analyze(applyMove(fen, low!.move)!.fen, 'opponent-check')
-        const highReply = await engine.analyze(applyMove(fen, high!.move)!.fen, 'opponent-check')
-        const lowLoss = Math.max(0, best + (lineUtility(lowReply.lines[0]) ?? 0))
-        const highLoss = Math.max(0, best + (lineUtility(highReply.lines[0]) ?? 0))
-        expect(lowLoss).toBeGreaterThanOrEqual(highLoss)
-        gaps.push(lowLoss - highLoss)
+      for (const level of [1, 2, 3, 4, 5, 6] as const) {
+        const difficulty = {
+          mode: 'fixed' as const,
+          level,
+          targetElo: DIFFICULTY_LEVELS[level].elo
+        }
+        for (const fen of BENCHMARK_POSITIONS) {
+          const analysis = await engine.analyze(fen, OPPONENT_PROFILE[level])
+          const policy = difficultyPolicy(difficulty, fen)
+          const best =
+            analysis.lines.find((line) => line.move === analysis.bestMove) ?? analysis.lines[0]
+          const bestScore = best ? lineUtility(best) : null
+          expect(best).toBeDefined()
+          if (fen === MATE_IN_ONE) expect(best?.scoreMate).toBe(1)
+
+          for (const seed of ['rapid-a', 'rapid-b', 'rapid-c']) {
+            const chosen = sampledCandidate(analysis.lines, policy, `${level}:${seed}:${fen}`)
+            expect(chosen).not.toBeNull()
+            expect(legalMoves(fen).map((move) => move.uci)).toContain(chosen!.move)
+            if (typeof best?.scoreMate === 'number' && best.scoreMate > 0) {
+              expect(typeof chosen?.scoreMate).toBe('number')
+              expect(chosen!.scoreMate).toBeGreaterThan(0)
+            } else if (bestScore !== null && typeof chosen?.scoreMate !== 'number') {
+              const chosenScore = chosen ? lineUtility(chosen) : null
+              if (chosenScore !== null)
+                expect(bestScore - chosenScore).toBeLessThanOrEqual(policy.maximumLossCp)
+            }
+          }
+        }
       }
-      expect(gaps.some((gap) => gap > 0)).toBe(true)
     } finally {
       await engine.shutdown()
       await removeTmpDir(dir)
     }
-  }, 30_000)
+  }, 60_000)
 
   it('rejects the reported queen blunder and lets the model choose again with evidence', async () => {
     const dir = await makeTmpDir('chessadvisor-strength-')

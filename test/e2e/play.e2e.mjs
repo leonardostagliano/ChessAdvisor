@@ -514,7 +514,7 @@ try {
     Boolean(profile) &&
       profile.history[0].gameId === reviewedId &&
       profile.level.band.length > 0 &&
-      profile.gamesSincePlan === 1,
+      profile.history.length === 1,
     profile
       ? `band=${profile.level.band} estimate=${profile.level.estimate} history=${profile.history.length}`
       : 'no profile'
@@ -665,11 +665,13 @@ try {
   )
 
   await page.getByRole('tab', { name: 'Piano di studio' }).click()
-  await page.getByRole('button', { name: /^Genera il piano$/ }).click()
+  // Post-game learning may have already created the first plan.
+  await page.getByRole('button', { name: /^(Genera il piano|Rigenera)$/ }).click()
   const planItems = await until(
     async () => {
       const n = await page.locator('[data-testid="study-plan"] [data-item]').count()
-      return n > 0 ? n : null
+      const ready = await page.getByRole('button', { name: /^Rigenera$/ }).isEnabled()
+      return ready && n > 0 ? n : null
     },
     120000,
     'the items of the study plan'

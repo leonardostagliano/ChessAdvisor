@@ -1,4 +1,6 @@
 import type { EngineLine } from '@shared/types/engine'
+import { phaseOf } from '@shared/chess/rapidFeatures'
+import { estimateRapidProfile, rapidLossAt, requestedRapidElo } from './rapidCalibration'
 import {
   DIFFICULTY_LEVELS,
   type DifficultyLevel,
@@ -7,22 +9,22 @@ import {
 
 /**
  * The opponent model is useful for natural play and comments, but it cannot by itself make the
- * six levels reliably distinct. This policy turns the requested tier into a repeatable amount of
- * engine-guided imprecision. It is deliberately not an Elo calibration.
+ * six levels reliably distinct. Human Rapid observations guide fallback variability; accepted
+ * model moves are never deliberately made worse. This remains an approximate, not certified, Elo.
  */
 export interface DifficultyPolicy {
   /** 0 at Beginner, 1 at Maximum; adaptive ratings interpolate instead of snapping to a tier. */
   strength: number
-  /** Centipawn loss the sampled engine fallback tends towards, subject to a tactical ceiling. */
+  /** Median observed loss, for diagnostics; not a loss quota for model moves. */
   targetLossCp: number
+  /** Empirical quantiles used only by fallback sampling; null means no supported sample. */
+  lossQuantilesCp: number[] | null
   /** Never deliberately choose a candidate beyond this tactical ceiling. */
   maximumLossCp: number
   /** Candidate PVs exposed to the language model; the legal move list is always complete. */
   contextCandidates: number
-  /** Low tiers learn from alternatives, rather than receiving the engine's top move as an answer. */
+  /** Kept explicit so the best calculated move cannot silently disappear from the context. */
   hideBestContext: boolean
-  /** Chance that a materially stronger model choice is softened to the sampled policy candidate. */
-  adjustmentRate: number
 }
 
 const FIXED_STRENGTH: Record<DifficultyLevel, number> = {
@@ -35,8 +37,6 @@ const FIXED_STRENGTH: Record<DifficultyLevel, number> = {
 }
 
 const LOSS_CEILINGS = [1200, 700, 350, 200, 100, 50]
-const TARGET_LOSSES = [650, 390, 180, 80, 25, 0]
-const ADJUSTMENT_RATES = [0.8, 0.6, 0.35, 0.15, 0.04, 0]
 const MATE_SCORE = 100_000
 
 const clamp = (value: number, low: number, high: number): number =>
@@ -77,18 +77,18 @@ function adaptiveStrength(targetElo: number | null): number {
   return 1
 }
 
-export function difficultyPolicy(difficulty: OpponentDifficulty): DifficultyPolicy {
+export function difficultyPolicy(difficulty: OpponentDifficulty, fen?: string): DifficultyPolicy {
+  const elo = requestedRapidElo(difficulty)
   const strength =
-    difficulty.mode === 'adaptive'
-      ? adaptiveStrength(difficulty.targetElo)
-      : FIXED_STRENGTH[difficulty.level]
+    difficulty.mode === 'adaptive' ? adaptiveStrength(elo) : FIXED_STRENGTH[difficulty.level]
+  const observed = elo === null ? null : estimateRapidProfile(elo, fen ? phaseOf(fen) : 'all')
   return {
     strength,
-    targetLossCp: Math.round(interpolate(TARGET_LOSSES, strength)),
+    targetLossCp: Math.round(observed?.quantilesCp[1] ?? 0),
+    lossQuantilesCp: observed?.quantilesCp ?? null,
     maximumLossCp: Math.round(interpolate(LOSS_CEILINGS, strength)),
-    contextCandidates: Math.round(1 + strength * 5),
-    hideBestContext: strength < 0.65,
-    adjustmentRate: interpolate(ADJUSTMENT_RATES, strength)
+    contextCandidates: Math.round(3 + strength * 3),
+    hideBestContext: false
   }
 }
 
@@ -99,16 +99,22 @@ export function seededUnit(seed: string): number {
     hash ^= seed.charCodeAt(index)
     hash = Math.imul(hash, 0x01000193)
   }
+  // Mix adjacent game/ply seeds before selecting an empirical quantile.
+  hash ^= hash >>> 16
+  hash = Math.imul(hash, 0x85ebca6b)
+  hash ^= hash >>> 13
+  hash = Math.imul(hash, 0xc2b2ae35)
+  hash ^= hash >>> 16
   return (hash >>> 0) / 0x1_0000_0000
 }
 
 export function lineUtility(line: EngineLine | undefined): number | null {
   if (!line) return null
-  if (typeof line.scoreMate === 'number') {
+  if (typeof line.scoreMate === 'number' && Number.isFinite(line.scoreMate)) {
     if (line.scoreMate === 0) return -MATE_SCORE
     return Math.sign(line.scoreMate) * (MATE_SCORE - Math.min(999, Math.abs(line.scoreMate)))
   }
-  return typeof line.scoreCp === 'number' ? line.scoreCp : null
+  return typeof line.scoreCp === 'number' && Number.isFinite(line.scoreCp) ? line.scoreCp : null
 }
 
 function sortedScored(lines: readonly EngineLine[]): { line: EngineLine; score: number }[] {
@@ -120,7 +126,7 @@ function sortedScored(lines: readonly EngineLine[]): { line: EngineLine; score: 
     )
 }
 
-/** The lower-tier prompt intentionally omits the best calculated line where another exists. */
+/** Natural strong moves remain visible at every tier. The legal move list is still unrestricted. */
 export function contextLines(lines: readonly EngineLine[], policy: DifficultyPolicy): EngineLine[] {
   const sorted = sortedScored(lines).map((entry) => entry.line)
   if (sorted.length === 0) return []
@@ -129,7 +135,7 @@ export function contextLines(lines: readonly EngineLine[], policy: DifficultyPol
 }
 
 /**
- * Chooses a legal-root candidate close to the tier's intended error. Winning mating lines remain
+ * Chooses a legal-root candidate close to a sampled human loss quantile. Winning mating lines remain
  * protected: a level may miss a positional idea, but it never voluntarily throws away a forced
  * mate merely to look weaker.
  */
@@ -141,7 +147,7 @@ export function sampledCandidate(
   const scored = sortedScored(lines)
   if (scored.length === 0) return null
   const best = scored[0]!
-  if (policy.targetLossCp === 0) return best.line
+  if (!policy.lossQuantilesCp) return best.line
 
   // Preserve an immediate mate; the loss ceiling also keeps proven winning mating lines.
   const forcedWin = best.line.scoreMate === 1
@@ -151,15 +157,14 @@ export function sampledCandidate(
   })
   if (candidates.length === 0) return best.line
 
-  const desiredLoss = policy.targetLossCp * (0.45 + seededUnit(seed + ':loss') * 0.9)
+  const desiredLoss = Math.min(
+    policy.maximumLossCp,
+    rapidLossAt(policy.lossQuantilesCp, seededUnit(seed + ':loss'))
+  )
   return candidates.slice().sort((left, right) => {
     const leftDistance = Math.abs(best.score - left.score - desiredLoss)
     const rightDistance = Math.abs(best.score - right.score - desiredLoss)
     if (leftDistance !== rightDistance) return leftDistance - rightDistance
     return seededUnit(seed + ':' + left.line.move) - seededUnit(seed + ':' + right.line.move)
   })[0]!.line
-}
-
-export function shouldAdjustModelMove(policy: DifficultyPolicy, seed: string): boolean {
-  return policy.adjustmentRate > 0 && seededUnit(seed + ':adjust') < policy.adjustmentRate
 }

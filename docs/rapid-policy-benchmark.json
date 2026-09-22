@@ -1,0 +1,300 @@
+{
+  "schemaVersion": 1,
+  "sourceObservations": "resources/data/.download/rapid/observations.jsonl",
+  "methodology": "Held-out, finite-CP, root-within-range positions; deterministic phase-balanced sampling up to the per-band limit. Each level uses its actual EngineService opponent search profile on the same positions. Current invokes playOpponentTurn with three deterministic unusable mocked model responses and records the actual engine fallback after its bounded child-position safety check. OldFallback freezes the former unverified fallback selector on the same root pool. A current fallback may return the best legal line without independent verification if no candidate passes or child scores are missing; runtimeUnverified counts these, and the loss ceiling is not guaranteed for them. Each distinct returned move is checked by Stockfish from the child position with opponent-check. CP loss is max(0, root best + child best), or max(0, root best) for a terminal draw against a finite-CP reference. Mate transitions, terminal draws with a mate reference, and unavailable scores are separate. This benchmarks fallback selection only, not LLM game play or Elo. The former model-move adjustment stage is not simulated.",
+  "oldFallback": {
+    "targetLossCp": [
+      650,
+      390,
+      180,
+      80,
+      25,
+      0
+    ],
+    "ceilingCp": [
+      1200,
+      700,
+      350,
+      200,
+      100,
+      50
+    ],
+    "note": "Frozen pre-change fallback policy, including its original seed mixer and loss multiplier."
+  },
+  "limits": {
+    "perBand": 3,
+    "seedsPerPositionLevel": 32,
+    "maxPositions": 21
+  },
+  "coverage": {
+    "observationsRead": 10604,
+    "eligibleHeldout": 2923,
+    "selectedPositions": 15,
+    "selectedByElo": {
+      "600": 3,
+      "900": 3,
+      "1200": 3,
+      "1500": 3,
+      "1800": 3,
+      "2100": 0,
+      "2400": 0
+    },
+    "missingBands": [
+      2100,
+      2400
+    ],
+    "uniqueRootAnalyses": 90,
+    "uniqueChildAnalyses": 248,
+    "uniqueVerifiedMoves": 587
+  },
+  "positions": [
+    {
+      "id": "00498be24c8bc0f0",
+      "fen": "rnb1kbnr/ppppqppp/8/4p3/4P3/2N2N2/PPPP1PPP/R1BQKB1R b KQkq - 3 3",
+      "elo": 600,
+      "phase": "opening"
+    },
+    {
+      "id": "003ea9c7af331953",
+      "fen": "4r1k1/r1p2p1p/5Bb1/p7/5nP1/1P1P1B1P/K1P1NP2/3R3R b - - 0 22",
+      "elo": 600,
+      "phase": "middlegame"
+    },
+    {
+      "id": "0369054ee684f77a",
+      "fen": "7k/1K1N2bp/P5p1/8/3p4/8/1n2r1PP/5R2 b - - 0 41",
+      "elo": 600,
+      "phase": "endgame"
+    },
+    {
+      "id": "03429c7660a4e170",
+      "fen": "5rk1/1qp2pp1/2b1pn1p/r7/3P4/P3BN2/2P2PPP/R2Q1RK1 w - - 2 21",
+      "elo": 900,
+      "phase": "middlegame"
+    },
+    {
+      "id": "0214a12ec1ab07d4",
+      "fen": "3k3r/5R2/p2N2p1/1ppPn2p/4P2P/1P1KP3/1PP5/8 w - - 1 31",
+      "elo": 900,
+      "phase": "endgame"
+    },
+    {
+      "id": "0112c6dbc7fb40de",
+      "fen": "r3kb1r/pppb1ppp/2np1q2/1B2p3/4P3/5N2/PPPP1PPP/R1BQK2R w KQkq - 4 7",
+      "elo": 900,
+      "phase": "opening"
+    },
+    {
+      "id": "07e5041e7b4780c7",
+      "fen": "8/p2nk3/5pp1/1p6/1P5P/P5KP/B1P2P2/8 w - - 0 35",
+      "elo": 1200,
+      "phase": "endgame"
+    },
+    {
+      "id": "0e689b422db542e6",
+      "fen": "rnbqkbnr/pp2pppp/8/2p5/3Pp3/2P5/PP3PPP/RNBQKBNR w KQkq - 0 4",
+      "elo": 1200,
+      "phase": "opening"
+    },
+    {
+      "id": "062b04bf28901f46",
+      "fen": "3r1rk1/p3qppp/1n3n2/1p1p4/1P2p3/P2P1QNP/B1P2PP1/3RR1K1 w - - 0 19",
+      "elo": 1200,
+      "phase": "middlegame"
+    },
+    {
+      "id": "0106095e35e437e5",
+      "fen": "r1b1kbnr/ppppqppp/2n5/3QP3/8/5N2/PPP1PPPP/RNB1KB1R b KQkq - 4 4",
+      "elo": 1500,
+      "phase": "opening"
+    },
+    {
+      "id": "0312a2545583996e",
+      "fen": "r2qkn1r/1b3p1p/p1p1pnp1/1pPp4/PP1P4/3BPN1P/3N1PP1/R2Q1RK1 b kq - 1 14",
+      "elo": 1500,
+      "phase": "middlegame"
+    },
+    {
+      "id": "0011f53164ceac54",
+      "fen": "8/5pkp/1p2p1p1/3p4/8/1P5P/P4PP1/5K2 b - - 1 29",
+      "elo": 1500,
+      "phase": "endgame"
+    },
+    {
+      "id": "019714628cb9f1f7",
+      "fen": "4q3/2Q1n3/B1p1p1k1/2Pp1ppp/3P4/4PP2/5KPP/8 w - - 0 35",
+      "elo": 1800,
+      "phase": "middlegame"
+    },
+    {
+      "id": "00b0030d5680251d",
+      "fen": "8/1p3pk1/p6p/P2RP3/1r3PKP/8/8/8 w - - 1 45",
+      "elo": 1800,
+      "phase": "endgame"
+    },
+    {
+      "id": "00f027e4ad367733",
+      "fen": "r1bqr1k1/pppn1pbp/5np1/4p1B1/2P1P3/2N2N1P/PP2BPP1/R2QK2R b KQ - 1 10",
+      "elo": 1800,
+      "phase": "opening"
+    }
+  ],
+  "byLevel": {
+    "1": {
+      "current": {
+        "selections": 480,
+        "finiteCp": 480,
+        "meanLossCp": 80.89,
+        "lossOver150": 76,
+        "mateTransitions": 0,
+        "terminalDraws": 0,
+        "drawWithMateReference": 0,
+        "runtimeVerified": 480,
+        "runtimeUnverified": 0,
+        "missingScore": 0
+      },
+      "oldFallback": {
+        "selections": 480,
+        "finiteCp": 480,
+        "meanLossCp": 411.18,
+        "lossOver150": 415,
+        "mateTransitions": 0,
+        "terminalDraws": 0,
+        "drawWithMateReference": 0,
+        "runtimeVerified": null,
+        "runtimeUnverified": null,
+        "missingScore": 0
+      }
+    },
+    "2": {
+      "current": {
+        "selections": 480,
+        "finiteCp": 480,
+        "meanLossCp": 49.75,
+        "lossOver150": 28,
+        "mateTransitions": 0,
+        "terminalDraws": 0,
+        "drawWithMateReference": 0,
+        "runtimeVerified": 480,
+        "runtimeUnverified": 0,
+        "missingScore": 0
+      },
+      "oldFallback": {
+        "selections": 480,
+        "finiteCp": 480,
+        "meanLossCp": 188.71,
+        "lossOver150": 217,
+        "mateTransitions": 0,
+        "terminalDraws": 0,
+        "drawWithMateReference": 0,
+        "runtimeVerified": null,
+        "runtimeUnverified": null,
+        "missingScore": 0
+      }
+    },
+    "3": {
+      "current": {
+        "selections": 480,
+        "finiteCp": 480,
+        "meanLossCp": 34.23,
+        "lossOver150": 15,
+        "mateTransitions": 0,
+        "terminalDraws": 0,
+        "drawWithMateReference": 0,
+        "runtimeVerified": 480,
+        "runtimeUnverified": 0,
+        "missingScore": 0
+      },
+      "oldFallback": {
+        "selections": 480,
+        "finiteCp": 480,
+        "meanLossCp": 97.45,
+        "lossOver150": 70,
+        "mateTransitions": 0,
+        "terminalDraws": 0,
+        "drawWithMateReference": 0,
+        "runtimeVerified": null,
+        "runtimeUnverified": null,
+        "missingScore": 0
+      }
+    },
+    "4": {
+      "current": {
+        "selections": 480,
+        "finiteCp": 480,
+        "meanLossCp": 24.53,
+        "lossOver150": 5,
+        "mateTransitions": 0,
+        "terminalDraws": 0,
+        "drawWithMateReference": 0,
+        "runtimeVerified": 480,
+        "runtimeUnverified": 0,
+        "missingScore": 0
+      },
+      "oldFallback": {
+        "selections": 480,
+        "finiteCp": 480,
+        "meanLossCp": 50.23,
+        "lossOver150": 0,
+        "mateTransitions": 0,
+        "terminalDraws": 0,
+        "drawWithMateReference": 0,
+        "runtimeVerified": null,
+        "runtimeUnverified": null,
+        "missingScore": 0
+      }
+    },
+    "5": {
+      "current": {
+        "selections": 480,
+        "finiteCp": 480,
+        "meanLossCp": 28.58,
+        "lossOver150": 0,
+        "mateTransitions": 0,
+        "terminalDraws": 0,
+        "drawWithMateReference": 0,
+        "runtimeVerified": 480,
+        "runtimeUnverified": 0,
+        "missingScore": 0
+      },
+      "oldFallback": {
+        "selections": 480,
+        "finiteCp": 480,
+        "meanLossCp": 26.61,
+        "lossOver150": 0,
+        "mateTransitions": 0,
+        "terminalDraws": 0,
+        "drawWithMateReference": 0,
+        "runtimeVerified": null,
+        "runtimeUnverified": null,
+        "missingScore": 0
+      }
+    },
+    "6": {
+      "current": {
+        "selections": 480,
+        "finiteCp": 480,
+        "meanLossCp": 13.67,
+        "lossOver150": 0,
+        "mateTransitions": 0,
+        "terminalDraws": 0,
+        "drawWithMateReference": 0,
+        "runtimeVerified": 448,
+        "runtimeUnverified": 32,
+        "missingScore": 0
+      },
+      "oldFallback": {
+        "selections": 480,
+        "finiteCp": 480,
+        "meanLossCp": 13.67,
+        "lossOver150": 0,
+        "mateTransitions": 0,
+        "terminalDraws": 0,
+        "drawWithMateReference": 0,
+        "runtimeVerified": null,
+        "runtimeUnverified": null,
+        "missingScore": 0
+      }
+    }
+  }
+}

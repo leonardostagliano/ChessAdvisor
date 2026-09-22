@@ -18,8 +18,14 @@ files:
 extraResources:
   - from: resources/engine
     to: engine
+    filter:
+      - '**/*'
+      - '!**/.download{,/**/*}'
   - from: resources/data
     to: data
+    filter:
+      - '**/*'
+      - '!**/.download{,/**/*}'
   - from: resources/licenses
     to: licenses
 asar: true
