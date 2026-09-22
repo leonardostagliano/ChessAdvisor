@@ -47,16 +47,9 @@ it('navigates in place, supports arrow keys and keeps the selected piece after r
   expect(screen.getByText('Pedone avversario')).toBeInTheDocument()
   expect(next).toBeDisabled()
   expect(next.parentElement!.parentElement!.className).toBe(captionClass)
-  rerender(
-    <BoardAnnotations
-      orientation="white"
-      annotations={annotations}
-      visible={false}
-      onShow={() => undefined}
-    />
-  )
+  rerender(<BoardAnnotations orientation="white" annotations={annotations} visible={false} />)
   expect(screen.queryByTestId('board-annotations')).not.toBeInTheDocument()
-  expect(screen.getByRole('button', { name: /Riapri spiegazione/ })).toBeInTheDocument()
+  expect(screen.queryByRole('button')).not.toBeInTheDocument()
   rerender(<BoardAnnotations orientation="white" annotations={annotations} />)
   expect(screen.getByText('Pedone avversario')).toBeInTheDocument()
   fireEvent.keyDown(screen.getByRole('button', { name: 'Spiegazione precedente' }), {

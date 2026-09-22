@@ -18,14 +18,12 @@ export function BoardAnnotations({
   annotations,
   orientation,
   onHide,
-  visible = true,
-  onShow
+  visible = true
 }: {
   annotations: CoachAnnotation[]
   orientation: 'white' | 'black'
   onHide?: () => void
   visible?: boolean
-  onShow?: () => void
 }): React.JSX.Element | null {
   const { t } = useTranslation()
   const [selected, setSelected] = useState(0)
@@ -34,14 +32,7 @@ export function BoardAnnotations({
   if (!active) return null
   // Keep the controls in one place while paging through the involved pieces.
   const position = squarePosition(annotations[0]!.square, orientation)
-  if (!visible) {
-    return onShow ? (
-      <button type="button" className={styles.annotationReopen} onClick={onShow}>
-        {t('coach.reopenAnnotations')}
-        <span>{annotations.length}</span>
-      </button>
-    ) : null
-  }
+  if (!visible) return null
   return (
     <div
       className={styles.annotations}

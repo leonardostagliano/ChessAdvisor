@@ -59,7 +59,6 @@ export interface BoardProps {
   annotations?: CoachAnnotation[]
   annotationsVisible?: boolean
   onHideAnnotations?(): void
-  onShowAnnotations?(): void
   /** Browsing a past position: pieces stay put and nothing is draggable. */
   viewOnly?: boolean
   coordinates?: boolean
@@ -226,7 +225,6 @@ export function Board({
   annotations,
   annotationsVisible = true,
   onHideAnnotations,
-  onShowAnnotations,
   viewOnly = false,
   coordinates = true,
   label,
@@ -444,7 +442,6 @@ export function Board({
             orientation={orientation}
             onHide={onHideAnnotations}
             visible={annotationsVisible}
-            onShow={onShowAnnotations}
           />
         ) : null}
         {promotion && promotionStyle ? (

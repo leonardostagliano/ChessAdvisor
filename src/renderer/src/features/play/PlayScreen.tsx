@@ -660,7 +660,6 @@ export function PlayScreen(): React.JSX.Element {
                       annotations={boardAnnotations}
                       annotationsVisible={annotationsEnabled}
                       onHideAnnotations={() => saveAnnotationsEnabled(false)}
-                      onShowAnnotations={() => saveAnnotationsEnabled(true)}
                       onMove={(uci) => void userMove(uci)}
                     />
                     {feedbackMove &&
@@ -702,6 +701,16 @@ export function PlayScreen(): React.JSX.Element {
                         ? t('coach.commentPosition', { move: commentMove.san })
                         : t('coach.name')}
                   </span>
+                  {!annotationsEnabled && boardAnnotations.length > 0 ? (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => saveAnnotationsEnabled(true)}
+                    >
+                      {t('coach.reopenAnnotations')}
+                      <span className="mono">{boardAnnotations.length}</span>
+                    </Button>
+                  ) : null}
                   {browsing ? (
                     <Button size="sm" variant="ghost" onClick={returnLive}>
                       {t('play.returnToLive')}

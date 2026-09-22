@@ -16,6 +16,19 @@ function check(name, pass) {
   console.log(`${pass ? 'PASS' : 'FAIL'} ${name}`)
   if (!pass) throw new Error(name)
 }
+async function reopenControlDoesNotCoverBoard() {
+  const reopen = page.getByRole('button', { name: /Riapri spiegazione/ })
+  await reopen.waitFor({ state: 'visible' })
+  const [a, b] = await Promise.all([
+    reopen.boundingBox(),
+    page.locator('cg-board').first().boundingBox()
+  ])
+  return (
+    !!a &&
+    !!b &&
+    (a.x + a.width <= b.x || a.x >= b.x + b.width || a.y + a.height <= b.y || a.y >= b.y + b.height)
+  )
+}
 const app = await electron.launch({
   executablePath: require('electron'),
   args: ['.'],
@@ -85,7 +98,11 @@ try {
     .evaluate((el) => {
       window.firstInstantCard = el
     })
-  await page.screenshot({ timeout: 60000, animations: 'disabled', path: join(shots, 'instant-before-ai.png') })
+  await page.screenshot({
+    timeout: 60000,
+    animations: 'disabled',
+    path: join(shots, 'instant-before-ai.png')
+  })
   await until(async () => {
     const s = await state()
     return (
@@ -149,6 +166,7 @@ try {
     'closed explanation offers a visible reopen control',
     await page.getByRole('button', { name: /Riapri spiegazione/ }).isVisible()
   )
+  check('comment reopen control does not cover the board', await reopenControlDoesNotCoverBoard())
   await page.getByRole('button', { name: /Riapri spiegazione/ }).click()
   check(
     'reopening preserves the selected piece',
@@ -165,6 +183,21 @@ try {
   )
   await page.setViewportSize({ width: 1024, height: 720 })
   check('four cards remain uncut at 1024px', await measureCards())
+  await page.getByRole('button', { name: 'Nascondi le spiegazioni' }).click()
+  check(
+    'comment reopen control stays clear of the board at 1024px',
+    await reopenControlDoesNotCoverBoard()
+  )
+  await page.screenshot({
+    timeout: 60000,
+    animations: 'disabled',
+    path: join(shots, 'reopen-comment-closed-1024.png')
+  })
+  await page.getByRole('button', { name: /Riapri spiegazione/ }).click()
+  check(
+    'comment explanation preserves its selected piece at 1024px',
+    await page.getByTestId('board-annotations').getByText('Pezzo 1 di 2').isVisible()
+  )
   await page
     .getByRole('button', { name: /^Commento a / })
     .first()
@@ -182,13 +215,21 @@ try {
     'last comment takeaway is reachable',
     await lastCard.getByText(/idea da ricordare/i).isVisible()
   )
-  await page.screenshot({ timeout: 60000, animations: 'disabled', path: join(shots, 'comments-1024.png') })
+  await page.screenshot({
+    timeout: 60000,
+    animations: 'disabled',
+    path: join(shots, 'comments-1024.png')
+  })
   await page.setViewportSize({ width: 1280, height: 900 })
   await page
     .getByRole('button', { name: /^Commento a / })
     .first()
     .scrollIntoViewIfNeeded()
-  await page.screenshot({ timeout: 60000, animations: 'disabled', path: join(shots, 'comments-night.png') })
+  await page.screenshot({
+    timeout: 60000,
+    animations: 'disabled',
+    path: join(shots, 'comments-night.png')
+  })
   await page.getByRole('switch', { name: 'Spiegazioni sulla scacchiera' }).click()
   check(
     'comment overlay can be turned off',
@@ -221,6 +262,7 @@ try {
   await page.getByTestId('board-annotations').waitFor()
   check('advice highlights its own pieces', await page.getByTestId('board-annotations').isVisible())
   await page.getByRole('button', { name: 'Nascondi le spiegazioni' }).click()
+  check('Coach reopen control does not cover the board', await reopenControlDoesNotCoverBoard())
   await page.getByRole('button', { name: /Riapri spiegazione/ }).click()
   check(
     'Coach explanations can also be reopened',
@@ -251,16 +293,28 @@ try {
     )
     await page.getByRole('button', { name: 'Torna alla posizione corrente' }).first().click()
   }
-  await page.screenshot({ timeout: 60000, animations: 'disabled', path: join(shots, 'advice-night.png') })
+  await page.screenshot({
+    timeout: 60000,
+    animations: 'disabled',
+    path: join(shots, 'advice-night.png')
+  })
   await page.evaluate(() => (document.documentElement.dataset.theme = 'editorial'))
   await page.waitForTimeout(350)
-  await page.screenshot({ timeout: 60000, animations: 'disabled', path: join(shots, 'advice-light.png') })
+  await page.screenshot({
+    timeout: 60000,
+    animations: 'disabled',
+    path: join(shots, 'advice-light.png')
+  })
   await page.setViewportSize({ width: 1024, height: 720 })
   check(
     'no horizontal overflow at 1024px',
     await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)
   )
-  await page.screenshot({ timeout: 60000, animations: 'disabled', path: join(shots, 'advice-1024.png') })
+  await page.screenshot({
+    timeout: 60000,
+    animations: 'disabled',
+    path: join(shots, 'advice-1024.png')
+  })
   await page.getByRole('button', { name: 'Partite', exact: true }).click()
   await page.getByRole('button', { name: 'Elimina', exact: true }).first().click()
   await page.getByRole('dialog').getByRole('button', { name: 'Elimina', exact: true }).click()
